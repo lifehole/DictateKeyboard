@@ -268,6 +268,30 @@ class EditorInstance(context: Context) : AbstractEditorInstance(context) {
     }
 
     /**
+     * Whether the characters right before the cursor are exactly [expected], checking the tracked
+     * content first and the InputConnection directly second. Some app fields never report their
+     * content to the IME (the tracked content stays blank while writes still land); a blind
+     * [replaceDictationTail] delete in such a field eats text the user typed before dictating, so
+     * dictation callers verify with this before deleting anything.
+     */
+    fun confirmTextBeforeCursor(expected: String): Boolean {
+        if (expected.isEmpty()) return true
+        if (activeContent.textBeforeSelection.endsWith(expected)) return true
+        val fromIc = currentInputConnection()?.getTextBeforeCursor(expected.length, 0) ?: return false
+        return fromIc.toString() == expected
+    }
+
+    /**
+     * The selected text for dictation prompts, falling back to a direct InputConnection read when the
+     * tracked content is blank — fields that hide their content still deliver selection *indices*
+     * (so the prompt UI appears) while [activeContent.selectedText] stays empty.
+     */
+    fun dictationSelectedText(): String =
+        activeContent.selectedText.ifEmpty {
+            currentInputConnection()?.getSelectedText(0)?.toString().orEmpty()
+        }
+
+    /**
      * Completes the given [candidate] in the current composing region. Does nothing if the current
      * input editor is not rich or if the input connection is invalid.
      *
