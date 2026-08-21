@@ -3233,8 +3233,12 @@ object DictateController {
             val instruction = p.prompt.orEmpty()
             if (instruction.isBlank()) continue
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
+            // Always operate on the running transcript. `requiresSelection` describes the manual-tap
+            // flow (act on the field's selection vs. generate freely); in this chain the transcript IS
+            // the input, and gating on the flag sent instruction-only requests whose answers ("Please
+            // provide the text…") then replaced the whole dictation.
             text = runCatching {
-                requestReword(instruction, if (p.requiresSelection) text else null, p.reasoningEffort, p.reasoningEffortCustom)
+                requestReword(instruction, text, p.reasoningEffort, p.reasoningEffortCustom)
             }.getOrDefault(text)
         }
         return text
@@ -3262,8 +3266,10 @@ object DictateController {
                 continue
             }
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
+            // Same as the auto-apply chain above: queued prompts always act on the running text —
+            // `requiresSelection` only governs the manual-tap flow.
             result = runCatching {
-                requestReword(raw, if (p.requiresSelection) result else null, p.reasoningEffort, p.reasoningEffortCustom)
+                requestReword(raw, result, p.reasoningEffort, p.reasoningEffortCustom)
             }.getOrDefault(result)
         }
         return result
