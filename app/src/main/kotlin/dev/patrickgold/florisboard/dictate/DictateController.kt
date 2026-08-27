@@ -3250,6 +3250,10 @@ object DictateController {
         for (p in autoApply) {
             val instruction = p.prompt.orEmpty()
             if (instruction.isBlank()) continue
+            // Nothing to correct → nothing to send. A blank transcript here produced instruction-only
+            // requests whose conversational answers ("I'm ready to correct… please provide the
+            // paragraph") were then committed over the user's last utterance.
+            if (text.isBlank()) break
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
             // Always operate on the running transcript. `requiresSelection` describes the manual-tap
             // flow (act on the field's selection vs. generate freely); in this chain the transcript IS
@@ -3283,6 +3287,8 @@ object DictateController {
                 result += raw.substring(1, raw.length - 1)
                 continue
             }
+            // Same blank-input gate as the auto-apply chain: never send an instruction with no text.
+            if (result.isBlank()) continue
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
             // Same as the auto-apply chain above: queued prompts always act on the running text —
             // `requiresSelection` only governs the manual-tap flow.
