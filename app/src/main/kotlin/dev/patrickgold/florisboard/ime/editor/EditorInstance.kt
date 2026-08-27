@@ -51,6 +51,9 @@ import org.florisboard.lib.android.showShortToastSync
 class EditorInstance(context: Context) : AbstractEditorInstance(context) {
     companion object {
         private const val SPACE = " "
+        // Suffix length used to verify field content before a dictation tail replacement; must stay
+        // well under the tracked-content / getTextBeforeCursor window sizes.
+        private const val CONFIRM_PROBE_LENGTH = 160
     }
 
     private val prefs by FlorisPreferenceStore
@@ -276,9 +279,15 @@ class EditorInstance(context: Context) : AbstractEditorInstance(context) {
      */
     fun confirmTextBeforeCursor(expected: String): Boolean {
         if (expected.isEmpty()) return true
-        if (activeContent.textBeforeSelection.endsWith(expected)) return true
-        val fromIc = currentInputConnection()?.getTextBeforeCursor(expected.length, 0) ?: return false
-        return fromIc.toString() == expected
+        // Compare a bounded suffix rather than the full expected text: both the tracked content and
+        // getTextBeforeCursor are capped windows around the cursor, so on a long dictation the full
+        // tail can never match even when the field is exactly as we left it — which silently disabled
+        // rewording for longer messages. The last 160 chars are ample proof of identity; the caller
+        // still replaces the full tracked length.
+        val probe = expected.takeLast(CONFIRM_PROBE_LENGTH)
+        if (activeContent.textBeforeSelection.endsWith(probe)) return true
+        val fromIc = currentInputConnection()?.getTextBeforeCursor(probe.length, 0) ?: return false
+        return fromIc.toString() == probe
     }
 
     /**

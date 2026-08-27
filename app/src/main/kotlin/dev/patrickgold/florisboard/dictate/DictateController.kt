@@ -1105,6 +1105,9 @@ object DictateController {
                     segmentVad != null -> { val v = segmentVad!!; { pcm, len -> v.feed(pcm, len) } }
                     else -> null
                 }
+                // Never overwrite a live recorder reference (a leftover from an interrupted session would
+                // otherwise keep capturing forever with nothing pointing at it).
+                runCatching { recorder?.cancel() }
                 recorder = RecordingController(appContext).also { it.start(audioSource, pcmSink) }
                 if (prefs.dictate.skipSilentRecordings.get()) {
                     // Hide the one-time native VAD/session setup behind the user's recording time.
@@ -1123,7 +1126,18 @@ object DictateController {
                     stopAndTranscribe(appContext)
                 }
             } catch (t: Throwable) {
+                // A failure after the recorder/stream came up must tear both down, not just drop the
+                // references: an orphaned capture thread keeps the mic hot and keeps feeding a still-open
+                // realtime session, whose callbacks then type into the field alongside every later
+                // session (interleaved duplicate text) until the process is killed.
+                runCatching { recorder?.cancel() }
                 recorder = null
+                realtimeCancelled = true
+                runCatching { realtimeSession?.cancel() }
+                realtimeSession = null
+                realtimeClosed = null
+                realtimeShown.setLength(0)
+                realtimeContext = null
                 segmentVad?.release()
                 segmentVad = null
                 _livePromptActive.value = false
@@ -1977,6 +1991,10 @@ object DictateController {
                 // stalls us until the timeout and later trips a ping/pong failure.
                 withTimeoutOrNull(REALTIME_FINALIZE_TIMEOUT_MS) { closed?.await() }
                 runCatching { session?.cancel() }
+                // From here the session is done: block any late stream callback from typing into the field
+                // again (some providers keep delivering after cancel; those strays previously interleaved
+                // with the next session's text).
+                realtimeCancelled = true
                 // The transcript is what we already streamed into the field (finals + last partial); fall
                 // back to the finalized-segments buffer only if nothing was shown.
                 val transcript = realtimeShown.toString().trim().ifEmpty { realtimeFinal.toString().trim() }
