@@ -285,6 +285,12 @@ object DictateController {
     private var realtimeContext: Context? = null     // app context to edit the field's provisional text
     private val realtimeShown = StringBuilder()       // text currently committed to the field this session
     @Volatile private var realtimeCancelled = false   // block late stream callbacks from re-adding text
+    // Identity of the current realtime stream. A session that is superseded (or torn down) can still have
+    // callbacks in flight or a socket the provider keeps open; those belong to an older generation and must
+    // stay silent forever. A shared boolean could not express that: opening the next session cleared it and
+    // un-muted every orphan, so each leaked stream joined the live one in typing into the field (text
+    // duplicated, then tripled, until the process was killed).
+    @Volatile private var realtimeGeneration = 0
 
     // --- Long-form segmented dictation (issue #170) ---------------------------------------------
     // Segmented mode transcribes cut segments in the background while recording continues, appending raw
@@ -951,6 +957,7 @@ object DictateController {
         // Tear down any realtime stream (#128) and remove the live provisional text from the field. Set the
         // cancelled flag first so any stream callback still queued on the main thread can't re-add the text.
         realtimeCancelled = true
+        realtimeGeneration++            // retire this stream's identity: its callbacks can never speak again
         realtimeSession?.cancel()
         realtimeSession = null
         realtimeClosed = null
@@ -1133,6 +1140,7 @@ object DictateController {
                 runCatching { recorder?.cancel() }
                 recorder = null
                 realtimeCancelled = true
+                realtimeGeneration++
                 runCatching { realtimeSession?.cancel() }
                 realtimeSession = null
                 realtimeClosed = null
@@ -1894,6 +1902,10 @@ object DictateController {
                 ?: if (preset.isCustom) "" else return null
         }
         val language = prefs.dictate.activeInputLanguage.get().takeIf { it != DictateLanguages.DETECT }
+        // Never leave a previous stream running beside this one.
+        realtimeSession?.let { stale -> runCatching { stale.cancel() } }
+        realtimeSession = null
+        val generation = ++realtimeGeneration
         realtimeFinal.setLength(0)
         realtimeFailed = false
         realtimeCancelled = false
@@ -1904,6 +1916,7 @@ object DictateController {
         realtimeClosed = closed
         // Type the growing transcript live into the field, applying only the minimal diff each time (#128).
         fun showLive(full: String) {
+            if (generation != realtimeGeneration) return   // superseded stream: never type again
             if (realtimeCancelled) return   // a late callback must not re-add text after a cancel
             _interimText.value = full
             runCatching { sink(appContext).setDictationPreview(full, realtimeShown.toString()) }
@@ -1913,12 +1926,14 @@ object DictateController {
         val callbacks = object : RealtimeCallbacks {
             override fun onPartial(text: String) {
                 scope.launch {
+                    if (generation != realtimeGeneration) return@launch
                     val head = realtimeFinal.toString()
                     showLive((if (head.isEmpty()) text else "$head $text").trim())
                 }
             }
             override fun onFinalSegment(text: String) {
                 scope.launch {
+                    if (generation != realtimeGeneration) return@launch   // keep the shared buffer clean
                     val t = text.trim()
                     if (t.isNotEmpty()) {
                         if (realtimeFinal.isNotEmpty()) realtimeFinal.append(' ')
@@ -1927,7 +1942,9 @@ object DictateController {
                     showLive(realtimeFinal.toString())
                 }
             }
-            override fun onError(t: Throwable) { realtimeFailed = true }
+            // Only the live stream may flip the failure flag; a dying orphan must not push the current
+            // recording onto the batch fallback path.
+            override fun onError(t: Throwable) { if (generation == realtimeGeneration) realtimeFailed = true }
             override fun onClosed() { closed.complete(Unit) }
         }
         val session = runCatching {
@@ -2593,6 +2610,7 @@ object DictateController {
         _livePromptActive.value = false
         // Realtime (#128): drop the stream; the WAV is stashed below and recoverable via batch as usual.
         realtimeCancelled = true
+        realtimeGeneration++            // retire this stream's identity: its callbacks can never speak again
         realtimeSession?.cancel()
         realtimeSession = null
         realtimeClosed = null
