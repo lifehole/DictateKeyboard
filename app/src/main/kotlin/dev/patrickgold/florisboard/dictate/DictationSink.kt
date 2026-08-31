@@ -90,7 +90,9 @@ class ImeDictationSink(context: Context) : DictationSink {
         return true // the keyboard writes through its own InputConnection; this never silently no-ops
     }
 
-    override fun selectedText(): String = editorInstance.activeContent.selectedText
+    // Falls back to a direct InputConnection read: some fields deliver selection indices but never the
+    // content, leaving the tracked selectedText empty while a selection is visibly active.
+    override fun selectedText(): String = editorInstance.dictationSelectedText()
 
     override fun fullText(): String = editorInstance.activeContent.text
 
@@ -124,14 +126,28 @@ class ImeDictationSink(context: Context) : DictationSink {
         // replaces only the divergent tail in one batch → no character-by-character flicker).
         if (prevText == finalText) return true
         val cp = prevText.commonPrefixWith(finalText).length
-        editorInstance.replaceDictationTail(prevText.length - cp, finalText.substring(cp))
+        val deleteLen = prevText.length - cp
+        // Only delete what we can prove is there. In fields that never report their content back to
+        // the IME, the blind deleteSurroundingText landed on whatever actually precedes the cursor —
+        // including text the user wrote before dictating — and the swap erased instead of reworded.
+        // Keeping the raw streamed transcript beats gambling it for the reworded version (the reworded
+        // text still lands in the dictation history).
+        if (deleteLen > 0 && !editorInstance.confirmTextBeforeCursor(prevText.substring(cp))) {
+            return false
+        }
+        editorInstance.replaceDictationTail(deleteLen, finalText.substring(cp))
         return true
     }
 
     override fun clearDictationPreview(prevText: String) {
         // Atomic delete of the whole streamed preview in one batch. Doing this per-character (backspaces)
         // ANRs and can kill the keyboard when a long dictation is cancelled mid-recording.
-        if (prevText.isNotEmpty()) editorInstance.replaceDictationTail(prevText.length, "")
+        // Same guard as commitDictationFinal: never delete text the field won't confirm is ours. In an
+        // unreadable field the batch fallback may then append a second copy — duplication is recoverable,
+        // a deleted message is not.
+        if (prevText.isNotEmpty() && editorInstance.confirmTextBeforeCursor(prevText)) {
+            editorInstance.replaceDictationTail(prevText.length, "")
+        }
     }
 
     /**

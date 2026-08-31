@@ -51,6 +51,9 @@ import org.florisboard.lib.android.showShortToastSync
 class EditorInstance(context: Context) : AbstractEditorInstance(context) {
     companion object {
         private const val SPACE = " "
+        // Suffix length used to verify field content before a dictation tail replacement; must stay
+        // well under the tracked-content / getTextBeforeCursor window sizes.
+        private const val CONFIRM_PROBE_LENGTH = 160
     }
 
     private val prefs by FlorisPreferenceStore
@@ -266,6 +269,36 @@ class EditorInstance(context: Context) : AbstractEditorInstance(context) {
         updateLastCommitPosition()
         return true
     }
+
+    /**
+     * Whether the characters right before the cursor are exactly [expected], checking the tracked
+     * content first and the InputConnection directly second. Some app fields never report their
+     * content to the IME (the tracked content stays blank while writes still land); a blind
+     * [replaceDictationTail] delete in such a field eats text the user typed before dictating, so
+     * dictation callers verify with this before deleting anything.
+     */
+    fun confirmTextBeforeCursor(expected: String): Boolean {
+        if (expected.isEmpty()) return true
+        // Compare a bounded suffix rather than the full expected text: both the tracked content and
+        // getTextBeforeCursor are capped windows around the cursor, so on a long dictation the full
+        // tail can never match even when the field is exactly as we left it — which silently disabled
+        // rewording for longer messages. The last 160 chars are ample proof of identity; the caller
+        // still replaces the full tracked length.
+        val probe = expected.takeLast(CONFIRM_PROBE_LENGTH)
+        if (activeContent.textBeforeSelection.endsWith(probe)) return true
+        val fromIc = currentInputConnection()?.getTextBeforeCursor(probe.length, 0) ?: return false
+        return fromIc.toString() == probe
+    }
+
+    /**
+     * The selected text for dictation prompts, falling back to a direct InputConnection read when the
+     * tracked content is blank — fields that hide their content still deliver selection *indices*
+     * (so the prompt UI appears) while [activeContent.selectedText] stays empty.
+     */
+    fun dictationSelectedText(): String =
+        activeContent.selectedText.ifEmpty {
+            currentInputConnection()?.getSelectedText(0)?.toString().orEmpty()
+        }
 
     /**
      * Completes the given [candidate] in the current composing region. Does nothing if the current

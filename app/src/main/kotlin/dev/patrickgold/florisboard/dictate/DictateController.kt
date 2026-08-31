@@ -285,6 +285,12 @@ object DictateController {
     private var realtimeContext: Context? = null     // app context to edit the field's provisional text
     private val realtimeShown = StringBuilder()       // text currently committed to the field this session
     @Volatile private var realtimeCancelled = false   // block late stream callbacks from re-adding text
+    // Identity of the current realtime stream. A session that is superseded (or torn down) can still have
+    // callbacks in flight or a socket the provider keeps open; those belong to an older generation and must
+    // stay silent forever. A shared boolean could not express that: opening the next session cleared it and
+    // un-muted every orphan, so each leaked stream joined the live one in typing into the field (text
+    // duplicated, then tripled, until the process was killed).
+    @Volatile private var realtimeGeneration = 0
 
     // --- Long-form segmented dictation (issue #170) ---------------------------------------------
     // Segmented mode transcribes cut segments in the background while recording continues, appending raw
@@ -951,6 +957,7 @@ object DictateController {
         // Tear down any realtime stream (#128) and remove the live provisional text from the field. Set the
         // cancelled flag first so any stream callback still queued on the main thread can't re-add the text.
         realtimeCancelled = true
+        realtimeGeneration++            // retire this stream's identity: its callbacks can never speak again
         realtimeSession?.cancel()
         realtimeSession = null
         realtimeClosed = null
@@ -1105,6 +1112,9 @@ object DictateController {
                     segmentVad != null -> { val v = segmentVad!!; { pcm, len -> v.feed(pcm, len) } }
                     else -> null
                 }
+                // Never overwrite a live recorder reference (a leftover from an interrupted session would
+                // otherwise keep capturing forever with nothing pointing at it).
+                runCatching { recorder?.cancel() }
                 recorder = RecordingController(appContext).also { it.start(audioSource, pcmSink) }
                 if (prefs.dictate.skipSilentRecordings.get()) {
                     // Hide the one-time native VAD/session setup behind the user's recording time.
@@ -1123,7 +1133,19 @@ object DictateController {
                     stopAndTranscribe(appContext)
                 }
             } catch (t: Throwable) {
+                // A failure after the recorder/stream came up must tear both down, not just drop the
+                // references: an orphaned capture thread keeps the mic hot and keeps feeding a still-open
+                // realtime session, whose callbacks then type into the field alongside every later
+                // session (interleaved duplicate text) until the process is killed.
+                runCatching { recorder?.cancel() }
                 recorder = null
+                realtimeCancelled = true
+                realtimeGeneration++
+                runCatching { realtimeSession?.cancel() }
+                realtimeSession = null
+                realtimeClosed = null
+                realtimeShown.setLength(0)
+                realtimeContext = null
                 segmentVad?.release()
                 segmentVad = null
                 _livePromptActive.value = false
@@ -1880,6 +1902,10 @@ object DictateController {
                 ?: if (preset.isCustom) "" else return null
         }
         val language = prefs.dictate.activeInputLanguage.get().takeIf { it != DictateLanguages.DETECT }
+        // Never leave a previous stream running beside this one.
+        realtimeSession?.let { stale -> runCatching { stale.cancel() } }
+        realtimeSession = null
+        val generation = ++realtimeGeneration
         realtimeFinal.setLength(0)
         realtimeFailed = false
         realtimeCancelled = false
@@ -1890,6 +1916,7 @@ object DictateController {
         realtimeClosed = closed
         // Type the growing transcript live into the field, applying only the minimal diff each time (#128).
         fun showLive(full: String) {
+            if (generation != realtimeGeneration) return   // superseded stream: never type again
             if (realtimeCancelled) return   // a late callback must not re-add text after a cancel
             _interimText.value = full
             runCatching { sink(appContext).setDictationPreview(full, realtimeShown.toString()) }
@@ -1899,12 +1926,14 @@ object DictateController {
         val callbacks = object : RealtimeCallbacks {
             override fun onPartial(text: String) {
                 scope.launch {
+                    if (generation != realtimeGeneration) return@launch
                     val head = realtimeFinal.toString()
                     showLive((if (head.isEmpty()) text else "$head $text").trim())
                 }
             }
             override fun onFinalSegment(text: String) {
                 scope.launch {
+                    if (generation != realtimeGeneration) return@launch   // keep the shared buffer clean
                     val t = text.trim()
                     if (t.isNotEmpty()) {
                         if (realtimeFinal.isNotEmpty()) realtimeFinal.append(' ')
@@ -1913,7 +1942,9 @@ object DictateController {
                     showLive(realtimeFinal.toString())
                 }
             }
-            override fun onError(t: Throwable) { realtimeFailed = true }
+            // Only the live stream may flip the failure flag; a dying orphan must not push the current
+            // recording onto the batch fallback path.
+            override fun onError(t: Throwable) { if (generation == realtimeGeneration) realtimeFailed = true }
             override fun onClosed() { closed.complete(Unit) }
         }
         val session = runCatching {
@@ -1954,6 +1985,11 @@ object DictateController {
      */
     private fun stopRealtimeAndFinalize(context: Context) {
         val session = realtimeSession
+        // Identity of the stream being finalized: the wait below is long enough for the user to start a
+        // new recording (a second tap on stop), and the new session resets the shared transcript buffers.
+        // Without this check the finalize woke up afterwards and committed the *new* session's text over
+        // the field - the double-tap-stop duplication.
+        val generation = realtimeGeneration
         realtimeSession = null
         realtimeContext = null
         val activeRecorder = recorder
@@ -1977,6 +2013,13 @@ object DictateController {
                 // stalls us until the timeout and later trips a ping/pong failure.
                 withTimeoutOrNull(REALTIME_FINALIZE_TIMEOUT_MS) { closed?.await() }
                 runCatching { session?.cancel() }
+                // A newer recording took over while we waited: it owns the field and the buffers now, so
+                // this finalize must not commit, clear the preview, or mute the live stream.
+                if (generation != realtimeGeneration) return@launch
+                // From here the session is done: block any late stream callback from typing into the field
+                // again (some providers keep delivering after cancel; those strays previously interleaved
+                // with the next session's text).
+                realtimeCancelled = true
                 // The transcript is what we already streamed into the field (finals + last partial); fall
                 // back to the finalized-segments buffer only if nothing was shown.
                 val transcript = realtimeShown.toString().trim().ifEmpty { realtimeFinal.toString().trim() }
@@ -2575,6 +2618,7 @@ object DictateController {
         _livePromptActive.value = false
         // Realtime (#128): drop the stream; the WAV is stashed below and recoverable via batch as usual.
         realtimeCancelled = true
+        realtimeGeneration++            // retire this stream's identity: its callbacks can never speak again
         realtimeSession?.cancel()
         realtimeSession = null
         realtimeClosed = null
@@ -3232,9 +3276,17 @@ object DictateController {
         for (p in autoApply) {
             val instruction = p.prompt.orEmpty()
             if (instruction.isBlank()) continue
+            // Nothing to correct → nothing to send. A blank transcript here produced instruction-only
+            // requests whose conversational answers ("I'm ready to correct… please provide the
+            // paragraph") were then committed over the user's last utterance.
+            if (text.isBlank()) break
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
+            // Always operate on the running transcript. `requiresSelection` describes the manual-tap
+            // flow (act on the field's selection vs. generate freely); in this chain the transcript IS
+            // the input, and gating on the flag sent instruction-only requests whose answers ("Please
+            // provide the text…") then replaced the whole dictation.
             text = runCatching {
-                requestReword(instruction, if (p.requiresSelection) text else null, p.reasoningEffort, p.reasoningEffortCustom)
+                requestReword(instruction, text, p.reasoningEffort, p.reasoningEffortCustom)
             }.getOrDefault(text)
         }
         return text
@@ -3261,9 +3313,13 @@ object DictateController {
                 result += raw.substring(1, raw.length - 1)
                 continue
             }
+            // Same blank-input gate as the auto-apply chain: never send an instruction with no text.
+            if (result.isBlank()) continue
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
+            // Same as the auto-apply chain above: queued prompts always act on the running text —
+            // `requiresSelection` only governs the manual-tap flow.
             result = runCatching {
-                requestReword(raw, if (p.requiresSelection) result else null, p.reasoningEffort, p.reasoningEffortCustom)
+                requestReword(raw, result, p.reasoningEffort, p.reasoningEffortCustom)
             }.getOrDefault(result)
         }
         return result
