@@ -1985,6 +1985,11 @@ object DictateController {
      */
     private fun stopRealtimeAndFinalize(context: Context) {
         val session = realtimeSession
+        // Identity of the stream being finalized: the wait below is long enough for the user to start a
+        // new recording (a second tap on stop), and the new session resets the shared transcript buffers.
+        // Without this check the finalize woke up afterwards and committed the *new* session's text over
+        // the field - the double-tap-stop duplication.
+        val generation = realtimeGeneration
         realtimeSession = null
         realtimeContext = null
         val activeRecorder = recorder
@@ -2008,6 +2013,9 @@ object DictateController {
                 // stalls us until the timeout and later trips a ping/pong failure.
                 withTimeoutOrNull(REALTIME_FINALIZE_TIMEOUT_MS) { closed?.await() }
                 runCatching { session?.cancel() }
+                // A newer recording took over while we waited: it owns the field and the buffers now, so
+                // this finalize must not commit, clear the preview, or mute the live stream.
+                if (generation != realtimeGeneration) return@launch
                 // From here the session is done: block any late stream callback from typing into the field
                 // again (some providers keep delivering after cancel; those strays previously interleaved
                 // with the next session's text).
