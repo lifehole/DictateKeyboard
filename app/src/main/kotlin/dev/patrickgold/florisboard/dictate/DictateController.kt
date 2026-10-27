@@ -378,6 +378,11 @@ object DictateController {
     /** When the stream last produced text; the tail wait on stop measures the provider's silence from here (#372). */
     @Volatile private var realtimeLastTextAt = 0L
     @Volatile private var realtimeCancelled = false   // block late stream callbacks from re-adding text
+    // Identity of the current realtime stream. Bumped by every open and at the end of every finalize, so a
+    // callback from an earlier stream — one whose finalize was abandoned by a second tap on stop (#437)
+    // while its socket was still delivering — is told from the live one and dropped, instead of typing
+    // its words into the field a second time.
+    @Volatile private var realtimeGeneration = 0
 
     // --- Long-form segmented dictation (issue #170) ---------------------------------------------
     // Segmented mode transcribes cut segments in the background while recording continues, appending raw
@@ -2710,6 +2715,11 @@ object DictateController {
                 ?: if (preset.isCustom) "" else return null
         }
         val language = prefs.dictate.activeInputLanguage.get().takeIf { it != DictateLanguages.DETECT }
+        // Whatever stream is still around belongs to an earlier dictation. From here only this one may
+        // touch the field, and its callbacks carry the generation they were opened under.
+        realtimeSession?.let { stale -> runCatching { stale.cancel() } }
+        realtimeSession = null
+        val generation = ++realtimeGeneration
         realtimeFinal.setLength(0)
         realtimeFailed = false
         realtimeCancelled = false
@@ -2748,7 +2758,9 @@ object DictateController {
         // sees nothing until stop. The stream itself runs identically either way; this is purely what the
         // user is shown, so hiding it costs no speed and removes the word-by-word churn.
         suspend fun showLive(full: String) {
-            if (realtimeCancelled) return   // a late callback must not re-add text after a cancel or a finalize
+            // A late callback must not re-add text after a cancel or a finalize, and a stream that is no
+            // longer the current one has no say in the field at all.
+            if (realtimeCancelled || generation != realtimeGeneration) return
             _interimText.value = full
             realtimeTranscript.setLength(0)
             realtimeTranscript.append(full)
@@ -2807,21 +2819,28 @@ object DictateController {
         val tightening = appContext.transcriptTighteningSymbols()
         val callbacks = object : RealtimeCallbacks {
             override fun onPartial(text: String) {
+                // An earlier stream's words: not this dictation's, and not a reason to keep waiting for it.
+                if (generation != realtimeGeneration) return
                 // Stamped here rather than in showLive: this is when the provider spoke, which is what the
                 // tail wait on stop is measuring — not when a queued coroutine got around to the field.
                 realtimeLastTextAt = SystemClock.elapsedRealtime()
                 scope.launch {
+                    if (generation != realtimeGeneration) return@launch
                     showLive(TranscriptJoin.join(realtimeFinal.toString(), text, tightening))
                 }
             }
             override fun onFinalSegment(text: String) {
+                if (generation != realtimeGeneration) return
                 realtimeLastTextAt = SystemClock.elapsedRealtime()
                 scope.launch {
+                    // Checked again on the main thread: a new stream may have opened and reset the buffers
+                    // between the provider's callback and this coroutine getting its turn.
+                    if (generation != realtimeGeneration) return@launch
                     TranscriptJoin.appendPiece(realtimeFinal, text, tightening)
                     showLive(realtimeFinal.toString())
                 }
             }
-            override fun onError(t: Throwable) { realtimeFailed = true }
+            override fun onError(t: Throwable) { if (generation == realtimeGeneration) realtimeFailed = true }
             override fun onClosed() { closed.complete(Unit) }
         }
         val session = runCatching {
@@ -2908,6 +2927,7 @@ object DictateController {
     private fun stopRealtimeAndFinalize(context: Context) {
         val session = realtimeSession
         realtimeSession = null
+        val generation = realtimeGeneration
         realtimeContext = null
         val activeRecorder = recorder
         recorder = null
@@ -3006,6 +3026,14 @@ object DictateController {
                 } else {
                     _state.value = UiState.Error(appContext.getString(R.string.dictate__error_unknown))
                 }
+            } finally {
+                // A second tap on stop abandons this job while it is still waiting out the stream's tail
+                // (#437). The socket it was about to close then stayed open, and the finals it kept
+                // delivering landed in the next dictation as a second copy of this one. So the stream ends
+                // with the job, whichever way the job ends, and the generation moves on — unless a newer
+                // stream has already claimed it.
+                runCatching { session?.cancel() }
+                if (generation == realtimeGeneration) realtimeGeneration++
             }
         }
     }
