@@ -4685,8 +4685,8 @@ object DictateController {
      * layout), in tap order, to the finished [text]. Each step is best-effort (a failing prompt keeps
      * the text so far). `[snippet]` prompts are appended as written, behind a space where two dictations
      * would get one ([TranscriptJoin.separatorBefore]); everything else runs through the
-     * rewording model (operating on the running text when the prompt requires a selection). Clears the
-     * queue (so the highlights disappear) regardless of outcome.
+     * rewording model, operating on the running text whether or not the prompt asks for a selection
+     * when used from the row. Clears the queue (so the highlights disappear) regardless of outcome.
      */
     private suspend fun applyPendingPrompts(context: Context, text: String): String {
         val queued = _pendingPrompts.value
@@ -4706,8 +4706,11 @@ object DictateController {
                 continue
             }
             _state.value = UiState.Rewording(p.name ?: context.getString(R.string.dictate__status_rewording))
+            // The dictation is the prompt's input either way. Queued while recording, the prompt has
+            // nothing else to work on, and a rewording model handed an instruction alone answers with a
+            // request for the text ("please provide the paragraph") in place of the text.
             result = rewordOrKeep(result) {
-                requestReword(raw, if (p.requiresSelection) result else null, p.reasoningEffort, p.reasoningEffortCustom)
+                requestReword(raw, result, p.reasoningEffort, p.reasoningEffortCustom)
             }
         }
         return result
