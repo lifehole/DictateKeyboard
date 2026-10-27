@@ -134,6 +134,20 @@ configure<ApplicationExtension> {
                 keyPassword = props.getProperty("keyPassword")
             }
         }
+        // A fixed debug key. Every GitHub Actions runner would otherwise mint its own, so two debug APKs
+        // built there could not install over each other: each update demanded an uninstall first, which
+        // took the settings, keys and prompts with it. Same alias and passwords as Android's standard
+        // debug key, and it signs nothing that ships. Tracked despite the *.keystore ignore rule for
+        // exactly this reason; a checkout without it keeps the default per-machine debug key.
+        val ciDebugKeystore = layout.projectDirectory.file("ci-debug.keystore").asFile
+        if (ciDebugKeystore.exists()) {
+            getByName("debug") {
+                storeFile = ciDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
