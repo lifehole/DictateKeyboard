@@ -39,12 +39,20 @@ jobs:
       # or the pinned NDK/CMake versions change. The save is its own step, right
       # after the build, so a later failure in the APK build cannot throw the
       # compiled library away.
+      # The key is worked out once, before anything is built: evaluated after the
+      # build, hashFiles would also cover the fetched sources and object files
+      # under tools/bergamot/build/, and the library would be saved under a key
+      # no later run can compute.
+      - name: Work out the Bergamot cache key
+        id: bergamot-key
+        run: echo "key=bergamot-${{ runner.os }}-${{ hashFiles('tools/bergamot/**', 'gradle/tools.versions.toml') }}" >> "$GITHUB_OUTPUT"
+
       - name: Restore the cached Bergamot library
         id: bergamot-cache
         uses: actions/cache/restore@v4
         with:
           path: app/src/main/jniLibs/arm64-v8a/libdictate_bergamot.so
-          key: bergamot-${{ runner.os }}-${{ hashFiles('tools/bergamot/**', 'gradle/tools.versions.toml') }}
+          key: ${{ steps.bergamot-key.outputs.key }}
 
       - name: Install the NDK and CMake the Bergamot build needs
         if: steps.bergamot-cache.outputs.cache-hit != 'true'
@@ -75,7 +83,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: app/src/main/jniLibs/arm64-v8a/libdictate_bergamot.so
-          key: bergamot-${{ runner.os }}-${{ hashFiles('tools/bergamot/**', 'gradle/tools.versions.toml') }}
+          key: ${{ steps.bergamot-key.outputs.key }}
 
       - name: Build the debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
