@@ -10,13 +10,19 @@
 
 package dev.patrickgold.florisboard.app.settings.dictate
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -25,21 +31,27 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.AltRoute
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Watch
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -48,6 +60,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +77,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.R
@@ -72,21 +86,35 @@ import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.dictate.dictateProxyConfig
+import dev.patrickgold.florisboard.dictate.provider.ConnectionCheck
+import dev.patrickgold.florisboard.dictate.provider.ConnectionCheckSample
+import dev.patrickgold.florisboard.dictate.provider.ConnectionCheckScope
+import dev.patrickgold.florisboard.dictate.provider.DictateApiException
 import dev.patrickgold.florisboard.dictate.provider.LocalModelCatalog
 import dev.patrickgold.florisboard.dictate.provider.LocalModelManager
 import dev.patrickgold.florisboard.dictate.provider.OpenAiCompatibleClient
 import dev.patrickgold.florisboard.dictate.provider.ProviderAccount
 import dev.patrickgold.florisboard.dictate.provider.ProviderAccounts
+import dev.patrickgold.florisboard.dictate.provider.ProviderListing
 import dev.patrickgold.florisboard.dictate.provider.ProviderPreset
+import dev.patrickgold.florisboard.dictate.provider.ProviderRegion
 import dev.patrickgold.florisboard.dictate.provider.ProviderRegistry
 import dev.patrickgold.florisboard.dictate.provider.TranscriptionApi
+import dev.patrickgold.florisboard.dictate.provider.TranscriptionFallback
+import dev.patrickgold.florisboard.dictate.provider.chatModelFor
+import dev.patrickgold.florisboard.dictate.provider.singleCallApplies
+import dev.patrickgold.florisboard.lib.compose.FlorisHyperlinkText
 import dev.patrickgold.florisboard.lib.compose.FlorisScreen
+import dev.patrickgold.florisboard.lib.util.launchUrl
 import dev.patrickgold.jetpref.datastore.model.collectAsState
+import dev.patrickgold.jetpref.datastore.ui.DialogSliderPreference
 import dev.patrickgold.jetpref.datastore.ui.Preference
 import dev.patrickgold.jetpref.datastore.ui.PreferenceGroup
 import dev.patrickgold.jetpref.datastore.ui.SwitchPreference
 import dev.patrickgold.jetpref.material.ui.JetPrefAlertDialog
+import dev.patrickgold.jetpref.material.ui.JetPrefAlertDialogDefaults
 import kotlinx.coroutines.launch
+import org.florisboard.lib.android.stringRes
 import org.florisboard.lib.compose.florisDialogScroll
 import org.florisboard.lib.compose.persistentVerticalScrollbar
 import org.florisboard.lib.compose.stringRes
@@ -124,9 +152,20 @@ fun DictateProvidersScreen() = FlorisScreen {
 
     content {
         val navController = LocalNavController.current
+        val context = LocalContext.current
         val accounts by prefs.dictate.providerAccounts.collectAsState()
         val activeTranscriptionId by prefs.dictate.transcriptionProviderId.collectAsState()
+        val activeRewordingId by prefs.dictate.rewordingProviderId.collectAsState()
+        val storedFallbackId by prefs.dictate.transcriptionFallbackId.collectAsState()
         val scope = rememberCoroutineScope()
+        val isInstalled: (String) -> Boolean = { LocalModelManager.isInstalled(context, it) }
+        // The fallback that would actually take over (#455), the same answer the dictation path gets: a
+        // choice that is the active provider, or no longer set up, stands down and reads as off.
+        val effectiveFallbackId = TranscriptionFallback.effectiveId(
+            storedFallbackId,
+            activeTranscriptionId,
+            ProviderListing.transcriptionChoices(accounts, selectedId = "", isInstalled).map { it.first },
+        )
 
         // The provider currently being edited in the dialog (null = closed).
         var editingId by remember { mutableStateOf<String?>(null) }
@@ -134,6 +173,12 @@ fun DictateProvidersScreen() = FlorisScreen {
         // server while being asked how the app should transcribe means to use it, so saving it makes it
         // active instead of leaving them to go and select it by hand.
         var activateOnSave by remember { mutableStateOf(false) }
+        // Set when the wizard sent the user here to pick an on-device model from the full list, which is
+        // the only situation where choosing one also switches the engine (issue #343). During setup that
+        // is the whole question being asked. Later it would move a working configuration underneath
+        // someone who only came to download a second model — quietly, on a screen they may not look at
+        // again.
+        var localFromSetup by remember { mutableStateOf(false) }
 
         fun writeKeyring(updated: ProviderAccounts) {
             scope.launch { prefs.dictate.providerAccounts.set(updated) }
@@ -148,7 +193,10 @@ fun DictateProvidersScreen() = FlorisScreen {
                     activateOnSave = true
                     editingId = ProviderAccount.newCustomId()
                 }
-                else -> editingId = target
+                else -> {
+                    editingId = target
+                    localFromSetup = target == ProviderRegistry.LOCAL.id
+                }
             }
             ProviderSetupHandoff.openEditorFor = null
         }
@@ -159,18 +207,17 @@ fun DictateProvidersScreen() = FlorisScreen {
             .sortedBy { it.displayName.lowercase() }
 
         PreferenceGroup(title = stringRes(R.string.dictate__providers_active_group)) {
-            // Custom picker (issue #104): the transcription provider list, plus an offline-fallback
-            // checkbox as an extra item at the bottom of the same dialog (hidden when the chosen
-            // provider is already the on-device one, where a fallback makes no sense).
+            // The pickers offer only what can do the job right now, plus the current choice (see
+            // [ProviderListing.isPickable]); everything else is set up through "Add a provider" first,
+            // which the pickers link to. Offering every preset meant offering the chance to pick one
+            // that could only answer "no API key" at the moment of dictating.
             TranscriptionProviderPreference(
-                entries = buildList {
-                    ProviderRegistry.presets
-                        .filter { it.capabilities.transcription }
-                        // On-device (offline) first in the picker, above the cloud providers (issue #228).
-                        .sortedByDescending { it.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE }
-                        .forEach { add(it.id to it.displayName) }
-                    customAccounts.forEach { add(it.providerId to customLabel(it)) }
-                },
+                entries = ProviderListing.transcriptionChoices(accounts, activeTranscriptionId, isInstalled),
+                // Only what could take over right now. The provider list keeps its current choice listed when
+                // it is no longer set up, so that confirming does not quietly drop it; a fallback in that state
+                // already reads as Off, and offering it again would offer something that does nothing.
+                fallbackChoices = ProviderListing.transcriptionChoices(accounts, selectedId = "", isInstalled),
+                effectiveFallbackId = effectiveFallbackId,
             )
             // When the active transcription provider runs single-call multimodal (#130), rewording happens
             // inside that one call, so the rewording provider here is currently unused — surfaced as a
@@ -179,8 +226,9 @@ fun DictateProvidersScreen() = FlorisScreen {
                 entries = buildList {
                     ProviderRegistry.presets
                         .filter { it.capabilities.chat }
+                        .filter { ProviderListing.isPickable(it, accounts, activeRewordingId, isInstalled) }
                         .forEach { add(it.id to it.displayName) }
-                    customAccounts.forEach { add(it.providerId to customLabel(it)) }
+                    customAccounts.forEach { add(it.providerId to ProviderListing.customLabel(it)) }
                 },
                 showInfo = accounts.getOrEmpty(activeTranscriptionId).transcriptionViaChat,
             )
@@ -189,11 +237,21 @@ fun DictateProvidersScreen() = FlorisScreen {
         PreferenceGroup(title = stringRes(R.string.dictate__providers_manage_group)) {
             val keySet = stringRes(R.string.dictate__providers_status_key_set)
             val noKey = stringRes(R.string.dictate__providers_status_no_key)
+            val activeIds = setOfNotNull(activeTranscriptionId, activeRewordingId, effectiveFallbackId)
 
-            // On-device (offline) provider first, above the cloud providers like OpenAI (issue #228);
-            // the rest keep their registry display order (sortedByDescending is stable).
+            // The user's own providers only, with on-device and Dictate Cloud always among them (see
+            // [ProviderListing.isListed]); the other presets wait behind "Add a provider" at the end.
+            // On-device first, above the cloud providers like OpenAI (issue #228); the rest keep their
+            // registry display order (sortedByDescending is stable).
             val orderedPresets = ProviderRegistry.presets
+                .filter { ProviderListing.isListed(it, accounts, activeIds, isInstalled) }
                 .sortedByDescending { it.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE }
+            fun roles(id: String): (@Composable () -> Unit)? =
+                if (id in activeIds) {
+                    { ActiveRoleIcons(id, activeTranscriptionId, activeRewordingId, effectiveFallbackId) }
+                } else {
+                    null
+                }
             val cloudAccount = accounts.getOrEmpty(ProviderRegistry.CLOUD.id)
             val cloudNoCredit = stringRes(R.string.dictate__cloud_row_summary_none)
             val cloudBalance = stringRes(
@@ -212,6 +270,7 @@ fun DictateProvidersScreen() = FlorisScreen {
                         modifier = Modifier.settingsSearchAnchor("dictate__cloud_title"),
                         title = preset.displayName,
                         summary = if (cloudAccount.hasWallet) cloudBalance else cloudNoCredit,
+                        trailing = roles(preset.id),
                         onClick = { navController.navigate(Routes.Settings.DictateCloud) },
                     )
                     return@forEach
@@ -220,7 +279,8 @@ fun DictateProvidersScreen() = FlorisScreen {
                 Preference(
                     icon = providerIcon(preset.id),
                     title = preset.displayName,
-                    summary = providerSummary(preset, account, keySet, noKey),
+                    summary = providerSummary(preset, account, noKey),
+                    trailing = roles(preset.id),
                     onClick = { editingId = preset.id },
                 )
             }
@@ -228,22 +288,24 @@ fun DictateProvidersScreen() = FlorisScreen {
             customAccounts.forEach { account ->
                 Preference(
                     icon = Icons.Default.Dns,
-                    title = customLabel(account),
+                    title = ProviderListing.customLabel(account),
                     summary = if (account.hasKey || account.customBaseUrl.isNotBlank()) {
                         account.customBaseUrl.ifBlank { keySet }
                     } else {
                         stringRes(R.string.dictate__providers_status_unconfigured)
                     },
+                    trailing = roles(account.providerId),
                     onClick = { editingId = account.providerId },
                 )
             }
 
+            // Every other preset, and a server of one's own, one screen further (see
+            // [DictateAddProviderScreen]).
             Preference(
                 icon = Icons.Default.Add,
-                modifier = Modifier.settingsSearchAnchor("dictate__providers_add_custom"),
-                title = stringRes(R.string.dictate__providers_add_custom),
-                summary = stringRes(R.string.dictate__providers_add_custom_summary),
-                onClick = { editingId = ProviderAccount.newCustomId() },
+                modifier = Modifier.settingsSearchAnchor("dictate__providers_add"),
+                title = stringRes(R.string.dictate__providers_add),
+                onClick = { navController.navigate(Routes.Settings.DictateProvidersAdd) },
             )
         }
 
@@ -263,6 +325,20 @@ fun DictateProvidersScreen() = FlorisScreen {
                 },
                 onClick = { navController.navigate(Routes.Settings.DictateProxy) },
             )
+            // One number for both halves of the wait (issue #337). Two minutes is right for a cloud
+            // provider and this exists for the other end of the range: a model on one's own machine
+            // can think for longer than that before the first byte of the answer arrives.
+            DialogSliderPreference(
+                pref = prefs.dictate.requestTimeout,
+                icon = Icons.Default.Timer,
+                modifier = Modifier.settingsSearchAnchor("dictate__request_timeout_title"),
+                title = stringRes(R.string.dictate__request_timeout_title),
+                summary = { stringRes(R.string.dictate__request_timeout_summary, "v" to it) },
+                valueLabel = { stringRes(R.string.unit__seconds__symbol, "v" to it) },
+                min = 30,
+                max = 600,
+                stepIncrement = 10,
+            )
         }
 
         editingId?.let { id ->
@@ -273,8 +349,9 @@ fun DictateProvidersScreen() = FlorisScreen {
                 onDismiss = {
                     editingId = null
                     activateOnSave = false
+                    localFromSetup = false
                 },
-                onSave = { updated ->
+                onSave = { updated, makeActive ->
                     writeKeyring(accounts.put(updated))
                     // A server of the user's own speaks both halves of the OpenAI API, and someone who
                     // added one during setup meant it to be the way the app works from now on.
@@ -283,15 +360,28 @@ fun DictateProvidersScreen() = FlorisScreen {
                             prefs.dictate.transcriptionProviderId.set(id)
                             prefs.dictate.rewordingProviderId.set(id)
                         }
+                    } else if (makeActive && localFromSetup) {
+                        // Coming out of the setup wizard, picking an on-device model *is* answering "how
+                        // should this app transcribe" — the wizard's own two recommendations already work
+                        // that way, and the full list, one tap further on, used to leave the user with a
+                        // downloaded model and a "no API key" error (issue #343).
+                        //
+                        // Only there. Anywhere else this would switch a working configuration under
+                        // someone who came to try a second model, on a screen they might not look at
+                        // again. Rewording is left alone in any case: the on-device engine has no chat
+                        // side to offer.
+                        scope.launch { prefs.dictate.transcriptionProviderId.set(id) }
                     }
                     editingId = null
                     activateOnSave = false
+                    localFromSetup = false
                 },
                 onDelete = if (preset == null) {
                     {
                         writeKeyring(accounts.remove(id))
                         editingId = null
                         activateOnSave = false
+                        localFromSetup = false
                     }
                 } else {
                     null
@@ -306,6 +396,7 @@ fun DictateProvidersScreen() = FlorisScreen {
 @Composable
 private fun RewordingProviderPreference(entries: List<Pair<String, String>>, showInfo: Boolean) {
     val prefs by FlorisPreferenceStore
+    val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
     val selectedId by prefs.dictate.rewordingProviderId.collectAsState()
     var open by remember { mutableStateOf(false) }
@@ -364,6 +455,10 @@ private fun RewordingProviderPreference(entries: List<Pair<String, String>>, sho
                         Text(label, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
+                AddProviderPickerRow(onClick = {
+                    open = false
+                    navController.navigate(Routes.Settings.DictateProvidersAdd)
+                })
             }
         }
     }
@@ -382,32 +477,56 @@ private fun RewordingProviderPreference(entries: List<Pair<String, String>>, sho
 }
 
 /**
- * Active-transcription-provider picker (issue #104). Opens a dialog listing the transcription-capable
- * providers as radio options, with the **offline fallback** toggle as an extra checkbox item at the
- * bottom of the same dialog. The checkbox is hidden when the chosen provider is the on-device one (a
- * local fallback is meaningless there). Both the selection and the toggle are committed on confirm.
+ * Active-transcription-provider picker (issue #104): the transcription-capable providers as radio options,
+ * and under them the fallback (#455), both committed on confirm.
+ *
+ * The fallback is the provider that takes over when this one cannot do it: the on-device engine when the
+ * phone is offline, as #104's checkbox in this dialog did, or any other set-up provider when this one cannot
+ * be reached — a server at home, from anywhere else. It lives in this dialog because it only means something
+ * next to the provider it stands in for. [fallbackChoices] are the set-up transcription providers; the one
+ * picked above is left out of them, and a fallback that is the same as the provider just picked reads as
+ * off. [effectiveFallbackId] is the fallback that applies now, null for off. Not offered while the on-device
+ * engine is picked: it never fails for want of a connection, so there is nothing to fall back from — and the
+ * stored choice is left alone then, so picking a cloud provider again brings it back.
+ *
+ * The row's summary names the fallback too, so the choice is visible without opening the dialog.
  */
 @Composable
-private fun TranscriptionProviderPreference(entries: List<Pair<String, String>>) {
+private fun TranscriptionProviderPreference(
+    entries: List<Pair<String, String>>,
+    fallbackChoices: List<Pair<String, String>>,
+    effectiveFallbackId: String?,
+) {
     val prefs by FlorisPreferenceStore
+    val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
     val selectedId by prefs.dictate.transcriptionProviderId.collectAsState()
-    val fallbackEnabled by prefs.dictate.localFallbackEnabled.collectAsState()
     var open by remember { mutableStateOf(false) }
 
+    val providerName = entries.firstOrNull { it.first == selectedId }?.second ?: selectedId
+    val fallbackName = fallbackChoices.firstOrNull { it.first == effectiveFallbackId }?.second
     Preference(
         icon = Icons.Default.Mic,
         modifier = Modifier.settingsSearchAnchor("dictate__providers_active_transcription"),
         title = stringRes(R.string.dictate__providers_active_transcription),
-        summary = entries.firstOrNull { it.first == selectedId }?.second ?: selectedId,
+        summary = if (fallbackName == null) {
+            providerName
+        } else {
+            stringRes(
+                R.string.dictate__providers_transcription_with_fallback,
+                "provider" to providerName,
+                "fallback" to fallbackName,
+            )
+        },
         onClick = { open = true },
     )
 
     if (open) {
         var sel by remember { mutableStateOf(selectedId) }
-        var fb by remember { mutableStateOf(fallbackEnabled) }
-        val selectionIsLocal =
-            ProviderRegistry.byId(sel)?.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE
+        var fallback by remember { mutableStateOf(effectiveFallbackId ?: TranscriptionFallback.OFF) }
+        val selectionIsLocal = ProviderRegistry.byId(sel)?.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE
+        // A provider cannot fall back onto itself: picking the fallback above turns it off below.
+        val shownFallback = if (fallback == sel) TranscriptionFallback.OFF else fallback
         JetPrefAlertDialog(
             title = stringRes(R.string.dictate__providers_active_transcription),
             confirmLabel = stringRes(R.string.action__ok),
@@ -415,70 +534,200 @@ private fun TranscriptionProviderPreference(entries: List<Pair<String, String>>)
             onConfirm = {
                 scope.launch {
                     prefs.dictate.transcriptionProviderId.set(sel)
-                    prefs.dictate.localFallbackEnabled.set(fb)
+                    if (!selectionIsLocal) prefs.dictate.transcriptionFallbackId.set(shownFallback)
                 }
                 open = false
             },
             onDismiss = { open = false },
         ) {
-            val scrollState = rememberScrollState()
-            val scrollbarColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             Column {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 320.dp)
-                        .persistentVerticalScrollbar(scrollState, scrollbarColor)
-                        .verticalScroll(scrollState)
-                        .padding(end = 6.dp),
-                ) {
-                    entries.forEach { (id, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { sel = id },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = sel == id, onClick = { sel = id })
-                            Text(label, modifier = Modifier.padding(start = 8.dp))
-                        }
-                    }
-                }
-                // Extra item at the bottom: offline fallback (only when the choice isn't already local).
+                ProviderRadioList(
+                    entries = entries,
+                    selected = sel,
+                    onSelect = { sel = it },
+                    onAddProvider = {
+                        open = false
+                        navController.navigate(Routes.Settings.DictateProvidersAdd)
+                    },
+                )
                 if (!selectionIsLocal) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { fb = !fb }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = fb, onCheckedChange = { fb = it })
-                        Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
-                            Text(stringRes(R.string.dictate__local_fallback_title))
-                            Text(
-                                text = stringRes(R.string.dictate__local_fallback_summary),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    FallbackField(
+                        choices = listOf(TranscriptionFallback.OFF to stringRes(R.string.dictate__fallback_off)) +
+                            fallbackChoices.filter { it.first != sel },
+                        selected = shownFallback,
+                        onSelect = { fallback = it },
+                    )
                 }
             }
         }
     }
 }
 
-/** Label for a custom endpoint: its user-given name, or a generic fallback. */
-private fun customLabel(account: ProviderAccount): String =
-    account.displayName.ifBlank { "Custom server" }
+/** The scrolling radio list of the transcription picker, with "Add a provider" at its foot. */
+@Composable
+private fun ProviderRadioList(
+    entries: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    onAddProvider: () -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    val scrollbarColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+    Column(
+        modifier = Modifier
+            .heightIn(max = 320.dp)
+            .persistentVerticalScrollbar(scrollState, scrollbarColor)
+            .verticalScroll(scrollState)
+            .padding(end = 6.dp),
+    ) {
+        entries.forEach { (id, label) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(id) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected == id, onClick = { onSelect(id) })
+                Text(label, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+        AddProviderPickerRow(onClick = onAddProvider)
+    }
+}
 
-/** One-line status for a built-in provider row: key state + its capabilities. */
+/**
+ * The fallback choice in the transcription picker (#455), as a drop-down like the region field, so the
+ * dialog keeps one list of radio buttons. The line under it says when the fallback takes over, which its
+ * name cannot: a provider that is reached but slow keeps the dictation.
+ */
+@Composable
+private fun FallbackField(
+    choices: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedTextField(
+            modifier = Modifier.padding(top = 4.dp).fillMaxWidth(),
+            value = choices.firstOrNull { it.first == selected }?.second.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(stringRes(R.string.dictate__fallback_title)) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+            supportingText = { Text(stringRes(R.string.dictate__fallback_hint)) },
+        )
+        // As in [RegionField]: a read-only text field swallows the tap meant to open the list, so a
+        // transparent layer over it opens it. It stops above the supporting line, which is not a target.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(bottom = 24.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { expanded = true },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            choices.forEach { (id, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        expanded = false
+                        onSelect(id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The job icons at the end of a provider row: a microphone where it transcribes, the rewording icon where
+ * it rewords — the same two icons the active-provider rows at the top of the screen carry, so the pair
+ * reads as a pointer back up there, and the detour sign on the fallback (#455). Nothing at all on a provider
+ * that is set up but not in use.
+ */
+@Composable
+private fun ActiveRoleIcons(id: String, transcriptionId: String, rewordingId: String, fallbackId: String?) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        val tint = MaterialTheme.colorScheme.onSurfaceVariant
+        if (id == transcriptionId) {
+            Icon(
+                imageVector = Icons.Default.Mic,
+                contentDescription = stringRes(R.string.dictate__providers_active_transcription),
+                modifier = Modifier.size(20.dp),
+                tint = tint,
+            )
+        }
+        if (id == fallbackId) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.AltRoute,
+                contentDescription = stringRes(R.string.dictate__fallback_title),
+                modifier = Modifier.size(20.dp),
+                tint = tint,
+            )
+        }
+        if (id == rewordingId) {
+            Icon(
+                imageVector = Icons.Default.SmartToy,
+                contentDescription = stringRes(R.string.dictate__providers_active_rewording),
+                modifier = Modifier.size(20.dp),
+                tint = tint,
+            )
+        }
+    }
+}
+
+/**
+ * The "Add a provider" entry at the foot of both active-provider pickers, which since those pickers stopped
+ * offering unconfigured presets is the way to one that is not set up yet. Indented to line up with the
+ * radio buttons above it.
+ */
+@Composable
+private fun AddProviderPickerRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        Text(stringRes(R.string.dictate__providers_add), modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+/** What a provider does, for rows that say nothing more specific: transcription (and realtime), rewording. */
+@Composable
+internal fun providerCapabilities(preset: ProviderPreset): String = buildList {
+    if (preset.capabilities.transcription) {
+        // Note streaming support (issue #128) right on the transcription capability.
+        val stt = stringRes(R.string.dictate__providers_cap_stt)
+        add(if (preset.supportsRealtime) "$stt (+ Realtime)" else stt)
+    }
+    if (preset.capabilities.chat) add(stringRes(R.string.dictate__providers_cap_chat))
+}.joinToString(", ")
+
+/**
+ * One-line status for a built-in provider row on the providers screen.
+ *
+ * Every row there is a provider the user has — or the active one, or one of the two pinned — so "key set"
+ * would be said of nearly all of them and tell nobody anything. The row names the models it will use
+ * instead, which is the thing people come back to look up; the missing key is still said outright, because
+ * that is the row somebody has to fix. Capabilities remain the fallback for a provider with no model to name.
+ */
 @Composable
 private fun providerSummary(
     preset: ProviderPreset,
     account: ProviderAccount?,
-    keySet: String,
     noKey: String,
 ): String {
     if (preset.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE) {
@@ -500,16 +749,17 @@ private fun providerSummary(
             names.joinToString(" · ")
         }
     }
-    val caps = buildList {
+    val stored = account ?: ProviderAccount(providerId = preset.id)
+    if (stored.requiresCredential && !stored.hasKey) return noKey
+    // Resolved the way a dictation resolves them: an empty field is the preset default showing through,
+    // and the rewording model follows the merged single-call field when that is on (#313).
+    val models = buildList {
         if (preset.capabilities.transcription) {
-            // Note streaming support (issue #128) right on the transcription capability.
-            val stt = stringRes(R.string.dictate__providers_cap_stt)
-            add(if (preset.supportsRealtime) "$stt (+ Realtime)" else stt)
+            add(stored.transcriptionModel.ifBlank { preset.defaultTranscriptionModel.orEmpty() })
         }
-        if (preset.capabilities.chat) add(stringRes(R.string.dictate__providers_cap_chat))
-    }.joinToString(", ")
-    val keyState = if (account?.hasKey == true) keySet else noKey
-    return "$keyState · $caps"
+        if (preset.capabilities.chat) add(chatModelFor(stored, preset, fallback = ""))
+    }.filter { it.isNotBlank() }.distinct()
+    return models.joinToString(" · ").ifBlank { providerCapabilities(preset) }
 }
 
 /**
@@ -517,55 +767,88 @@ private fun providerSummary(
  * and the relevant model fields; custom endpoints additionally edit a display name and base URL and can
  * be deleted ([onDelete] != null). All fields are committed together on confirm.
  */
+/**
+ * Where an Azure Speech resource comes from, in the order someone without one needs them (#384).
+ *
+ * Deliberately three links and not one. [ProviderPreset.apiKeyUrl] already points at the resource
+ * creation blade, which is the right target for the setup wizard's single button but assumes both an
+ * account and a subscription; the reporter's frustration was about everything that has to exist before
+ * a key does. The guide is Microsoft's own prerequisites page for MAI-Transcribe, which is also where
+ * the region list this dialog summarises is kept current.
+ *
+ * None carries a locale segment, so Microsoft serves each in the reader's own language (checked
+ * 2026-09-16).
+ */
+private const val AZURE_SIGNUP_URL = "https://azure.microsoft.com/free/"
+private const val AZURE_PORTAL_URL = "https://portal.azure.com/"
+private const val AZURE_GUIDE_URL = "https://learn.microsoft.com/azure/ai-services/speech-service/mai-transcribe"
+
 @Composable
-private fun ProviderEditorDialog(
+internal fun ProviderEditorDialog(
     preset: ProviderPreset?,
     account: ProviderAccount,
     onDismiss: () -> Unit,
-    onSave: (ProviderAccount) -> Unit,
+    /**
+     * [makeActive] means the user chose an on-device model in this dialog (issue #343), which is a
+     * decision about who transcribes and not only about which model — the caller acts on it.
+     */
+    onSave: (account: ProviderAccount, makeActive: Boolean) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     val prefs by FlorisPreferenceStore
+    val context = LocalContext.current
     val isCustom = preset == null
     // A base-URL-editable built-in (e.g. Ollama, #136) also shows the base URL field, pre-filled with the
     // preset's default (localhost) so the user can point it at a LAN server.
     val allowsBaseUrl = isCustom || preset?.allowsCustomBaseUrl == true
+    // Data residency (#403): where the provider publishes regional addresses, the base URL is chosen from
+    // that list rather than typed. Empty for everyone who serves the world from one address.
+    val regions = preset?.regions.orEmpty()
     val showTranscription = preset?.capabilities?.transcription ?: true
     val showChat = preset?.capabilities?.chat ?: true
 
     var displayName by remember { mutableStateOf(account.displayName) }
     var apiKey by remember { mutableStateOf(account.apiKey) }
+    // Whether an on-device model was actually chosen in here, as opposed to merely looked at or deleted
+    // (issue #343). Reported on confirm, because that is when the choice of model is stored too — the
+    // two are one decision and must not be able to land separately.
+    var chosenOnDevice by remember { mutableStateOf(false) }
     var baseUrl by remember {
         mutableStateOf(
             account.customBaseUrl.ifBlank { if (preset?.allowsCustomBaseUrl == true) preset.baseUrl else "" },
         )
     }
-    // Model fields show the *effective* model, filling in the preset default when nothing was chosen —
-    // an empty box tells the user nothing about what is actually running. Storage keeps the old meaning:
-    // [modelToStore] turns a value that still equals the default back into an empty string on confirm, so
-    // the account goes on following the preset and a later update can move it. Only a deliberate choice of
-    // something else is pinned.
+    // Model fields hold what the *user* chose and nothing else; the preset default appears greyed out
+    // behind an empty one, which says what is running without pretending someone picked it. Filling the
+    // default in as a value was the older answer to the same question, and it cost more than it gave: it
+    // came back after the user cleared the field, and it made the single-call switch look broken, because
+    // Gemini's default transcription model is a speech-to-text model that cannot serve rewording.
+    //
+    // So blank means what it has always meant in storage — follow the preset — and it now means the same
+    // on screen. Nothing converts a value back to blank on confirm any more: what stands in the box is
+    // what gets stored, including a deliberate pick of the model that is currently the default, which is
+    // then pinned and no longer moves with an app update. That is the trade this way round, and it is the
+    // one #313 asked for: what you choose is what is used.
+    //
     // On-device: a streaming model stored in the one-shot slot predates the two-slot split (#233) — move
     // it across on open so the dialog shows it under "Live" where it belongs, instead of as the one-shot
     // pick it was never meant to be.
-    val legacyStreamingPick = preset?.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE &&
-        LocalModelCatalog.isStreaming(account.transcriptionModel)
+    val isLocalProvider = preset?.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE
+    val legacyStreamingPick = isLocalProvider && LocalModelCatalog.isStreaming(account.transcriptionModel)
     var transcriptionModel by remember {
         mutableStateOf(
-            if (legacyStreamingPick) "" else {
-                account.transcriptionModel.ifBlank { preset?.defaultTranscriptionModel.orEmpty() }
+            when {
+                legacyStreamingPick -> ""
+                // The one field that is a list rather than a text box, so it has no placeholder to grey
+                // out: blank there would read as "no model selected" instead of "the default applies".
+                isLocalProvider -> account.transcriptionModel.ifBlank { preset?.defaultTranscriptionModel.orEmpty() }
+                else -> account.transcriptionModel
             },
         )
     }
-    var chatModel by remember {
-        mutableStateOf(account.chatModel.ifBlank { preset?.defaultChatModel.orEmpty() })
-    }
+    var chatModel by remember { mutableStateOf(account.chatModel) }
     var realtimeModel by remember {
-        mutableStateOf(
-            if (legacyStreamingPick) account.transcriptionModel else {
-                account.realtimeModel.ifBlank { preset?.defaultRealtimeModel.orEmpty() }
-            },
-        )
+        mutableStateOf(if (legacyStreamingPick) account.transcriptionModel else account.realtimeModel)
     }
     var showRealtimePicker by remember { mutableStateOf(false) }
     // Live catalog cache, updated when the picker fetches; persisted together with the rest on confirm.
@@ -578,6 +861,8 @@ private fun ProviderEditorDialog(
     var customRealtime by remember { mutableStateOf(account.customRealtime) }
     // Wake-on-demand (#189): whether this endpoint sits in front of a machine that sleeps between jobs.
     var customWarmUp by remember { mutableStateOf(account.customWarmUp) }
+    // User-installed CAs, for this endpoint alone (#383).
+    var trustUserCerts by remember { mutableStateOf(account.trustUserCerts) }
     var pickerKind by remember { mutableStateOf<ModelKind?>(null) }
 
     // Effective preset to drive the model picker / connection test. Custom endpoints get a base-URL-only
@@ -588,34 +873,53 @@ private fun ProviderEditorDialog(
         else -> preset
     }
 
-    // Pre-load the model catalog so we know whether this provider has any audio-capable model — that
-    // gates the single-call multimodal option (#130/#132). Populates on open for keyed accounts; for a
-    // fresh account the model browser fills it in when the user picks a model. Once classified, stops.
-    LaunchedEffect(effectivePreset.id, effectivePreset.baseUrl) {
-        if (showTranscription && showChat && effectivePreset.supportsDynamicModels &&
-            cachedAudioModels.isEmpty() &&
-            (apiKey.isNotBlank() || effectivePreset.apiKeyUrl == null)
-        ) {
-            runCatching {
-                val models = OpenAiCompatibleClient
-                    .from(
-                        effectivePreset, apiKey,
-                        baseUrlOverride = effectivePreset.baseUrl,
-                        trustUserCerts = prefs.dictate.trustUserCertificates.get(),
-                    )
-                    .listModels()
-                cachedModels = models.map { it.id }
-                cachedAudioModels = models.filter { it.acceptsAudioInput }.map { it.id }
-                cachedTranscriptionModels = models.filter { it.isTranscriptionModel }.map { it.id }
-            }
-        }
-    }
+    // Nothing here asks what a model can do. Which fields are shown is the switch's business alone, and
+    // what belongs in the merged field is the user's — the app cannot know, and a version that guessed
+    // both refused to merge and said nothing about why (#313). There used to be a catalog fetch on open
+    // whose only job was that guess; the picker loads the catalog itself when it is opened, so the
+    // dialog no longer sends a request nobody asked for.
 
     JetPrefAlertDialog(
         title = preset?.displayName ?: stringRes(R.string.dictate__providers_custom_title),
         // The whole body scrolls as one — the on-device model list makes this dialog the tallest in the
         // app, and pinning the intro/checkbox/slider while only the list moved read as two panes.
         scrollModifier = florisDialogScroll(),
+        // The on-device list is the one body in this dialog made of *rows* rather than full-width
+        // fields — a radio, two lines of text and an action button inside roughly 280 dp — so it gets
+        // four dp back at each side. A small nudge on purpose: the rows won their room from the radio
+        // slot, and taking much more from here would push them out of line with every other dialog.
+        // Vertical stays untouched; the default is 0 either way.
+        contentPadding = if (preset?.transcriptionApi == TranscriptionApi.LOCAL_ONDEVICE) {
+            PaddingValues(horizontal = 20.dp)
+        } else {
+            JetPrefAlertDialogDefaults.ContentPadding
+        },
+        // The way to the provider's key page, next to the provider's name (#410). The key field below is
+        // where someone with no key gets stuck, and until now the only place in the app that said where a
+        // key comes from was the setup wizard — so anyone who changed provider later, added a second one
+        // for rewording, or skipped the wizard was left to guess. A reporter read OpenAI's verbatim
+        // "Missing bearer authentication in header" as a broken app and asked for a refund.
+        //
+        // Shown on `apiKeyUrl` alone: not gated on the field being empty, because replacing an expired key
+        // is the same errand, and a control that appears and disappears with the text is worse than one
+        // that is simply there. Absent for Dictate Cloud, Ollama, on-device and custom endpoints, which
+        // have no key page at all — that absence is the honest answer, not a gap.
+        //
+        // No tooltip: PlainTooltip consumes the release on the Initial pass (#257/#261), and this sits in
+        // the title row of a dialog. The content description carries the label.
+        trailingIconTitle = {
+            preset?.apiKeyUrl?.let { url ->
+                IconButton(
+                    onClick = { context.launchUrl(url) },
+                    modifier = Modifier.offset(x = 12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Key,
+                        contentDescription = stringRes(R.string.dictate__providers_get_key),
+                    )
+                }
+            }
+        },
         confirmLabel = stringRes(R.string.action__ok),
         dismissLabel = stringRes(R.string.action__cancel),
         neutralLabel = if (onDelete != null) stringRes(R.string.action__delete) else null,
@@ -627,9 +931,10 @@ private fun ProviderEditorDialog(
                     customBaseUrl = baseUrl.trim(),
                     customRealtime = customRealtime,
                     customWarmUp = customWarmUp,
-                    transcriptionModel = modelToStore(transcriptionModel, preset?.defaultTranscriptionModel),
-                    chatModel = modelToStore(chatModel, preset?.defaultChatModel),
-                    realtimeModel = modelToStore(realtimeModel, preset?.defaultRealtimeModel),
+                    trustUserCerts = trustUserCerts,
+                    transcriptionModel = transcriptionModel.trim(),
+                    chatModel = chatModel.trim(),
+                    realtimeModel = realtimeModel.trim(),
                     cachedModels = cachedModels,
                     cachedAudioModels = cachedAudioModels,
                     cachedTranscriptionModels = cachedTranscriptionModels,
@@ -639,7 +944,8 @@ private fun ProviderEditorDialog(
                     } else {
                         account.cachedModelsAt
                     },
-                )
+                ),
+                chosenOnDevice,
             )
         },
         onDismiss = onDismiss,
@@ -655,6 +961,7 @@ private fun ProviderEditorDialog(
                 activeStreamingModelId = realtimeModel,
                 onActiveModelChange = { transcriptionModel = it },
                 onActiveStreamingModelChange = { realtimeModel = it },
+                onModelChosen = { chosenOnDevice = true },
             )
         } else {
         Column {
@@ -670,6 +977,43 @@ private fun ProviderEditorDialog(
                     modifier = Modifier.padding(bottom = 12.dp),
                 )
             }
+            // Azure is the one provider whose address is the user's own (#349): a Speech resource answers
+            // on its own hostname, so the field below starts empty with the shape as its hint. The
+            // regions matter as much as the URL — a resource outside the six that host MAI-Transcribe
+            // answers the endpoint but not with this model, and that failure looks like a typo.
+            if (preset?.id == ProviderRegistry.AZURE.id) {
+                Text(
+                    text = stringRes(R.string.dictate__providers_azure_endpoint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                // Azure is the one provider here where getting as far as this dialog is the easy part:
+                // an account, a subscription, a Speech resource in one of the six regions, and only then
+                // a key. Someone who has spent that afternoon and is told "connection failed" needs the
+                // way back to Microsoft, not just a verdict — so the three pages that matter stand right
+                // where the endpoint and the key are typed (#384). Locale-free URLs: Microsoft redirects
+                // each of them to the reader's own language.
+                ProvideTextStyle(MaterialTheme.typography.bodySmall) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    ) {
+                        FlorisHyperlinkText(
+                            text = stringRes(R.string.dictate__providers_azure_link_signup),
+                            url = AZURE_SIGNUP_URL,
+                        )
+                        FlorisHyperlinkText(
+                            text = stringRes(R.string.dictate__providers_azure_link_portal),
+                            url = AZURE_PORTAL_URL,
+                        )
+                        FlorisHyperlinkText(
+                            text = stringRes(R.string.dictate__providers_azure_link_guide),
+                            url = AZURE_GUIDE_URL,
+                        )
+                    }
+                }
+            }
             if (isCustom) {
                 EditorField(
                     label = stringRes(R.string.dictate__providers_field_name),
@@ -677,14 +1021,43 @@ private fun ProviderEditorDialog(
                     onValueChange = { displayName = it },
                 )
             }
-            if (allowsBaseUrl) {
+            // A provider with data-residency regions gets the list instead of the text box (#403). Same
+            // stored field, and deliberately not both: the valid addresses are published and short, and a
+            // typo in one of them does not fail — it quietly sends the audio to another continent.
+            if (allowsBaseUrl && regions.isNotEmpty()) {
+                RegionField(
+                    regions = regions,
+                    baseUrl = baseUrl,
+                    onRegionChange = { baseUrl = it.baseUrl },
+                )
+            } else if (allowsBaseUrl) {
                 EditorField(
                     label = stringRes(R.string.dictate__base_url_title),
                     value = baseUrl,
                     onValueChange = { baseUrl = it },
-                    placeholder = stringRes(R.string.dictate__base_url_placeholder),
+                    // Azure's shape is unlike every other endpoint here — the resource's own name is
+                    // part of the hostname — so the hint shows one rather than a generic server (#349).
+                    placeholder = stringRes(
+                        if (preset?.id == ProviderRegistry.AZURE.id) {
+                            R.string.dictate__base_url_placeholder_azure
+                        } else {
+                            R.string.dictate__base_url_placeholder
+                        },
+                    ),
                     keyboardType = KeyboardType.Uri,
                 )
+                // An http:// address is allowed on purpose, for a server on the user's own network (#136).
+                // It sends the key and the recording as plain text, which nothing else on screen says,
+                // and the same address used on someone else's Wi-Fi may answer from someone else's
+                // machine (#383).
+                if (baseUrl.trim().startsWith("http://", ignoreCase = true)) {
+                    Text(
+                        text = stringRes(R.string.dictate__base_url_cleartext_warning),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             EditorField(
                 label = stringRes(R.string.dictate__api_key_title),
@@ -693,10 +1066,34 @@ private fun ProviderEditorDialog(
                 placeholder = stringRes(R.string.dictate__api_key_placeholder),
                 isSecret = true,
             )
-            ConnectionTestRow(preset = effectivePreset, apiKey = apiKey)
+            // Keyed on everything a check could have been about, so that changing any of it does not
+            // merely stale the verdict but removes it, together with the coroutine that was still
+            // fetching one (#384). A result from the previous configuration must never be read as a
+            // verdict on this one — that is half of what the reporter ran into.
+            key(
+                effectivePreset.id,
+                effectivePreset.baseUrl,
+                apiKey.trim(),
+                transcriptionModel.trim(),
+                transcriptionViaChat,
+                trustUserCerts,
+            ) {
+                ProviderCheckSection(
+                    preset = effectivePreset,
+                    apiKey = apiKey,
+                    transcriptionModel = transcriptionModel,
+                    transcriptionViaChat = transcriptionViaChat,
+                    trustUserCerts = trustUserCerts,
+                    showTranscription = showTranscription,
+                )
+            }
             if (showTranscription) {
                 EditorField(
-                    // When single-call is on, this one model does both transcription and rewording (#130).
+                    // When single-call is on, this one model does both transcription and rewording (#130),
+                    // and since #313 the rewording path reads this field rather than its own. Whether the
+                    // model in it can do both is the user's call: the app has no reliable way to know, and
+                    // the version that tried to work it out refused to merge the fields and left the
+                    // switch looking broken.
                     label = stringRes(
                         if (transcriptionViaChat) {
                             R.string.dictate__providers_field_transcription_rewording_model
@@ -771,42 +1168,16 @@ private fun ProviderEditorDialog(
                         ?: stringRes(R.string.dictate__model_placeholder),
                     onBrowse = { pickerKind = ModelKind.CHAT },
                 )
-                // Wake-on-demand (#189): a GPU box that sleeps between jobs only starts waking when
-                // something reaches it, so the first rewording otherwise pays for the whole boot. Offered
-                // only for endpoints of the user's own — nowhere else is there a machine to wake.
-                if (isCustom) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { customWarmUp = !customWarmUp }
-                            .padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                            Text(
-                                text = stringRes(R.string.dictate__providers_custom_warm_up),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                text = stringRes(R.string.dictate__providers_custom_warm_up_summary),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = customWarmUp, onCheckedChange = { customWarmUp = it })
-                    }
-                }
             }
-            // Single-call multimodal (issue #130): kept at the bottom; when on, this one model transcribes
-            // and formats in a single request (the rewording model above is hidden). Offered for any
-            // provider with a chat endpoint (the prerequisite for input_audio) — whether a given model
-            // accepts audio is only known for providers that report modalities (#132), so we don't hide
-            // the toggle, but we do warn when the catalog says the selected model is not audio-capable.
+            // Single-call multimodal (issue #130): kept below the models; when on, this one model transcribes
+            // and formats in a single request and the rewording field above is folded into it. Offered for
+            // any provider with a chat endpoint, which is the prerequisite for input_audio.
+            //
+            // It used to warn when the catalog said the chosen model accepted no audio, and the model list
+            // marked the audio-capable ones. Both are gone: the classification was wrong often enough to
+            // mislead, and a wrong warning about a model that works is worse than none. Picking a model
+            // that can do both is the user's job here, and it is one the app cannot do for them.
             if (showTranscription && showChat) {
-                // Only warn when we positively know the model isn't audio-capable (catalog has modality
-                // data and the chosen model isn't in it) — never for providers that don't report it.
-                val knownNotAudio = cachedAudioModels.isNotEmpty() &&
-                    transcriptionModel.trim() !in cachedAudioModels
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -817,13 +1188,7 @@ private fun ProviderEditorDialog(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            stringRes(
-                                if (transcriptionViaChat && knownNotAudio) {
-                                    R.string.dictate__providers_single_call_pick_audio
-                                } else {
-                                    R.string.dictate__providers_single_call_summary
-                                },
-                            ),
+                            stringRes(R.string.dictate__providers_single_call_summary),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -834,6 +1199,58 @@ private fun ProviderEditorDialog(
                     )
                 }
             }
+            // Wake-on-demand (#189): a machine that sleeps between jobs, or a server that unloads its model
+            // when idle, only starts coming back once something reaches it, so the first request otherwise
+            // pays for the whole wake-up. Since #446 it is woken for whichever job it does — when a
+            // recording starts if it transcribes, when a rewording is certain if it rewords — so it belongs
+            // to the server rather than to either model, and sits below both. That also keeps it in sight
+            // when single-call folds the two into one request. Offered only for endpoints of the user's
+            // own — nowhere else is there a machine to wake.
+            if (isCustom) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { customWarmUp = !customWarmUp }
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            text = stringRes(R.string.dictate__providers_custom_warm_up),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = stringRes(R.string.dictate__providers_custom_warm_up_summary),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = customWarmUp, onCheckedChange = { customWarmUp = it })
+                }
+            }
+            // Per account since #383: the app-wide switch it replaces also opened every cloud provider's
+            // traffic to whoever holds a certificate from the CA it was turned on for. Any account may need
+            // it, not only a server of the user's own — a company's TLS-inspecting proxy sits in front of all.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { trustUserCerts = !trustUserCerts }
+                    .padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = stringRes(R.string.dictate__trust_user_certs_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = stringRes(R.string.dictate__trust_user_certs_summary),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = trustUserCerts, onCheckedChange = { trustUserCerts = it })
+            }
         }
         }
     }
@@ -843,6 +1260,7 @@ private fun ProviderEditorDialog(
             kind = kind,
             preset = effectivePreset,
             apiKey = apiKey,
+            trustUserCerts = trustUserCerts,
             current = if (kind == ModelKind.TRANSCRIPTION) transcriptionModel else chatModel,
             cachedModels = cachedModels,
             cachedAudioModels = cachedAudioModels,
@@ -866,16 +1284,6 @@ private fun ProviderEditorDialog(
             onDismiss = { showRealtimePicker = false },
         )
     }
-}
-
-/**
- * What actually gets written for a model field: an empty string when the value still equals the preset
- * default, so the account keeps following it, and the trimmed value otherwise. The editor itself shows the
- * default filled in, which is why this cannot simply store what is on screen.
- */
-private fun modelToStore(value: String, default: String?): String {
-    val trimmed = value.trim()
-    return if (default != null && trimmed == default) "" else trimmed
 }
 
 /**
@@ -931,70 +1339,206 @@ private fun RealtimeModelPickerDialog(
     }
 }
 
+/** A finished check, in the two lines the section shows: a verdict and the evidence or the way out. */
+private data class CheckOutcome(val ok: Boolean, val headline: String, val detail: String?)
+
 /**
- * A "Test connection" action with an inline result. Performs a lightweight `listModels()` call against
- * the provider's base URL with the currently entered key, so the user can verify the endpoint + key are
- * reachable before saving. A model count on success doubles as proof the catalog loads.
+ * The two checks under the key field, and the rule that each says only what it established (issue #384).
+ *
+ * There used to be one button. It counted whatever `listModels()` returned and called any number a
+ * success — which for Azure, ElevenLabs and AssemblyAI is a list compiled into the app, so the reporter
+ * got "Connected · 2 models" from an endpoint that does not exist, with a key nothing had looked at, and
+ * went hunting for the fault somewhere else entirely. A check that cannot fail is worse than no check:
+ * it spends the user's trust and answers a question they did not ask.
+ *
+ * Hence two actions with two different claims. **Test connection** makes one authenticated request per
+ * provider ([OpenAiCompatibleClient.checkCredentials]) and reports the key and the endpoint — and says
+ * in the same breath that transcription was not tested, because it was not. **Test transcription** sends
+ * [ConnectionCheckSample] through the selected model and is the only one that can say dictation works.
+ *
+ * That it costs something is carried by the separate, named button alone. There was a sentence under the
+ * two of them explaining the sample and the billing; it was three lines in a dialog that is already the
+ * tallest in the app, for a fact a labelled button that nothing presses on its own already makes plain.
+ * Removed on Jannis's call — the requirement was that a billed check be explicit and user-triggered, and
+ * a button of its own is both.
+ *
+ * The whole section is keyed on the configuration by its caller, which is what makes the second half of
+ * the report true: editing the key, the endpoint or the model does not merely grey the old verdict out,
+ * it takes the section out of composition — the result is gone and [rememberCoroutineScope] cancels a
+ * test still in flight, so an answer about the previous configuration can never land on the new one.
  */
 @Composable
-private fun ConnectionTestRow(preset: ProviderPreset, apiKey: String) {
+private fun ProviderCheckSection(
+    preset: ProviderPreset,
+    apiKey: String,
+    transcriptionModel: String,
+    transcriptionViaChat: Boolean,
+    trustUserCerts: Boolean,
+    showTranscription: Boolean,
+) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val prefs by FlorisPreferenceStore
-    var testing by remember { mutableStateOf(false) }
-    // null = not run yet; Pair(ok, message) once a test finished.
-    var result by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
-    val okColor = MaterialTheme.colorScheme.primary
-    val errColor = MaterialTheme.colorScheme.error
-    val failedFallback = stringRes(R.string.dictate__providers_test_failed)
-    // Resolved here (composable scope) so the background coroutine can format without touching Compose.
-    val successTemplate = context.getString(R.string.dictate__providers_test_success)
+    var running by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<CheckOutcome?>(null) }
+    // Green and red, not the scheme's primary and error. A verdict is the one place in this app where
+    // the colour carries meaning rather than decoration, and `primary` is the user's own accent (#387) —
+    // on a blue or purple theme "passed" read as a link. Which pair applies is decided by the surface's
+    // luminance rather than by the system's dark mode, because the app theme can be forced either way
+    // and AMOLED is darker still.
+    val onDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val okColor = if (onDark) Color(0xFF81C784) else Color(0xFF2E7D32)
+    val errColor = if (onDark) Color(0xFFE57373) else Color(0xFFC62828)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        result?.let { (ok, message) ->
-            Text(
-                text = message,
-                color = if (ok) okColor else errColor,
-                modifier = Modifier.weight(1f).padding(end = 8.dp),
-            )
-        } ?: Spacer(Modifier.weight(1f))
-        TextButton(
-            enabled = !testing,
-            onClick = {
-                testing = true
-                result = null
-                scope.launch {
-                    result = try {
-                        val count = OpenAiCompatibleClient
-                            .from(
-                                preset, apiKey.trim(),
-                                baseUrlOverride = preset.baseUrl,
-                                proxy = prefs.dictate.dictateProxyConfig(),
-                                trustUserCerts = prefs.dictate.trustUserCertificates.get(),
-                            )
-                            .listModels()
-                            .size
-                        true to successTemplate.replace("{count}", count.toString())
-                    } catch (e: Exception) {
-                        false to (e.message ?: failedFallback)
-                    } finally {
-                        testing = false
-                    }
-                }
-            },
-        ) {
-            if (testing) {
-                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
+    // Same rule the dictation path follows: what stands in the field, else the preset's default.
+    val model = transcriptionModel.trim().ifBlank { preset.defaultTranscriptionModel.orEmpty() }
+    // A provider with a key page wants a key; one without (Ollama, a server of one's own) is keyless by
+    // design. The same question [ProviderAccount.isConfigured] asks, and answering it here turns a
+    // confusing 401 — or ElevenLabs' "workspace 1anonymous1 not found" — into the one sentence that helps.
+    val needsKey = preset.apiKeyUrl != null && apiKey.isBlank()
+
+    fun startCheck(transcription: Boolean, check: suspend (OpenAiCompatibleClient) -> ConnectionCheck) {
+        if (needsKey) {
+            result = CheckOutcome(false, context.stringRes(R.string.dictate__providers_check_no_key), null)
+            return
+        }
+        running = true
+        result = null
+        scope.launch {
+            result = try {
+                // Left on the default two minutes even when the user raised their own limit (#337): the
+                // point of a test button is a quick verdict, and one that can sit there for ten minutes
+                // answers a different question than the one being asked.
+                val client = OpenAiCompatibleClient.from(
+                    preset, apiKey.trim(),
+                    baseUrlOverride = preset.baseUrl,
+                    proxy = prefs.dictate.dictateProxyConfig(),
+                    useChatAudio = transcriptionViaChat,
+                    trustUserCerts = trustUserCerts,
+                )
+                checkOutcome(context, check(client))
+            } catch (e: Exception) {
+                failureOutcome(context, e, transcription)
+            } finally {
+                running = false
             }
-            Text(stringRes(R.string.dictate__providers_test))
         }
     }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            if (running) {
+                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
+            }
+            TextButton(
+                enabled = !running,
+                onClick = { startCheck(transcription = false) { it.checkCredentials() } },
+            ) {
+                Text(stringRes(R.string.dictate__providers_test))
+            }
+            if (showTranscription) {
+                TextButton(
+                    enabled = !running,
+                    onClick = {
+                        startCheck(transcription = true) { client ->
+                            client.checkTranscription(
+                                sample = ConnectionCheckSample.file(context),
+                                model = model,
+                                language = ConnectionCheckSample.LANGUAGE,
+                            )
+                        }
+                    },
+                ) {
+                    Text(stringRes(R.string.dictate__providers_test_transcribe))
+                }
+            }
+        }
+        result?.let { outcome ->
+            Text(
+                text = outcome.headline,
+                color = if (outcome.ok) okColor else errColor,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            outcome.detail?.let { detail ->
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Turns a passed check into the two lines shown, claiming its scope and nothing above it. */
+private fun checkOutcome(context: Context, check: ConnectionCheck): CheckOutcome = when (check.scope) {
+    ConnectionCheckScope.TRANSCRIPTION -> CheckOutcome(
+        ok = true,
+        headline = context.stringRes(R.string.dictate__providers_check_transcription_ok),
+        // The transcript is evidence, not a score: the sample is synthesised speech and a model is free
+        // to mishear it. Showing what came back lets the user judge that for themselves; an empty answer
+        // is a different result and says so, because the request went through but nothing was understood.
+        detail = check.transcript?.takeIf { it.isNotBlank() }
+            ?.let { context.stringRes(R.string.dictate__providers_check_transcription_text, "text" to it) }
+            ?: context.stringRes(R.string.dictate__providers_check_transcription_empty),
+    )
+    ConnectionCheckScope.CREDENTIALS -> CheckOutcome(
+        ok = true,
+        headline = check.liveModelCount
+            ?.let { context.stringRes(R.string.dictate__providers_check_credentials_ok, "count" to it.toString()) }
+            ?: context.stringRes(R.string.dictate__providers_check_credentials_ok_nocount),
+        detail = context.stringRes(R.string.dictate__providers_check_credentials_untested),
+    )
+    // Keyless by design, so there is nothing to verify and the honest verdict is smaller, not bigger.
+    ConnectionCheckScope.ENDPOINT -> CheckOutcome(
+        ok = true,
+        headline = context.stringRes(
+            R.string.dictate__providers_check_endpoint_ok,
+            "count" to (check.liveModelCount ?: 0),
+        ),
+        detail = context.stringRes(R.string.dictate__providers_check_credentials_untested),
+    )
+}
+
+/**
+ * Turns a failed check into a verdict plus the next thing to do.
+ *
+ * The headline names the step that failed, because the two buttons fail for overlapping reasons and the
+ * user has to know which one they are reading. The detail is the app's own sentence about this kind of
+ * failure followed by the provider's verbatim words — neither is enough alone: ours says what to change,
+ * theirs names the model or the region that ours cannot know about.
+ */
+private fun failureOutcome(context: Context, e: Exception, transcription: Boolean): CheckOutcome {
+    val kind = (e as? DictateApiException)?.kind ?: DictateApiException.Kind.UNKNOWN
+    val advice = context.stringRes(
+        when (kind) {
+            DictateApiException.Kind.INVALID_API_KEY -> R.string.dictate__providers_check_err_auth
+            DictateApiException.Kind.QUOTA_EXCEEDED -> R.string.dictate__providers_check_err_quota
+            DictateApiException.Kind.NETWORK -> R.string.dictate__providers_check_err_network
+            DictateApiException.Kind.TIMEOUT -> R.string.dictate__providers_check_err_timeout
+            DictateApiException.Kind.SERVER_ERROR -> R.string.dictate__providers_check_err_server
+            DictateApiException.Kind.FORMAT_NOT_SUPPORTED,
+            DictateApiException.Kind.CONTENT_SIZE_LIMIT,
+            -> R.string.dictate__providers_check_err_format
+            else -> R.string.dictate__providers_check_err_unknown
+        },
+    )
+    val raw = e.message?.takeIf { it.isNotBlank() && it != advice }
+    return CheckOutcome(
+        ok = false,
+        headline = context.stringRes(
+            if (transcription) {
+                R.string.dictate__providers_check_failed_transcription
+            } else {
+                R.string.dictate__providers_check_failed_connection
+            },
+        ),
+        detail = listOfNotNull(advice, raw).joinToString(" "),
+    )
 }
 
 /**
@@ -1049,3 +1593,89 @@ private fun EditorField(
         },
     )
 }
+
+/**
+ * The data-residency region an account talks to (issue #403).
+ *
+ * A list rather than the base URL box the other editable endpoints get, because these addresses are the
+ * provider's and not the user's: every valid one is published, there are three or four of them, and a
+ * mistyped residency host is the one kind of address error that does not announce itself — it answers,
+ * and it answers from the wrong continent.
+ *
+ * The chosen region is stored as the account's base URL, so nothing downstream had to learn a new field.
+ * A stored URL that matches none of the regions is shown as it stands instead of being snapped onto one:
+ * it was typed deliberately, before this list existed or with something else in mind.
+ */
+@Composable
+private fun RegionField(
+    regions: List<ProviderRegion>,
+    baseUrl: String,
+    onRegionChange: (ProviderRegion) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val wanted = baseUrl.trim().trimEnd('/')
+    val selected = when {
+        wanted.isEmpty() -> regions.first()
+        else -> regions.firstOrNull { it.baseUrl.trimEnd('/').equals(wanted, ignoreCase = true) }
+    }
+    Box {
+        OutlinedTextField(
+            modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+            value = selected?.let { stringRes(regionLabelOf(it.id)) } ?: baseUrl,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(stringRes(R.string.dictate__providers_region_title)) },
+            // The host stays in the open list and nowhere else: it is what tells two regions apart while
+            // choosing, and clutter once the choice is made and the name already says it.
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+        )
+        // A read-only text field still consumes the tap that was meant to open the list, so the opener is
+        // a transparent layer of its own over the field. No ripple: the field is what the eye is on.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { expanded = true },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            regions.forEach { region ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(stringRes(regionLabelOf(region.id)))
+                            Text(
+                                text = hostOf(region.baseUrl),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onRegionChange(region)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Translated name for a [ProviderRegion] id. Only ids from [ProviderRegistry] reach here, and the host
+ * stands under the name in any case — so an id added there without a string of its own reads as the
+ * worldwide entry point rather than as nothing at all.
+ */
+@StringRes
+private fun regionLabelOf(id: String): Int = when (id) {
+    "us" -> R.string.dictate__providers_region_us
+    "eu" -> R.string.dictate__providers_region_eu
+    "jp" -> R.string.dictate__providers_region_jp
+    "in" -> R.string.dictate__providers_region_in
+    else -> R.string.dictate__providers_region_global
+}
+
+/** The host of a base URL, which is the whole of what a region actually changes. */
+private fun hostOf(url: String): String = url.substringAfter("://").substringBefore('/')

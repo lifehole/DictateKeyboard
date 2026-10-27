@@ -92,11 +92,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -108,6 +109,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import dev.patrickgold.florisboard.FlorisImeService
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
@@ -132,6 +134,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
+import org.florisboard.lib.compose.onAccent
 import org.florisboard.lib.compose.stringRes
 import org.florisboard.lib.snygg.SnyggSelector
 import org.florisboard.lib.snygg.ui.SnyggColumn
@@ -185,9 +188,13 @@ private fun keyAttributes(code: Int) = mapOf(
  * keyboard (SWIPE mode, issue #125). A clearly horizontal drag past the threshold calls [onToggle].
  *
  * @param intercept when true the gesture is handled on the Initial pass and consumed, so it wins over
- *   the keys below (used on the modern keyboard – a horizontal swipe anywhere returns to the dictation
- *   UI). When false (legacy side) it runs on the Main pass and bails the moment a child gesture (space
- *   cursor, backspace select, prompt-strip scroll) consumes the event, so those never trigger a switch.
+ *   the keys below – they answer a touch stream of their own and would otherwise swallow it. When false
+ *   it runs on the Main pass and bails the moment a child gesture (space cursor, backspace select, a
+ *   sideways-scrolling strip) consumes the event, so whoever really wants the drag keeps it.
+ *
+ * The modern keyboard uses both, one per zone: Initial over the keys, Main over everything above them.
+ * That row is full of strips that scroll sideways – rewording prompts, candidates, autofill chips – and
+ * a single intercepting detector over the whole keyboard took every one of those drags for itself (#290).
  *
  * A live push-to-talk press always wins, whichever pass this runs on – see the check inside.
  */
@@ -213,8 +220,9 @@ fun Modifier.legacySwipeToggle(
             if (!intercept && change.isConsumed) break
             // On the modern keyboard, let a key that owns its swipe keep it — space/backspace cursor+delete
             // gestures (#188), or an open long-press popup for picking an accent/umlaut (#221): step aside
-            // instead of flipping keyboards.
-            if (intercept && LegacyLayoutState.keyOwnsSwipe.value) break
+            // instead of flipping keyboards. Asked on either pass: those keys run on the keyboard's own
+            // touch stream and consume nothing Compose can see, so the check above never covers them.
+            if (LegacyLayoutState.keyOwnsSwipe.value) break
             totalDx += change.position.x - change.previousPosition.x
             totalDy += change.position.y - change.previousPosition.y
             if (abs(totalDx) > thresholdPx && abs(totalDx) > abs(totalDy) * 1.5f) {
@@ -293,7 +301,8 @@ fun LegacyDictateLayout(
                     }
                 }
 
-                // Row 2: editing actions (select-all first, so it sits in the row below the strip).
+                // Row 2: editing actions (select-all first, so it sits in the row below the strip). One
+                // row, or two once the user has picked more buttons than fit across (#226).
                 LegacyEditRow(
                     keyboardManager = keyboardManager,
                     onEmoji = { keyboardManager.activeState.imeUiMode = ImeUiMode.MEDIA },
@@ -376,10 +385,15 @@ private fun ThemedIconKey(
 }
 
 /**
- * Editing-action row. The buttons are user-configurable (issue #183/#194): the ordered set comes from
+ * Editing-action rows. The buttons are user-configurable (issue #183/#194): the ordered set comes from
  * [dev.patrickgold.florisboard.app.AppPrefs.Dictate.legacyActionRow] and is arranged in Settings. The
  * default row is select-all · undo · redo · cut · copy · paste · emoji · numbers, but any of the actions
  * in [LegacyEditAction] (also language, history, reinsert, GIF) can be placed here.
+ *
+ * Past [LegacyEditAction.MAX_PER_ROW] buttons they wrap onto a second row (issue #226), split by
+ * [LegacyEditAction.rows]. Both rows use **one** slot width — that of the longer row — so the keys line
+ * up in columns and a 6+5 split doesn't render five oversized keys under six normal ones; the shorter
+ * row is centred under the longer one with the leftover half-slot on either side.
  */
 @Composable
 private fun LegacyEditRow(
@@ -394,26 +408,34 @@ private fun LegacyEditRow(
     val hasSelection = content.selection.isSelectionMode
 
     val actionRaw by prefs.dictate.legacyActionRow.collectAsState()
-    val actions = remember(actionRaw) { LegacyEditAction.parse(actionRaw) }
-    if (actions.isEmpty()) return
+    val rows = remember(actionRaw) { LegacyEditAction.rows(LegacyEditAction.parse(actionRaw)) }
+    if (rows.isEmpty()) return
+    val slots = rows.maxOf { it.size }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(EditRowHeight),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val keyMod = Modifier.weight(1f).fillMaxHeight()
-        actions.forEachIndexed { index, action ->
-            key(index, action) {
-                LegacyActionKey(
-                    action = action,
-                    modifier = keyMod,
-                    keyboardManager = keyboardManager,
-                    hasSelection = hasSelection,
-                    onEmoji = onEmoji,
-                    onNumbers = onNumbers,
-                )
+    rows.forEachIndexed { rowIndex, row ->
+        key(rowIndex) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(EditRowHeight),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val keyMod = Modifier.weight(1f).fillMaxHeight()
+                val padding = (slots - row.size) / 2f
+                if (padding > 0f) Spacer(modifier = Modifier.weight(padding))
+                row.forEachIndexed { index, action ->
+                    key(index, action) {
+                        LegacyActionKey(
+                            action = action,
+                            modifier = keyMod,
+                            keyboardManager = keyboardManager,
+                            hasSelection = hasSelection,
+                            onEmoji = onEmoji,
+                            onNumbers = onNumbers,
+                        )
+                    }
+                }
+                if (padding > 0f) Spacer(modifier = Modifier.weight(padding))
             }
         }
     }
@@ -462,6 +484,12 @@ private fun LegacyActionKey(
         LegacyEditAction.GIF -> ThemedIconKey(KeyCode.NOOP, action.icon, label, modifier) {
             keyboardManager.activeState.imeUiMode = ImeUiMode.GIF
         }
+        LegacyEditAction.STICKER -> ThemedIconKey(KeyCode.NOOP, action.icon, label, modifier) {
+            keyboardManager.activeState.imeUiMode = ImeUiMode.STICKER
+        }
+        LegacyEditAction.CLIPBOARD -> ThemedIconKey(KeyCode.NOOP, action.icon, label, modifier) {
+            keyboardManager.activeState.imeUiMode = ImeUiMode.CLIPBOARD
+        }
         LegacyEditAction.REINSERT -> ThemedIconKey(KeyCode.NOOP, action.icon, label, modifier) {
             DictateController.reinsertLastDictation(context)
         }
@@ -483,6 +511,24 @@ private fun LegacyActionKey(
         // shared "Delete key swipe left" setting) that are deleted on release. Its swipe consumes the
         // gesture, so it never flips to the modern keyboard.
         LegacyEditAction.BACKSPACE -> LegacyBackspaceKey(modifier = modifier)
+        // Start/end of the field (#335): the same key codes the keyboard's action bar sends, so both
+        // layouts jump the same way — including extending an active selection instead of dropping it.
+        LegacyEditAction.HOME -> ThemedIconKey(KeyCode.MOVE_START_OF_PAGE, action.icon, label, modifier) {
+            keyboardManager.tapKey(KeyCode.MOVE_START_OF_PAGE)
+        }
+        LegacyEditAction.END -> ThemedIconKey(KeyCode.MOVE_END_OF_PAGE, action.icon, label, modifier) {
+            keyboardManager.tapKey(KeyCode.MOVE_END_OF_PAGE)
+        }
+        // The editing panel (#386) — set directly like the other panel openers above, rather than
+        // through the key code, because this layout never shows a Smartbar for the key to come from.
+        LegacyEditAction.EDITING -> ThemedIconKey(KeyCode.NOOP, action.icon, label, modifier) {
+            keyboardManager.activeState.imeUiMode = ImeUiMode.EDITING
+        }
+        // Scan text (issue #390), opened the same direct way. The panel asks for the photo itself, so
+        // this is only ever a way in, never a shutter.
+        LegacyEditAction.SCAN -> ThemedIconKey(KeyCode.NOOP, action.icon, label, modifier) {
+            keyboardManager.activeState.imeUiMode = ImeUiMode.SCAN
+        }
     }
 }
 
@@ -511,7 +557,12 @@ private fun LegacyLanguageKey(modifier: Modifier) {
                 Text(active.shortCode, color = fg, fontWeight = FontWeight.SemiBold)
             }
         }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        // Not focusable, like the Smartbar chip's menu: a focusable one hides the keyboard (#284).
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            properties = PopupProperties(focusable = false),
+        ) {
             selection.forEach { lang ->
                 DropdownMenuItem(
                     text = {
@@ -546,7 +597,7 @@ private fun LegacyRecordRow(
     val rewording = dictateState as? DictateController.UiState.Rewording
     // The button is non-interactive while the audio is being transcribed or reworded.
     val busy = dictateState is DictateController.UiState.Transcribing || rewording != null
-    val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
+    val onAccent = accent.onAccent()
     val sideKey = Modifier.fillMaxHeight().aspectRatio(1f)
 
     // Long-form segmented dictation (#170): whether the "Next segment" button replaces pause and how many
@@ -563,6 +614,17 @@ private fun LegacyRecordRow(
     }
     // Realtime streaming (#128): tapping the record button ends the live stream — hint that with a send glyph.
     val realtime = recording != null && DictateController.isRealtimeRecording()
+    // What a screen reader reads for the record key (#159). Its visible text is the timer while recording
+    // and the status while busy, neither of which says what a tap does. Stop and cancel are named as on the
+    // Smartbar mic.
+    val recordA11yName = stringRes(
+        when {
+            recording != null -> R.string.dictate__legacy_stop
+            busy -> R.string.action__cancel
+            else -> R.string.dictate__legacy_record
+        },
+    )
+    val recordA11yHoldName = stringRes(R.string.dictate__import_menu)
 
     Row(
         modifier = modifier,
@@ -595,7 +657,9 @@ private fun LegacyRecordRow(
         // thumb, so the same factors that read well on a 12 dp dot would be jarring here.
         val animation by prefs.dictate.recordingAnimation.collectAsState()
         val isRecording = recording != null && !recording.paused
-        val level = if (animation == DictateRecordingAnimation.LEVEL && isRecording) {
+        // WAVE has no home on a button the size of a thumb, so here it is treated as LEVEL (#371) — the
+        // waveform belongs to the Smartbar's bar, this key keeps following the voice by size.
+        val level = if (animation.followsVoice && isRecording) {
             DictateController.audioLevel.collectAsState().value
         } else {
             0f
@@ -607,7 +671,7 @@ private fun LegacyRecordRow(
             animationSpec = infiniteRepeatable(tween(PULSE_DURATION_MS), RepeatMode.Reverse),
             label = "recordPulse",
         )
-        val recordScale = if (animation == DictateRecordingAnimation.LEVEL) 1f + 0.03f * level else pulse
+        val recordScale = if (animation.followsVoice) 1f + 0.03f * level else pulse
         val interaction = remember { MutableInteractionSource() }
         val feedback = LocalInputFeedbackController.current
         Box(
@@ -633,11 +697,13 @@ private fun LegacyRecordRow(
                         Modifier.combinedClickable(
                             interactionSource = interaction,
                             indication = ripple(),
+                            onLongClickLabel = recordA11yHoldName,
                             onClick = { feedback.keyPress(); DictateController.onMicClick(context) },
                             onLongClick = { feedback.keyPress(); DictateController.startFileTranscription(context) },
                         )
                     },
-                ),
+                )
+                .semantics { contentDescription = recordA11yName },
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -690,6 +756,11 @@ private fun LegacyRecordRow(
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = onAccent, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(text = stringRes(R.string.dictate__status_transcribing), color = onAccent)
+                        // Same elapsed readout as the Smartbar (#355) — this layout replaces the keyboard
+                        // entirely, so it is the only thing the user has to look at while waiting.
+                        (dictateState as? DictateController.UiState.Transcribing)?.let {
+                            LegacyTranscribingElapsed(startedAtMs = it.startedAtMs, color = onAccent)
+                        }
                         Spacer(modifier = Modifier.width(10.dp))
                         Icon(Icons.Default.Stop, contentDescription = null, tint = onAccent, modifier = Modifier.size(20.dp))
                     }
@@ -735,6 +806,29 @@ private fun LegacyRecordRow(
             else -> LegacyBackspaceKey(modifier = sideKey)
         }
     }
+}
+
+/**
+ * The seconds a transcription has been running (issue #355), trailing the status text in a smaller
+ * size. Silent for the first second — a counter blinking "0 s" past every quick dictation would cost
+ * the common case to serve the slow one.
+ */
+@Composable
+private fun LegacyTranscribingElapsed(startedAtMs: Long, color: Color) {
+    var seconds by remember(startedAtMs) { mutableLongStateOf(0L) }
+    LaunchedEffect(startedAtMs) {
+        while (true) {
+            seconds = (SystemClock.elapsedRealtime() - startedAtMs) / 1000L
+            delay(250L)
+        }
+    }
+    if (seconds < 1L) return
+    Spacer(modifier = Modifier.width(6.dp))
+    Text(
+        text = stringRes(R.string.unit__seconds__symbol, "v" to seconds),
+        color = color,
+        fontSize = 12.sp,
+    )
 }
 
 /** Bottom row: switch-keyboard · space (cursor-move swipe) · enter. */
@@ -881,7 +975,7 @@ private fun EnterCharPopup(
     selectedIndex: Int,
     accent: Color,
 ) {
-    val onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White
+    val onAccent = accent.onAccent()
     val positionProvider = remember {
         object : PopupPositionProvider {
             override fun calculatePosition(
@@ -898,11 +992,20 @@ private fun EnterCharPopup(
             }
         }
     }
+    // The popup used to hardcode its own dark box, which meant it stayed dark-grey no matter what the
+    // keyboard looked like. It is a key popup, so it takes the key popup's style like every other one.
+    val boxStyle = rememberSnyggThemeQuery(FlorisImeUi.KeyPopupBox.elementName)
+    val focusStyle = rememberSnyggThemeQuery(
+        FlorisImeUi.KeyPopupElement.elementName,
+        selector = SnyggSelector.FOCUS,
+    )
+    val boxColor = boxStyle.background(default = Color(0xFF2B2B2B))
+    val boxText = boxStyle.foreground(default = Color.White)
     Popup(popupPositionProvider = positionProvider) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF2B2B2B))
+                .clip(boxStyle.shape())
+                .background(boxColor)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -912,13 +1015,13 @@ private fun EnterCharPopup(
                 Box(
                     modifier = Modifier
                         .size(width = 34.dp, height = 40.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(focusStyle.shape())
                         .background(if (selected) accent else Color.Transparent),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = ch,
-                        color = if (selected) onAccent else Color.White,
+                        color = if (selected) onAccent else boxText,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
                     )

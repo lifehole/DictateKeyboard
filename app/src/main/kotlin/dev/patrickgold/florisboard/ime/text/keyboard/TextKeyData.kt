@@ -122,6 +122,7 @@ data class TextKeyData(
                 CLIPBOARD_CLEAR_FULL_HISTORY,
                 CLIPBOARD_CLEAR_PRIMARY_CLIP,
                 TOGGLE_COMPACT_LAYOUT,
+                SPLIT_LAYOUT,
                 COMPACT_LAYOUT_TO_LEFT,
                 COMPACT_LAYOUT_TO_RIGHT,
                 UNDO,
@@ -134,10 +135,15 @@ data class TextKeyData(
                 IME_UI_MODE_MEDIA,
                 IME_UI_MODE_CLIPBOARD,
                 IME_UI_MODE_GIF,
+                IME_UI_MODE_STICKER,
+                IME_UI_MODE_EDITING,
+                IME_UI_MODE_SCAN,
+                TRANSLATE,
                 IME_UI_MODE_DICTATE,
                 DICTATE_LIVE_PROMPT,
                 DICTATE_PROMPTS,
                 DICTATE_REINSERT,
+                DICTATE_SWITCH_PROVIDER,
                 SYSTEM_INPUT_METHOD_PICKER,
                 SYSTEM_PREV_INPUT_METHOD,
                 SYSTEM_NEXT_INPUT_METHOD,
@@ -352,6 +358,12 @@ data class TextKeyData(
             code = KeyCode.TOGGLE_COMPACT_LAYOUT,
             label = "toggle_compact_layout",
         )
+        /** Predefined key data for [KeyCode.SPLIT_LAYOUT], which toggles the split keyboard (issue #362) */
+        val SPLIT_LAYOUT = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.SPLIT_LAYOUT,
+            label = "split_layout",
+        )
         /** Predefined key data for [KeyCode.COMPACT_LAYOUT_TO_LEFT] */
         val COMPACT_LAYOUT_TO_LEFT = TextKeyData(
             type = KeyType.SYSTEM_GUI,
@@ -369,6 +381,12 @@ data class TextKeyData(
             type = KeyType.SYSTEM_GUI,
             code = KeyCode.TOGGLE_RESIZE_MODE,
             label = "toggle_resize_mode",
+        )
+        /** Predefined key data for [KeyCode.TOGGLE_NUMBER_ROW] */
+        val TOGGLE_NUMBER_ROW = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.TOGGLE_NUMBER_ROW,
+            label = "toggle_number_row",
         )
 
         /** Predefined key data for [KeyCode.UNDO] */
@@ -433,6 +451,30 @@ data class TextKeyData(
             code = KeyCode.IME_UI_MODE_GIF,
             label = "ime_ui_mode_gif",
         )
+        /** Predefined key data for [KeyCode.IME_UI_MODE_STICKER] (opens the local sticker panel) */
+        val IME_UI_MODE_STICKER = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.IME_UI_MODE_STICKER,
+            label = "ime_ui_mode_sticker",
+        )
+        /** Predefined key data for [KeyCode.IME_UI_MODE_EDITING] (opens the text editing panel) */
+        val IME_UI_MODE_EDITING = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.IME_UI_MODE_EDITING,
+            label = "ime_ui_mode_editing",
+        )
+        /** Predefined key data for [KeyCode.IME_UI_MODE_SCAN] (opens the scan-text panel, issue #390) */
+        val IME_UI_MODE_SCAN = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.IME_UI_MODE_SCAN,
+            label = "ime_ui_mode_scan",
+        )
+        /** Predefined key data for [KeyCode.TRANSLATE] (opens or closes the translate bar, issue #424) */
+        val TRANSLATE = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.TRANSLATE,
+            label = "translate",
+        )
         /** Predefined key data for [KeyCode.IME_UI_MODE_DICTATE] (Dictate AI voice panel) */
         val IME_UI_MODE_DICTATE = TextKeyData(
             type = KeyType.SYSTEM_GUI,
@@ -456,6 +498,12 @@ data class TextKeyData(
             type = KeyType.SYSTEM_GUI,
             code = KeyCode.DICTATE_REINSERT,
             label = "dictate_reinsert",
+        )
+        /** Predefined key data for [KeyCode.DICTATE_SWITCH_PROVIDER] (transcription provider picker, #431) */
+        val DICTATE_SWITCH_PROVIDER = TextKeyData(
+            type = KeyType.SYSTEM_GUI,
+            code = KeyCode.DICTATE_SWITCH_PROVIDER,
+            label = "dictate_switch_provider",
         )
 
         /** Predefined key data for [KeyCode.SYSTEM_INPUT_METHOD_PICKER] */
@@ -642,6 +690,95 @@ class MultiTextKeyData(
 
     override fun toString(): String {
         return "${MultiTextKeyData::class.simpleName} { type=$type code=$code label=\"$label\" groupId=$groupId }"
+    }
+}
+
+/**
+ * A Devanagari vowel key that turns into the matching vowel sign while a consonant is waiting for one
+ * (issue #315).
+ *
+ * With nothing pending it is the independent vowel — आ emits आ. Once a consonant sits before the cursor
+ * the key emits the [matra] instead and shows the two of them together, so the row reads का कि की कु कू
+ * के कै को कौ. The text produced is a plain consonant-then-sign sequence either way; only the face of
+ * the key changes. Which consonant counts as pending is decided by [DevanagariBase].
+ *
+ * Example usage in a layout JSON file:
+ * ```
+ * { "$": "devanagari_vowel_key", "code": 2310, "matra": 2366, "label": "आ" }
+ * ```
+ *
+ * A vowel with no sign of its own has no [matra] and stays put — unless it is marked [inherent], which
+ * is अ and only अ.
+ */
+@Serializable
+@SerialName("devanagari_vowel_key")
+class DevanagariVowelKeyData(
+    override val type: KeyType = KeyType.CHARACTER,
+    override val code: Int = KeyCode.UNSPECIFIED,
+    val matra: Int = 0,
+    val inherent: Boolean = false,
+    override val label: String = "",
+    override val groupId: Int = KeyData.GROUP_DEFAULT,
+    override val popup: PopupSet<AbstractKeyData>? = null,
+) : KeyData {
+    override fun compute(evaluator: ComputingEvaluator): KeyData {
+        val base = evaluator.devanagariBase
+        if (base == DevanagariBase.NONE || (matra == 0 && !inherent)) {
+            return TextKeyData(type, code, label, groupId, popup)
+        }
+        if (inherent) {
+            // अ is the inherent vowel: a consonant on its own already carries it, so the key shows that
+            // consonant as the "no matra" option and sends nothing at all. Emitting the base a second
+            // time would turn क into कक.
+            return ComposedMatraKeyData(type, KeyCode.PREVIEW_ONLY, base, groupId, popup)
+        }
+        val preview = buildString {
+            append(base)
+            appendCodePoint(matra)
+        }
+        return ComposedMatraKeyData(type, matra, preview, groupId, popup)
+    }
+
+    override fun asString(isForDisplay: Boolean): String {
+        return asString(this, isForDisplay)
+    }
+
+    override fun toString(): String {
+        return "${DevanagariVowelKeyData::class.simpleName} { type=$type code=$code matra=$matra " +
+            "inherent=$inherent label=\"$label\" groupId=$groupId }"
+    }
+}
+
+/**
+ * The computed face of a [DevanagariVowelKeyData] while a consonant is pending: sends the vowel sign
+ * alone, but shows it already attached to that consonant.
+ *
+ * This exists instead of a plain [TextKeyData] because the shared [asString] prefixes a dotted circle to
+ * any lone combining mark — right for a bare matra key, wrong here, where the label already carries a
+ * real base to hang on. Never serialized; only ever produced by [DevanagariVowelKeyData.compute].
+ *
+ * A [code] of [KeyCode.PREVIEW_ONLY] is the inherent-vowel face of अ: it shows the pending consonant and
+ * writes nothing, because that consonant is already in the text.
+ */
+class ComposedMatraKeyData(
+    override val type: KeyType,
+    override val code: Int,
+    override val label: String,
+    override val groupId: Int,
+    override val popup: PopupSet<AbstractKeyData>?,
+) : KeyData {
+    override fun compute(evaluator: ComputingEvaluator): KeyData = this
+
+    override fun asString(isForDisplay: Boolean): String {
+        return when {
+            isForDisplay -> label
+            code == KeyCode.PREVIEW_ONLY -> ""
+            else -> buildString { appendCodePoint(code) }
+        }
+    }
+
+    override fun toString(): String {
+        return "${ComposedMatraKeyData::class.simpleName} { type=$type code=$code label=\"$label\" groupId=$groupId }"
     }
 }
 

@@ -11,7 +11,7 @@
     <string name="one_handed__move_end_btn_content_description" comment="Content description for the one-handed move to right button">Move keyboard to the right.</string>
 
     <!-- Media strings -->
-    <string name="settings__media__title">Emojis &amp; GIFs</string>
+    <string name="settings__media__title">Emojis, GIFs &amp; Stickers</string>
     <string name="media__tab__emojis" comment="Tab description for emojis in the media UI">Emojis</string>
     <string name="media__tab__emoticons" comment="Tab description for emoticons in the media UI">Emoticons</string>
     <string name="media__tab__kaomoji" comment="Tab description for kaomoji in the media UI">Kaomoji</string>
@@ -30,6 +30,11 @@
     <string name="prefs__media__gif_setup__open_klipy" comment="Button opening the KLIPY API-keys page">Open KLIPY Partner Panel</string>
     <string name="prefs__media__gif_setup__key_label" comment="Text field label">KLIPY API key</string>
     <string name="prefs__media__gif_setup__privacy_note" comment="Privacy note in the setup dialog">Your search terms are only sent to KLIPY while the GIF panel is open — never during dictation.</string>
+    <string name="prefs__media__gif_content_filter" comment="Title of the setting choosing how strictly GIF results are filtered for adult or offensive content (safe search)">Safe search</string>
+    <string name="prefs__media__gif_content_filter__high" comment="Safe-search level: the strictest filtering">Strict</string>
+    <string name="prefs__media__gif_content_filter__medium" comment="Safe-search level between strict and light">Moderate</string>
+    <string name="prefs__media__gif_content_filter__low" comment="Safe-search level: only the most explicit results are filtered">Light</string>
+    <string name="prefs__media__gif_content_filter__off" comment="Safe-search level: no filtering at all">Off</string>
     <string name="gif__search_placeholder" comment="Search field placeholder; KLIPY attribution requires the KLIPY name here">Search KLIPY</string>
     <string name="gif__powered_by" comment="Attribution shown in the GIF panel">Powered by KLIPY</string>
     <string name="gif__no_results" comment="Empty state when a search returns nothing">No GIFs found</string>
@@ -38,11 +43,114 @@
     <string name="gif__setup_needed_action" comment="Button to open settings">Set up GIF search</string>
     <string name="gif__copied_to_clipboard" comment="Toast when a GIF is copied as a fallback">GIF copied to clipboard — long-press to paste</string>
     <string name="gif__insert_failed" comment="Toast when a GIF could not be inserted or copied">Couldn\'t insert the GIF</string>
+    <!-- Scan text (issue #390) -->
+    <string name="scan__take_photo" comment="Button in the scan panel, opens the system camera">Take photo</string>
+    <string name="scan__pick_image" comment="Button in the scan panel, opens the photo picker">Choose image</string>
+    <string name="scan__retake" comment="Button shown after a scan failed, opens the camera again">Try again</string>
+    <string name="scan__empty_hint" comment="Shown in the scan panel before anything has been photographed">Photograph printed text and tap the part you want.</string>
+    <string name="scan__latin_only" comment="Quiet note in the scan panel: the recogniser reads Latin script only">Latin script only</string>
+    <string name="scan__reading" comment="Shown while the photo is being read">Reading the photo…</string>
+    <string name="scan__no_text" comment="Shown when the photo contained no readable text">No text found in the photo.</string>
+    <string name="scan__failed" comment="Shown when the photo could not be read at all">The photo could not be read.</string>
+    <string name="scan__no_camera" comment="Toast when no camera app is installed">No camera app found.</string>
+    <string name="scan__select_all" comment="Button below the scanned photo: marks every recognised line">Select all</string>
+    <string name="scan__discard" comment="Button below the scanned photo: throws the scan away and starts over">Discard</string>
+    <string name="scan__approve" comment="Button below the scanned photo: inserts the marked lines at the cursor">Approve</string>
+    <!-- Local stickers (issue #280) -->
+    <string name="prefs__media__sticker__title" comment="Settings group title">Stickers</string>
+    <string name="prefs__media__sticker_folder__title" comment="Preference title, opens the folder picker">Sticker folder</string>
+    <string name="prefs__media__sticker_folder__summary_unset" comment="Preference summary when no folder is chosen">Choose a folder of your own images</string>
+    <string name="prefs__media__sticker_folder_clear" comment="Preference title, gives up access to the chosen folder">Forget this folder</string>
+    <string name="prefs__media__sticker_rescan" comment="Preference title">Read the folder again</string>
+    <string name="prefs__media__sticker_rescan__summary" comment="Preference summary">Use after adding or removing files</string>
+    <string name="prefs__media__sticker_thumbnail_size" comment="Preference title, slider for the grid cell size">Sticker size</string>
+    <string name="prefs__media__sticker_history_recent_max_size" comment="Preference title, slider for how many recents to keep">Recently used stickers to keep</string>
+    <string name="prefs__media__sticker_confirm_before_insert" comment="Preference title">Confirm before sending</string>
+    <string name="prefs__media__sticker_confirm_before_insert__summary" comment="Preference summary">Tap a sticker once to select it, again to send. A quick double tap sends straight away</string>
+    <string name="prefs__media__sticker_pinned_reset" comment="Preference title">Clear favourite stickers</string>
+    <string name="prefs__media__sticker_history_reset" comment="Preference title">Clear recently used stickers</string>
+    <string name="sticker__title" comment="Name of the sticker panel, shown on the legacy layout's action">Stickers</string>
+    <string name="sticker__category_all" comment="Tab holding the files that are not in a subfolder">All</string>
+    <string name="sticker__section_favorites" comment="Section heading above pinned stickers">Favourites</string>
+    <string name="sticker__section_recent" comment="Section heading above recently used stickers">Recently used</string>
+    <string name="sticker__section_rest" comment="Section heading above the remaining stickers of a folder">All stickers</string>
+    <string name="sticker__pin" comment="Long-press action, adds a sticker to the favourites">Add to favourites</string>
+    <string name="sticker__unpin" comment="Long-press action, removes a sticker from the favourites">Remove from favourites</string>
+    <string name="sticker__reorder" comment="Long-press action on a favourite, starts moving it along the row">Change position</string>
+    <string name="sticker__reorder_hint" comment="Header text while a favourite is being moved with the arrows">Move with the arrows</string>
+    <string name="sticker__reorder_earlier" comment="Screen reader label for the arrow that moves a favourite towards the start">Move towards the start</string>
+    <string name="sticker__reorder_later" comment="Screen reader label for the arrow that moves a favourite towards the end">Move towards the end</string>
+    <string name="sticker__search" comment="Label inside the sticker panel's search field, and what a screen reader announces for it">Search stickers</string>
+    <string name="sticker__search_placeholder" comment="Hint inside the sticker search field">Search by file name</string>
+    <string name="sticker__search_no_results" comment="Shown when no file name matches what was typed">No sticker with that name</string>
+    <string name="sticker__setup_needed" comment="Empty state when no folder has been chosen">Choose a folder to use your own stickers</string>
+    <string name="sticker__setup_needed_action" comment="Button that opens the settings screen">Open settings</string>
+    <string name="sticker__folder_empty" comment="Empty state when the chosen folder holds no usable images">No images in this folder</string>
+    <string name="sticker__access_lost" comment="Empty state when the folder can no longer be read">The sticker folder can no longer be read. Choose it again.</string>
+    <string name="sticker__folder_pick_failed" comment="Toast when the folder permission could not be kept">Could not keep access to that folder</string>
+    <string name="sticker__rescan_done" comment="Toast after a manual rescan; {n} is the number of stickers found">{n} stickers found</string>
+    <string name="sticker__rescan_done_converted" comment="Toast after a rescan that also converted files; {n} stickers found, {converted} of them brought into the sticker shape">{n} stickers found, {converted} converted</string>
+    <string name="sticker__copied_to_clipboard" comment="Toast when the target app refuses images and the sticker is copied instead">This app does not accept stickers — copied to clipboard, long-press to paste</string>
+    <string name="sticker__insert_failed" comment="Toast when a sticker could not be inserted or copied">Couldn\'t insert the sticker</string>
+    <string name="prefs__media__sticker_add" comment="Preference title, opens a picker to copy images into the sticker folder">Add stickers</string>
+    <string name="prefs__media__sticker_add__summary" comment="Preference summary; mentions the share sheet as the other way in">Copy images into the folder. You can also share an image to Dictate from any app.</string>
+    <string name="prefs__media__sticker_import_whatsapp" comment="Preference title, opens the picker at WhatsApp\'s sticker folder">Fetch from WhatsApp</string>
+    <string name="prefs__media__sticker_import_whatsapp__summary" comment="Preference summary explaining what other apps allow">Opens the file picker at WhatsApp\'s sticker folder. Keyboards such as Samsung\'s keep their stickers where no other app may read them — share those to Dictate instead.</string>
+    <string name="sticker__import_share_label" comment="Label of the app in the Android share sheet">Save as sticker</string>
+    <string name="sticker__import_added" comment="Toast after importing; {n} is the number of stickers added">{n} added</string>
+    <string name="sticker__import_duplicate" comment="Toast part; {n} images were already in the folder">{n} already there</string>
+    <string name="sticker__import_unsupported" comment="Toast part; {n} files were not usable images">{n} not usable</string>
+    <string name="sticker__import_failed" comment="Toast part; {n} images could not be copied">{n} failed</string>
+    <string name="sticker__import_nothing" comment="Toast when a share carried nothing to import">Nothing to add</string>
+    <string name="sticker__import_no_folder" comment="Toast when a sticker is shared before a folder was chosen">Choose a sticker folder first</string>
+    <string name="sticker__import_needs_write" comment="Toast when the folder was granted read-only access">Choose the sticker folder again to allow adding and deleting</string>
+    <string name="sticker__forget_recent" comment="Long-press action, drops a sticker from the recently used row">Remove from recents</string>
+    <string name="sticker__share" comment="Long-press action, hands the sticker to the Android share sheet">Send via share sheet</string>
+    <string name="sticker__insert_as_gif" comment="Long-press action, converts an animated sticker to GIF so apps that only animate GIFs show it moving">Insert as GIF</string>
+    <string name="sticker__delete_file" comment="Long-press action, deletes the image file itself">Delete file</string>
+    <string name="sticker__delete_confirm" comment="Second tap of the delete action, shown in red">Really delete?</string>
+    <string name="sticker__delete_failed" comment="Toast when the file could not be deleted">Could not delete the file</string>
+    <string name="prefs__media__emoji__title" comment="Settings group title">Emojis</string>
+    <string name="prefs__media__sticker_import_source" comment="Preference title, opens a list of places stickers are often kept">Fetch from an app</string>
+    <string name="prefs__media__sticker_import_source__summary" comment="Preference summary">Open the file picker straight in a folder another app writes to</string>
+    <string name="prefs__media__sticker_packs" comment="Preference title, opens the pack manager">Sticker packs</string>
+    <string name="prefs__media__sticker_packs__summary" comment="Preference summary; packs are the subfolders of the chosen folder">Create, rename and delete the folders your stickers are sorted into</string>
+    <string name="sticker__source_browse" comment="First entry in the sticker source list: pick files from anywhere">Browse files…</string>
+    <string name="sticker__source_threema" comment="Entry in the list of places to fetch stickers from">Threema</string>
+    <string name="sticker__source_signal" comment="Entry in the list of places to fetch stickers from">Signal</string>
+    <string name="sticker__source_stickers_folder" comment="Entry in the list of places to fetch stickers from; a plain Pictures/Stickers folder">Stickers folder</string>
+    <string name="sticker__source_whatsapp" comment="Entry in the list of places to fetch stickers from">WhatsApp</string>
+    <string name="sticker__source_whatsapp_business" comment="Entry in the list of places to fetch stickers from">WhatsApp Business</string>
+    <string name="sticker__source_telegram" comment="Entry in the list of places to fetch stickers from">Telegram</string>
+    <string name="sticker__source_downloads" comment="Entry in the list of places to fetch stickers from">Downloads</string>
+    <string name="sticker__source_pictures" comment="Entry in the list of places to fetch stickers from">Pictures</string>
+    <string name="sticker__source_dcim" comment="Entry in the list of places to fetch stickers from">Camera</string>
+    <string name="sticker__source_hint" comment="Note under the list; explains why some apps are missing from it">These are starting points, not guarantees — if a folder is not there, the picker opens as usual. Apps that keep their stickers to themselves, such as the Samsung keyboard, can only be shared to Dictate.</string>
+    <string name="sticker__import_progress" comment="Preference title while copying; {done} of {total} files handled">Copying {done} of {total}</string>
+    <string name="sticker__import_cancel" comment="Preference summary while copying; tapping stops it">Tap to stop. What has been copied stays.</string>
+    <string name="sticker__refused_declares_nothing" comment="Toast when the target app accepts no rich content at all">This app takes no images from the keyboard — copied to clipboard, long-press to paste</string>
+    <string name="sticker__refused_accepts_only" comment="Toast naming the formats the app accepts; {accepted} is a list of types, {own} the sticker\'s own">This app only takes {accepted}, this sticker is {own} — copied to clipboard, long-press to paste</string>
+    <string name="sticker__move_to_pack" comment="Long-press action, moves a sticker into another pack">Move to pack</string>
+    <string name="sticker__pack_none" comment="Entry that moves a sticker out of every pack, back into the main folder">No pack</string>
+    <string name="sticker__move_failed" comment="Toast when a sticker could not be moved">Could not move the sticker</string>
+    <string name="sticker__pack_new" comment="Button that creates a pack">Create pack</string>
+    <string name="sticker__pack_name" comment="Text field label for the pack name">Pack name</string>
+    <string name="sticker__pack_rename" comment="Button and icon label for renaming a pack">Rename</string>
+    <string name="sticker__pack_reorder_hint" comment="Hint above the pack list, explaining how the tab order is changed">Hold a pack to move it</string>
+    <string name="sticker__pack_icon_set" comment="Long-press action, makes this sticker the little picture on its pack's tab">Use as pack icon</string>
+    <string name="sticker__pack_icon_clear" comment="Long-press action, takes this sticker back off its pack's tab">Remove pack icon</string>
+    <string name="sticker__pack_delete" comment="Icon label and title of the delete confirmation">Delete pack</string>
+    <string name="sticker__pack_delete_confirm" comment="Delete confirmation; {name} is the pack, {n} how many stickers go with it">Delete the pack \"{name}\" and the {n} stickers in it?</string>
+    <string name="sticker__pack_failed" comment="Toast when creating, renaming or deleting a pack did not work">That did not work — the folder may be write-protected</string>
+    <string name="sticker__packs_loading" comment="Shown while the folder is being read">Reading the folder…</string>
+    <string name="sticker__packs_empty" comment="Shown when the folder has no subfolders yet">No packs yet. A pack is a subfolder of your sticker folder.</string>
     <string name="prefs__media__emoji_preferred_skin_tone">Preferred emoji skin tone</string>
     <string name="prefs__media__emoji_preferred_hair_style">Preferred emoji hair style</string>
     <string name="prefs__media__emoji_history__title" comment="Preference group title">Emoji history</string>
     <string name="prefs__media__emoji_history_enabled" comment="Preference title">Enable emoji history</string>
     <string name="prefs__media__emoji_history_enabled__summary" comment="Preference summary">Retain recently used emojis for quick access</string>
+    <string name="prefs__media__emoji_row_enabled" comment="Preference title for the optional row of recent emojis shown above the keyboard">Emoji row</string>
+    <string name="prefs__media__emoji_row_enabled__summary" comment="Preference summary explaining the emoji row">Show a row of your pinned and recently used emojis above the keyboard</string>
     <string name="prefs__media__emoji_history_pinned_update_strategy" comment="Preference title">Update strategy (Pinned)</string>
     <string name="prefs__media__emoji_history_recent_update_strategy" comment="Preference title">Update strategy (Recent)</string>
     <string name="prefs__media__emoji_history_max_size">Maximum items to keep</string>
@@ -75,6 +183,7 @@
     <string name="emoji__history__removal_success_message" comment="Toast message if user has used the delete action on an emoji in the emoji history">Removed {emoji} from emoji history</string>
     <string name="emoji__history__pinned">Pinned</string>
     <string name="emoji__history__recent">Recent</string>
+    <string name="emoji__row__open_panel" comment="Accessibility label of the button at the end of the emoji row, which opens the full emoji panel">Open all emojis</string>
     <string name="emoji__search__hint" comment="Placeholder shown in the emoji search field before the user types a query">Search emoji</string>
     <string name="emoji__search__no_results" comment="Shown in the emoji search strip when the typed query matches no emoji">No matching emoji</string>
 
@@ -87,6 +196,10 @@
     <string name="quick_action__arrow_left__tooltip">Perform arrow left</string>
     <string name="quick_action__arrow_right" comment="Please mind the limited available space for the quick action strings">Arrow right</string>
     <string name="quick_action__arrow_right__tooltip">Perform arrow right</string>
+    <string name="quick_action__move_start_of_page" comment="Please mind the limited available space for the quick action strings">Text start</string>
+    <string name="quick_action__move_start_of_page__tooltip">Jump to the start of the text</string>
+    <string name="quick_action__move_end_of_page" comment="Please mind the limited available space for the quick action strings">Text end</string>
+    <string name="quick_action__move_end_of_page__tooltip">Jump to the end of the text</string>
     <string name="quick_action__ime_hide_ui" comment="Please mind the limited available space for the quick action strings">Hide keyboard</string>
     <string name="quick_action__ime_hide_ui__tooltip">Perform hide keyboard</string>
     <string name="quick_action__clipboard_clear_primary_clip" comment="Please mind the limited available space for the quick action strings">Clear primary clipboard clip</string>
@@ -97,6 +210,7 @@
     <string name="quick_action__clipboard_cut__tooltip">Perform clipboard cut</string>
     <string name="quick_action__clipboard_paste" comment="Please mind the limited available space for the quick action strings">Paste</string>
     <string name="quick_action__clipboard_paste__tooltip">Perform clipboard paste</string>
+    <string name="quick_action__clipboard_select" comment="Toggle in the text editing panel: while it is on, the arrow keys extend the selection instead of moving the cursor. Mind the limited space.">Select</string>
     <string name="quick_action__clipboard_select_all" comment="Please mind the limited available space for the quick action strings">Select all</string>
     <string name="quick_action__clipboard_select_all__tooltip">Perform clipboard select all</string>
     <string name="quick_action__forward_delete" comment="Please mind the limited available space for the quick action strings">Forward delete</string>
@@ -106,6 +220,14 @@
     <string name="quick_action__ime_ui_mode_media__tooltip">Open emoji panel</string>
     <string name="quick_action__ime_ui_mode_gif" comment="Please mind the limited available space for the quick action strings">GIF</string>
     <string name="quick_action__ime_ui_mode_gif__tooltip">Search GIFs</string>
+    <string name="quick_action__ime_ui_mode_sticker" comment="Please mind the limited available space for the quick action strings">Sticker</string>
+    <string name="quick_action__ime_ui_mode_sticker__tooltip">Insert your own stickers</string>
+    <string name="quick_action__ime_ui_mode_editing" comment="Opens the text editing panel: cursor pad, select, cut/copy/paste. Mind the limited space.">Text editing</string>
+    <string name="quick_action__ime_ui_mode_editing__tooltip">Move the cursor, select and edit text</string>
+    <string name="quick_action__ime_ui_mode_scan" comment="Opens the scan panel: photograph printed text and insert part of it. Mind the limited space.">Scan text</string>
+    <string name="quick_action__ime_ui_mode_scan__tooltip">Photograph printed text and insert it</string>
+    <string name="quick_action__translate" comment="Opens the on-device translate bar. Mind the limited space.">Translate</string>
+    <string name="quick_action__translate__tooltip">Translate as you type, on this device</string>
     <string name="quick_action__ime_ui_mode_dictate" comment="Please mind the limited available space for the quick action strings">Dictate</string>
     <string name="quick_action__ime_ui_mode_dictate__tooltip">Tap to dictate, tap again to transcribe</string>
     <string name="quick_action__dictate_live_prompt" comment="Please mind the limited available space for the quick action strings">Live prompt</string>
@@ -114,6 +236,8 @@
     <string name="quick_action__dictate_prompts__tooltip">Open the AI rewording prompts</string>
     <string name="quick_action__dictate_reinsert" comment="Please mind the limited available space for the quick action strings. Opens the dictation history panel">History</string>
     <string name="quick_action__dictate_reinsert__tooltip">Open your dictation history</string>
+    <string name="quick_action__dictate_switch_provider" comment="Please mind the limited available space for the quick action strings. Opens a list of the set-up transcription providers to switch between; also the title of that list">Transcription provider</string>
+    <string name="quick_action__dictate_switch_provider__tooltip">Switch the transcription provider</string>
     <string name="quick_action__language_switch" comment="Please mind the limited available space for the quick action strings">Switch language</string>
     <string name="quick_action__language_switch__tooltip">Perform language switch</string>
     <string name="quick_action__system_prev_input_method" comment="Quick action: switch back to the previously used keyboard/IME. Mind the limited space.">Switch keyboard</string>
@@ -136,8 +260,14 @@
     <string name="quick_action__floating_window_mode__tooltip">Toggle floating keyboard window mode</string>
     <string name="quick_action__one_handed_mode" comment="Please mind the limited available space for the quick action strings">One-handed</string>
     <string name="quick_action__one_handed_mode__tooltip">Toggle one-handed mode</string>
+    <string name="quick_action__split_layout" comment="Please mind the limited available space for the quick action strings">Split</string>
+    <string name="quick_action__split_layout__tooltip">Toggle split keyboard</string>
     <string name="quick_action__resize_mode" comment="Please mind the limited available space for the quick action strings">Resize</string>
     <string name="quick_action__resize_mode__tooltip">Toggle resize mode</string>
+    <string name="quick_action__toggle_number_row" comment="Quick action that shows or hides the row of digit keys above the letters. Please mind the limited available space for the quick action strings">Number row</string>
+    <string name="quick_action__toggle_number_row__tooltip">Show or hide the number row</string>
+    <string name="quick_action__view_numeric_advanced" comment="Quick action that replaces the whole keyboard with a number pad (digits, arithmetic signs, brackets). Not to be confused with the number row above. Please mind the limited available space for the quick action strings">Number pad</string>
+    <string name="quick_action__view_numeric_advanced__tooltip">Switch to the number pad</string>
     <string name="quick_action__drag_marker" comment="This action is only used as a placeholder in the actions editor drag and drop screen and only visible in debug mode">Drag marker</string>
     <string name="quick_action__drag_marker__tooltip" comment="This action is only used as a placeholder in the actions editor drag and drop screen and only visible in debug mode">Current drag marker position</string>
     <string name="quick_action__noop" comment="Noop=no operation; this action is only used as a placeholder in the actions editor drag and drop screen">None</string>
@@ -168,8 +298,20 @@
     <string name="settings__search__placeholder" comment="Placeholder in the settings search field">Search settings…</string>
     <string name="settings__search__recent" comment="Header above recently used search terms">Recent searches</string>
     <string name="settings__search__clear_recent" comment="Button to clear the recent searches">Clear recent searches</string>
+    <string name="dictate__settings_unreadable_card" comment="Red card on the settings home screen, shown after the app could not read its settings file at start and started with the defaults. Tapping it offers to restore the old file.">Your settings could not be read, so Dictate started with its defaults. Tap here to bring them back.</string>
+    <string name="dictate__settings_unreadable_title" comment="Title of the dialog offering to restore the settings that could not be read. One line of about 18 characters at most; it is cut off beyond that.">Restore settings?</string>
+    <string name="dictate__settings_unreadable_message" comment="Body of that dialog. The buttons are Restore, Delete and Cancel; use the same words as those buttons.">When Dictate started, it could not read its settings file. It kept the file untouched and started with the defaults. Restore brings back your providers, keys, prompts and settings as they were. Delete removes the old file.</string>
+    <string name="dictate__settings_restore_failed" comment="Toast when restoring the settings file failed because it still cannot be read">The old settings still cannot be read.</string>
     <string name="settings__search__popular" comment="Header above a small list of popular settings shortcuts">Popular</string>
     <string name="settings__search__no_results" comment="Shown when a settings search returns nothing">No settings found</string>
+    <string name="settings__search__keywords__text_expansion" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the typing-shortcut setting, which lets a short trigger expand into a saved block of text. Translate as the words people in your language would actually type when looking for that feature, separated by spaces. Do not translate word for word; add or drop terms as makes sense.">text expansion expander snippet abbreviation macro autotext boilerplate canned response</string>
+    <string name="settings__search__keywords__selection_metrics" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which shows how many words and characters are selected. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">word count character counter length statistics how many words</string>
+    <string name="settings__search__keywords__trim_on_copy" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which removes spaces and line breaks at the ends of copied text. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">trim whitespace strip spaces clean copy cut trailing leading</string>
+    <string name="settings__search__keywords__momentary_layer" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which lets you hold the ?123 key, slide onto a symbol and have the letters come back when you let go. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">hold slide symbol layer peek shift momentary temporary 123 punctuation iphone</string>
+    <string name="settings__search__keywords__emoji_row" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which shows a row of recent emojis above the keyboard. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">emoji row recent used strip bar above keyboard smiley quick</string>
+    <string name="settings__search__keywords__clear_cache" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which empties the app\'s temporary files. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">cache storage space temporary files free up delete clean</string>
+    <string name="settings__search__keywords__request_timeout" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting for how long a request may take. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">timeout timed out slow waiting connection seconds gave up</string>
+    <string name="settings__search__keywords__floating_side_buttons" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting choosing which small buttons appear beside the floating button: cancel, pause and undo. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">undo cancel pause resume discard</string>
 
     <string name="settings__localization__title" comment="Title of languages and Layout screen">Languages &amp; Layouts</string>
     <string name="settings__localization__display_language_names_in__label" comment="Label of Display language names in preference">Display language names in</string>
@@ -178,6 +320,8 @@
     <string name="settings__localization__subtype_add_title" comment="Title of subtype dialog when adding a new subtype">Add subtype</string>
     <string name="settings__localization__language_pack_title" comment="Title of the language pack manager screen for managing installed and custom language packs">Manage installed language packs</string>
     <string name="settings__localization__language_pack_summary" comment="Summary of preference item for adding a new language pack">Extensions that add an input method: Chinese Pinyin and the stroke-based methods.</string>
+    <string name="settings__localization__subtype_download_title" comment="Title of the dialog shown before adding a language, asking whether its data may be downloaded">Language data</string>
+    <string name="settings__localization__subtype_download_message" comment="Body of that dialog. {language_name} is a language name such as German (Germany), {size} a download size such as 4.5 MB">Adding {language_name} downloads {size} of word lists and word-context data. Suggestions and autocorrect need it. The download starts right away and may use mobile data.</string>
     <string name="settings__localization__subtype_edit_title" comment="Title of subtype dialog when editing an existing subtype">Edit subtype</string>
     <string name="settings__localization__subtype_locale" comment="Label for locale dropdown in subtype dialog">Primary language</string>
     <string name="settings__localization__subtype_popup_mapping" comment="Label for popup mapping dropdown in subtype screen">Popup mapping</string>
@@ -219,6 +363,8 @@
     <string name="settings__localization__subtype_delete_confirmation_warning" comment="Warning message in the confirmation dialog to confirm the user's intent to delete">Are you sure you want to delete this subtype?</string>
 
     <string name="settings__theme__title" comment="Title of the Theme screen">Theme</string>
+    <string name="pref__theme__high_contrast__label" comment="Label of the switch that turns on the measured high-contrast theme pair">High contrast</string>
+    <string name="pref__theme__high_contrast__summary" comment="Summary of the high-contrast switch. 7:1 is the WCAG AAA contrast ratio for body text; keep the ratio as digits.">Outlined keys, every label measured at 7:1. Sets day and night.</string>
     <string name="pref__theme__mode__label" comment="Label of the theme mode preference">Theme mode</string>
     <string name="pref__theme__sunrise_time__label" comment="Label of the sunrise time preference">Sunrise time</string>
     <string name="pref__theme__sunset_time__label" comment="Label of the sunset time preference">Sunset time</string>
@@ -268,7 +414,7 @@
     <string name="settings__theme_editor__property_value_shape_apply_for_all_corners">Apply for all corners</string>
     <string name="settings__theme_editor__property_value_color_dialog_title">Edit color string</string>
     <string name="settings__theme_editor__file_selector_dialog_title">Select file</string>
-    <string name="settings__theme_editor__file_selector_no_files_text">No files have been added to this extension yet. Please use the "{action_title}" action in the previous screen to import files.</string>
+    <string name="settings__theme_editor__file_selector_no_files_text">No files have been added to this extension yet. Please use the “{action_title}” action in the previous screen to import files.</string>
     <string name="settings__theme_editor__component_meta_is_night_theme">Is night theme</string>
     <string name="settings__theme_editor__component_meta_is_borderless">Is borderless</string>
     <string name="settings__theme_editor__component_meta_stylesheet_path">Stylesheet path</string>
@@ -380,6 +526,7 @@
     <string name="snygg__rule_element__smartbar_candidate_clip">Smartbar candidate clip</string>
     <string name="snygg__rule_element__smartbar_candidate_clip_icon">Smartbar candidate clip icon</string>
     <string name="snygg__rule_element__smartbar_candidate_clip_text">Smartbar candidate clip text</string>
+    <string name="snygg__rule_element__smartbar_candidate_clip_dismiss">Smartbar candidate clip dismiss button</string>
     <string name="snygg__rule_element__smartbar_candidate_spacer">Smartbar candidate spacer</string>
 
     <string name="snygg__rule_element__subtype_panel">Subtype panel</string>
@@ -396,10 +543,13 @@
 
     <string name="snygg__property_name__background">Background</string>
     <string name="snygg__property_name__foreground">Foreground</string>
+    <string name="snygg__property_name__background_blur">Background blur</string>
     <string name="snygg__property_name__background_image">Background image</string>
     <string name="snygg__property_name__content_scale">Content scale</string>
     <string name="snygg__property_name__border_color">Border color</string>
     <string name="snygg__property_name__border_style">Border style</string>
+    <string name="snygg__property_name__background_sheen">Background sheen</string>
+    <string name="snygg__property_name__border_sheen">Border sheen</string>
     <string name="snygg__property_name__border_width">Border width</string>
     <string name="snygg__property_name__font_family">Font family</string>
     <string name="snygg__property_name__font_size">Font size</string>
@@ -449,6 +599,8 @@
     <string name="snygg__property_value__circle_shape">Circle shape</string>
     <string name="snygg__property_value__cut_corner_shape_dp">Cut corner shape (dp)</string>
     <string name="snygg__property_value__cut_corner_shape_percent">Cut corner shape (%)</string>
+    <string name="snygg__property_value__sheen">Sheen</string>
+    <string name="snygg__property_value__squircle_shape">Squircle</string>
     <string name="snygg__property_value__rounded_corner_shape_dp">Rounded corner shape (dp)</string>
     <string name="snygg__property_value__rounded_corner_shape_percent">Rounded corner shape (%)</string>
     <string name="snygg__property_value__dp_size">Size (dp)</string>
@@ -466,6 +618,8 @@
     <string name="pref__input_feedback__audio_enabled__label" comment="Preference title">Enable audio feedback</string>
     <string name="pref__input_feedback__audio_enabled__summary_disabled" comment="Preference summary">Never play sounds for input events, regardless of system settings</string>
     <string name="pref__input_feedback__audio_volume__label" comment="Preference title">Sound volume for input events</string>
+    <string name="pref__input_feedback__audio_muted_by_system__warning" comment="Warning card shown when Android\'s touch sounds are off">Android\'s touch sounds are switched off, so the keyboard stays silent. Tap here to turn them on, or set the option below to always play sounds.</string>
+    <string name="pref__input_feedback__audio_muted_by_ringer__warning" comment="Warning card shown when the phone is on vibrate or silent">Your phone is on vibrate or silent. Android mutes key sounds in these modes, even when this app is set to always play them.</string>
     <string name="pref__input_feedback__audio_feat_key_press__label" comment="Preference title">Key press sounds</string>
     <string name="pref__input_feedback__audio_feat_key_long_press__label" comment="Preference title">Key long press sounds</string>
     <string name="pref__input_feedback__audio_feat_key_repeated_action__label" comment="Preference title">Key repeated action sounds</string>
@@ -487,7 +641,7 @@
     <string name="pref__input_feedback__any_feat_key_press__summary" comment="Preference summary">e.g. keys, buttons, emoji tabs</string>
     <string name="pref__input_feedback__any_feat_key_long_press__summary" comment="Preference summary">e.g. popup menu</string>
     <string name="pref__input_feedback__any_feat_key_repeated_action__summary" comment="Preference summary">e.g. delete key</string>
-    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">not implemented</string>
+    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">e.g. language switch swipe, glide typing</string>
     <string name="pref__input_feedback__any_feat_gesture_moving_swipe__summary" comment="Preference summary">e.g. cursor control swipe</string>
 
     <string name="settings__keyboard__title" comment="Title of Keyboard preferences screen">Keyboard</string>
@@ -495,6 +649,29 @@
     <string name="pref__keyboard__number_row__summary" comment="Preference summary">Show a number row above the character layout</string>
     <string name="pref__keyboard__hinted_number_row_mode__label" comment="Preference title">Hinted number row</string>
     <string name="pref__keyboard__hinted_symbols_mode__label" comment="Preference title">Hinted symbols</string>
+    <string name="settings__custom_symbols__title" comment="Screen and entry title: the user's own two symbol pages of the keyboard (issue #342)">Custom symbols</string>
+    <string name="pref__keyboard__custom_symbols__label" comment="Switch: the keyboard's symbol pages are the user's own instead of the language's">Use custom symbols</string>
+    <string name="custom_symbols__edit_key" comment="Dialog title when one key of the symbol page is tapped">Edit key</string>
+    <string name="custom_symbols__key" comment="Text field label: the symbol a tap on the key types">Symbol</string>
+    <string name="custom_symbols__currency" comment="Shown under the symbol field of a key that types whatever currency the active language uses">Currency of the language</string>
+    <string name="custom_symbols__long_press" comment="Section title: the symbols offered when the key is held down">On long press</string>
+    <string name="custom_symbols__add_placeholder" comment="Placeholder of the field that adds long-press symbols; keep the three example symbols with spaces between them">Add, e.g. ✔ ☑ ✅</string>
+    <string name="custom_symbols__insert_as" comment="Label before the choice where a symbol picked from the list below goes">Insert as</string>
+    <string name="custom_symbols__target_key" comment="Choice: a picked symbol becomes what the key types">Key</string>
+    <string name="custom_symbols__target_long_press" comment="Choice: a picked symbol is added to the long-press symbols">Long press</string>
+    <string name="custom_symbols__palette_math" comment="Symbol category, short">Math</string>
+    <string name="custom_symbols__palette_arrows" comment="Symbol category, short">Arrows</string>
+    <string name="custom_symbols__palette_currencies" comment="Symbol category, short">Currencies</string>
+    <string name="custom_symbols__palette_punctuation" comment="Symbol category, short">Punctuation</string>
+    <string name="custom_symbols__palette_shapes" comment="Symbol category, short: ticks, stars, geometric shapes">Shapes</string>
+    <string name="custom_symbols__palette_greek" comment="Symbol category, short: Greek letters">Greek</string>
+    <string name="custom_symbols__palette_scripts" comment="Symbol category, short: superscript and subscript digits">Super &amp; subscript</string>
+    <string name="custom_symbols__reset_all" comment="Menu entry and dialog title">Reset all keys</string>
+    <string name="custom_symbols__reset_all_confirm">Put every key back to its default?</string>
+    <string name="custom_symbols__import_confirm">Replace your symbols with the ones in this file?</string>
+    <string name="custom_symbols__import_done">Symbols imported</string>
+    <string name="custom_symbols__import_invalid">This is not a symbols file</string>
+    <string name="custom_symbols__export_filename" translatable="false">dictate-symbols.json</string>
     <string name="pref__keyboard__utility_key_enabled__label" comment="Preference title">Show utility key</string>
     <string name="pref__keyboard__utility_key_enabled__summary" comment="Preference summary">Shows a configurable utility key next to space bar</string>
     <string name="pref__keyboard__utility_key_action__label" comment="Preference title">Utility key action</string>
@@ -503,7 +680,8 @@
     <string name="pref__keyboard__font_size_multiplier__label" comment="Preference title">Font size multiplier</string>
     <string name="pref__keyboard__group_layout__label" comment="Preference group title">Layout</string>
     <string name="pref__keyboard__landscape_input_ui_mode__label" comment="Preference value">Landscape fullscreen input</string>
-    <string name="pref__keyboard__key_spacing__label" comment="Preference title">Key spacing factor</string>
+    <string name="pref__keyboard__key_spacing__label" comment="Preference title">Gap between keys</string>
+    <string name="pref__keyboard__key_spacing__summary" comment="Preference summary">{v}% vertical, {h}% horizontal — a wider gap makes the keys smaller, not the keyboard.</string>
     <string name="pref__keyboard__group_keypress__label" comment="Preference group title">Key press</string>
     <string name="pref__keyboard__popup_enabled__label" comment="Preference title">Popup Visibility</string>
     <string name="pref__keyboard__popup_enabled__summary" comment="Preference summary">Show popup when you press a key</string>
@@ -520,11 +698,18 @@
     <string name="pref__smartbar__enabled__summary" comment="Preference summary">Will show on top of the keyboard</string>
     <string name="pref__smartbar__layout__label" comment="Preference title">Layout</string>
     <string name="pref__smartbar__group_layout_specific__label" comment="Preference group title">Layout-specific options</string>
+    <string name="pref__smartbar__selection_metrics__label" comment="Preference title, keep short">Selection counter</string>
+    <string name="pref__smartbar__selection_metrics__summary" comment="Preference summary, keep short (one line)">Words and characters of the selection</string>
     <string name="pref__smartbar__flip_toggles__label" comment="Preference title">Flip toggle buttons</string>
     <string name="pref__smartbar__flip_toggles__summary" comment="Preference summary">Flips action row toggles</string>
     <string name="pref__smartbar__shared_actions_auto_expand_collapse__label" comment="Preference title">Auto-expand/collapse</string>
     <string name="pref__smartbar__shared_actions_auto_expand_collapse__summary" comment="Preference summary">Auto-expands/collapses the shared action row based on current state</string>
     <string name="pref__smartbar__extended_actions_placement__label" comment="Preference title">Action row placement</string>
+    <string name="settings__smartbar__second_actions__title" comment="Title of the Smartbar second actions screen">Second actions</string>
+    <string name="settings__smartbar__second_actions__summary" comment="Preference summary">Hold a Smartbar button to run a second action</string>
+    <string name="settings__smartbar__second_actions__note" comment="Header of the screen while nothing is being paired: says what to do">Tap a button, then the action it should run when held. Both keep their own button — hide one in the keyboard’s action editor to free up the slot.</string>
+    <string name="settings__smartbar__second_actions__hint_pick_second" comment="Header while a button is selected; {action} is that button's name">What should {action} run when held?</string>
+    <string name="settings__smartbar__second_actions__section_child_only" comment="Heading above the buttons that cannot carry a second action">Only as a second action — these buttons repeat while held or already have a hold of their own</string>
 
     <!-- Typing strings -->
     <string name="settings__typing__title" comment="Title of Typing screen">Typing</string>
@@ -533,15 +718,26 @@
     <string name="pref__suggestion__enabled__summary" comment="Preference summary">Provides suggestions while you type</string>
     <string name="pref__suggestion__auto_correct__label" comment="Preference title">Auto-correct</string>
     <string name="pref__suggestion__auto_correct__summary" comment="Preference summary">Automatically fix typos when you type a space</string>
+    <string name="pref__correction__auto_correct_strength__label" comment="Preference title. How readily auto-correct replaces a word on its own.">Auto-correct strength</string>
+    <string name="enum__auto_correct_strength__cautious" comment="Option of the auto-correct strength setting">Cautious</string>
+    <string name="enum__auto_correct_strength__cautious__description" comment="Description of the cautious auto-correct strength">Only fixes an obvious slip of the finger. Unusual spellings are never touched.</string>
+    <string name="enum__auto_correct_strength__balanced" comment="Option of the auto-correct strength setting; this is the default">Balanced</string>
+    <string name="enum__auto_correct_strength__balanced__description" comment="Description of the balanced auto-correct strength">Fixes everyday typos, including hitting the key next to the right one. Recommended.</string>
+    <string name="enum__auto_correct_strength__aggressive" comment="Option of the auto-correct strength setting">Aggressive</string>
+    <string name="enum__auto_correct_strength__aggressive__description" comment="Description of the aggressive auto-correct strength">Also fixes words that are further off — and now and then replaces one you meant.</string>
     <string name="pref__suggestion__multilingual_typing__label" comment="Preference title">Multilingual typing</string>
     <string name="pref__suggestion__multilingual_typing__summary" comment="Preference summary">Accept words from all your keyboard languages</string>
     <string name="pref__suggestion__next_word_prediction__label" comment="Preference title">Next-word suggestions</string>
     <string name="pref__suggestion__next_word_prediction__summary" comment="Preference summary">Suggest likely next words once you have finished a word</string>
+    <string name="pref__suggestion__ignore_app_suggestion_block__label" comment="Preference title">Ignore apps that turn suggestions off</string>
+    <string name="pref__suggestion__ignore_app_suggestion_block__summary" comment="Preference summary">Show them anyway, except in password fields</string>
     <string name="suggestion__added_to_dictionary" comment="Toast shown after long-pressing a suggestion to learn it">Added \"{word}\" to your dictionary</string>
     <string name="suggestion__already_in_dictionary" comment="Toast shown when the long-pressed word is already learned">\"{word}\" is already in your dictionary</string>
     <string name="pref__suggestion__display_mode__label" comment="Preference title">Suggestions display mode</string>
     <string name="pref__suggestion__block_possibly_offensive__label" comment="Preference title">Block possibly offensive words</string>
     <string name="pref__suggestion__block_possibly_offensive__summary" comment="Preference summary">Prevents possibly offensive words from being suggested while you type</string>
+    <string name="pref__suggestion__math_suggestions__label" comment="Preference title">Inline calculator</string>
+    <string name="pref__suggestion__math_suggestions__summary" comment="Preference summary">Type a sum to get the answer as a suggestion</string>
     <string name="pref__suggestion__api30_inline_suggestions_enabled__label" comment="Preference title">System autofill suggestions</string>
     <string name="pref__suggestion__api30_inline_suggestions_enabled__summary" comment="Preference summary">Show inline suggestions provided by autofill services</string>
     <string name="pref__suggestion__incognito_mode__label" comment="Label of Incognito mode preference in Typing">Incognito mode</string>
@@ -550,10 +746,19 @@
     <string name="pref__correction__auto_capitalization__summary" comment="Preference summary">Capitalize words based on the current input context</string>
     <string name="pref__correction__auto_space_punctuation__label" comment="Preference title">Auto-space after punctuation</string>
     <string name="pref__correction__auto_space_punctuation__summary" comment="Preference summary">Automatically insert a space after a punctuation</string>
+    <string name="pref__correction__tighten_punctuation_spacing__label" comment="Preference title">Tighten punctuation</string>
+    <string name="pref__correction__tighten_punctuation_spacing__summary" comment="Preference summary">Removes a space typed before . , ? !</string>
     <string name="pref__correction__remember_caps_lock_state__label" comment="Preference title">Remember caps lock state</string>
     <string name="pref__correction__remember_caps_lock_state__summary" comment="Preference summary">Caps lock will stay on when moving to another text field</string>
-    <string name="pref__correction__double_space_period__label" comment="Preference title">Double-space period</string>
-    <string name="pref__correction__double_space_period__summary" comment="Preference summary">Tapping twice on spacebar inserts a period followed by a space</string>
+    <string name="pref__correction__double_space_period__label" comment="Preference title">Double-tap spacebar</string>
+    <string name="enum__double_space_action__punctuation" comment="Enum value label">Sentence ending</string>
+    <string name="enum__double_space_action__punctuation__description" comment="Enum value description. The character in brackets is the Devanagari danda, the Hindi full stop, and must stay as it is.">Whatever ends a sentence in the language you are typing, followed by a space — a full stop in most, the danda (।) in Hindi.</string>
+    <string name="enum__double_space_action__comma" comment="Enum value label">Comma</string>
+    <string name="enum__double_space_action__comma__description" comment="Enum value description">A comma followed by a space.</string>
+    <string name="enum__double_space_action__newline" comment="Enum value label">New line</string>
+    <string name="enum__double_space_action__newline__description" comment="Enum value description">A line break in place of the space.</string>
+    <string name="enum__double_space_action__slash" comment="Enum value label">Slash</string>
+    <string name="enum__double_space_action__slash__description" comment="Enum value description">A slash with no space around it, for writing things like and/or.</string>
     <string name="pref__spelling__title" comment="Preference group title">Spelling</string>
     <string name="pref__spelling__active_spellchecker__summary_disabled">Disabled system-wide. No red lines will appear in text fields for incorrect words. Tap to change.</string>
     <string name="pref__spelling__active_spellchecker__summary_none">No inline text spell checker service set. Tap to change.</string>
@@ -572,6 +777,33 @@
     <string name="pref__dictionary__enable_internal_user_dictionary__summary" comment="Preference summary">Suggest words stored in the internal user dictionary</string>
     <string name="pref__dictionary__manage_floris_user_dictionary__label" comment="Preference title">Manage internal user dictionary</string>
     <string name="pref__dictionary__manage_floris_user_dictionary__summary" comment="Preference summary">Add, view, and remove entries for the internal user dictionary</string>
+    <string name="pref__dictionary__learn_typed_words__label" comment="Preference title for automatic word learning">Learn words as you type</string>
+    <string name="pref__dictionary__learn_typed_words__summary" comment="Preference summary for automatic word learning">Remember names and terms no dictionary knows. Stays on this device.</string>
+    <string name="pref__dictionary__manage_learned_words__label" comment="Preference title">Learned words</string>
+    <string name="pref__dictionary__manage_learned_words__summary" comment="Preference summary">See what the keyboard has picked up, and remove anything it should forget</string>
+
+    <string name="settings__learned__title" comment="Title of the learned words screen">Learned words</string>
+    <string name="settings__learned__empty" comment="Shown when nothing has been learned yet">Nothing learned yet. Words you type that no dictionary knows will appear here.</string>
+    <string name="settings__learned__empty_stage" comment="Shown when one learning stage holds no words, while others do">Nothing at this stage.</string>
+    <string name="settings__learned__disabled" comment="Shown when the learning feature is switched off">Learning words as you type is switched off, so nothing new is being remembered.</string>
+    <string name="settings__learned__disabled_dictionary" comment="Shown when learning is on but the internal user dictionary it writes into is off">The internal user dictionary is switched off, so nothing can be learned — a word that is picked up has nowhere to graduate to. Switch it on under User dictionaries.</string>
+    <string name="settings__learned__stage_remembered" comment="Ladder stage: seen once, no effect yet">Noticed — not suggested yet</string>
+    <string name="settings__learned__stage_suggested" comment="Ladder stage: appears in the suggestion strip">Suggested while you type</string>
+    <string name="settings__learned__stage_promoted" comment="Ladder stage: in the personal dictionary">In your dictionary — autocorrect leaves it alone</string>
+    <string name="settings__learned__sightings" comment="How often a word has been seen. The placeholder inserts a count.">Seen {count}×</string>
+    <string name="settings__learned__forget" comment="Button that removes one learned word">Forget</string>
+    <string name="settings__learned__forget_all" comment="Button that removes every learned word">Forget everything</string>
+    <string name="settings__learned__forget_all_confirm" comment="Confirmation question before deleting all learned words">Forget every learned word? Words already added to your dictionary stay there.</string>
+    <string name="settings__learned__tier_remembered" comment="Short name of the first learning stage, used as a folder title">Noticed</string>
+    <string name="settings__learned__tier_suggested" comment="Short name of the second learning stage, used as a folder title">Suggested</string>
+    <string name="settings__learned__tier_promoted" comment="Short name of the third learning stage, used as a folder title">In your dictionary</string>
+    <string name="settings__learned__forget_tier" comment="Button that removes every word at one learning stage">Forget these</string>
+    <string name="settings__learned__forget_tier_confirm" comment="Confirmation question before deleting the words at one stage. The placeholder inserts a already-pluralised word count, e.g. &quot;3 words&quot;.">Forget {words}? Nothing else is touched.</string>
+    <string name="settings__learned__forget_promoted_confirm" comment="Stronger confirmation before deleting words that reached the personal dictionary. The placeholder inserts an already-pluralised word count, e.g. &quot;3 words&quot;.">Forget {words}? What is at this stage is part of your dictionary — autocorrect leaves it alone, and forgetting it takes it out of the dictionary too.</string>
+    <string name="settings__learned__add_now" comment="Button that promotes a learned word into the personal dictionary immediately">Add to dictionary</string>
+    <string name="settings__learned__how_it_works" comment="Explanation shown at the top of the learned words screen">A word is only remembered once it looks deliberate rather than mistyped. It is suggested from the second time you type it, and added to your dictionary at the third — from then on autocorrect leaves it alone.\n\nEverything stays on this device. Nothing is learned in incognito mode, in password fields, or from dictation — only from what you actually typed.</string>
+    <string name="suggestion__forgot_word" comment="Toast after forgetting a learned word. The placeholder inserts the word.">Forgot “{word}”</string>
+
     <string name="settings__udm__title_floris" comment="Title of the User Dictionary Manager activity for internal">Internal User Dictionary</string>
     <string name="settings__udm__title_system" comment="Title of the User Dictionary Manager activity for system">System User Dictionary</string>
     <string name="settings__udm__no_words_in_dictionary" comment="String to show if no words are present in the dictionary">This user dictionary does not contain any words.</string>
@@ -581,16 +813,24 @@
     <string name="settings__udm__open_system_manager_ui" comment="Label of the Open system manager UI menu option">Open system manager UI</string>
     <string name="settings__udm__dictionary_import_success" comment="Message for dictionary import success">User dictionary imported successfully!</string>
     <string name="settings__udm__dictionary_export_success" comment="Message for dictionary export success">User dictionary exported successfully!</string>
+    <string name="settings__udm__add_from_contacts" comment="Menu option that opens the system contact picker so the chosen contact\'s name is added to the personal dictionary. No permission is involved – the user picks the one contact.">Add a name from your contacts</string>
+    <string name="settings__udm__import_from_contacts_file" comment="Menu option that reads the names out of a contacts file (.vcf) the user exported from their contacts app.">Import names from a contacts file</string>
+    <string name="settings__udm__contacts_confirm_message" comment="Dialog message before names from a contacts file are written to the dictionary. The placeholder inserts how many names were found.">Found {count} names in this file. Add them to your dictionary?</string>
+    <string name="settings__udm__contacts_added_one" comment="Toast after exactly one name was added. The placeholder inserts that name.">Added {name} to your dictionary</string>
+    <string name="settings__udm__contacts_added_many" comment="Toast after several names were added. The placeholder inserts how many.">Added {count} names to your dictionary</string>
+    <string name="settings__udm__contacts_added_none" comment="Toast when a contact or file yielded no name that was not already in the dictionary.">No new names found</string>
+    <string name="settings__udm__contacts_file_unreadable" comment="Toast when the chosen file could not be read at all.">That file could not be read</string>
+    <string name="settings__udm__contacts_no_picker" comment="Toast when the device has no app that can show a contact picker.">No contacts app found</string>
     <string name="settings__udm__dialog__title_add" comment="Label for the title (when in adding mode) in the user dictionary add/edit dialog">Add word</string>
     <string name="settings__udm__dialog__title_edit" comment="Label for the title (when in editing mode) in the user dictionary add/edit dialog">Edit word</string>
     <string name="settings__udm__dialog__word_label" comment="Label for the word in the user dictionary add/edit dialog">Word</string>
     <string name="settings__udm__dialog__word_error_empty" comment="Error label for the word in the user dictionary add/edit dialog">Please enter a word</string>
-    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog">Please enter a word matching {regex}</string>
+    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog. Shown when the input is more than a single word.">This field takes a single word — no spaces, commas or semicolons. For a whole phrase or a multi-line text, add a snippet under Prompts instead.</string>
     <string name="settings__udm__dialog__freq_label" comment="Label for the frequency in the user dictionary add/edit dialog. The two decimal placeholders are the minimum and maximum frequency, both inclusive.">Frequency (between {f_min} and {f_max})</string>
     <string name="settings__udm__dialog__freq_error_empty" comment="Error label for the frequency in the user dictionary add/edit dialog">Please enter a frequency value</string>
     <string name="settings__udm__dialog__freq_error_invalid" comment="Error label for the frequency in the user dictionary add/edit dialog">Please enter a valid number within the specified bounds</string>
     <string name="settings__udm__dialog__shortcut_label" comment="Label for the shortcut in the user dictionary add/edit dialog">Shortcut (optional)</string>
-    <string name="settings__udm__dialog__shortcut_error_invalid" comment="Error label for the shortcut in the user dictionary add/edit dialog">Please enter a shortcut matching {regex}</string>
+    <string name="settings__udm__dialog__shortcut_error_invalid" comment="Error label for the shortcut in the user dictionary add/edit dialog. Shown when the input is more than a single word.">A shortcut is a single word — no spaces, commas or semicolons.</string>
     <string name="settings__udm__dialog__locale_label" comment="Label for the language code in the user dictionary add/edit dialog">Language code (optional)</string>
     <string name="settings__udm__dialog__locale_error_invalid" comment="Error label for the language code in the user dictionary add/edit dialog">This language code does not conform to the expected syntax. The code must either be a language only (like en), a language and country (like en_US) or a language, country, and script (like en_US-script).</string>
 
@@ -614,9 +854,12 @@
     <string name="pref__gestures__swipe_left__label" comment="Preference title">Swipe left</string>
     <string name="pref__gestures__swipe_right__label" comment="Preference title">Swipe right</string>
     <string name="pref__gestures__space_bar_swipe_up__label" comment="Preference title">Space bar swipe up</string>
+    <string name="pref__gestures__space_bar_swipe_down__label" comment="Preference title">Space bar swipe down</string>
     <string name="pref__gestures__space_bar_swipe_left__label" comment="Preference title">Space bar swipe left</string>
     <string name="pref__gestures__space_bar_swipe_right__label" comment="Preference title">Space bar swipe right</string>
     <string name="pref__gestures__space_bar_long_press__label" comment="Preference title">Space bar long press</string>
+    <string name="pref__gestures__momentary_layer__label" comment="Preference title, keep short">Hold to peek at a layer</string>
+    <string name="pref__gestures__momentary_layer__summary" comment="Preference summary, keep short (one line)">Hold ?123, slide onto a character and let go — it is inserted and the letters come back</string>
     <string name="pref__gestures__delete_key_swipe_left__label" comment="Preference title">Delete key swipe left</string>
     <string name="pref__gestures__delete_key_long_press__label" comment="Preference title">Delete key long press</string>
     <string name="pref__gestures__swipe_velocity_threshold__label" comment="Preference title">Swipe velocity threshold</string>
@@ -634,6 +877,12 @@
     <string name="pref__other__settings_language__label" comment="Label of Settings language preference in Other">Settings language</string>
     <string name="pref__other__show_app_icon__label" comment="Label of Show app icon preference in Other">Show app icon in launcher</string>
     <string name="pref__other__show_app_icon__summary_atleast_q" comment="Summary of Show app icon preference in Other for Android 10+">Always enabled on Android 10+ due to restrictions of the system</string>
+    <!-- Emptying the app\'s scratch space (issue #337): a shared file on its way through can be a
+         hundred megabytes, and until now there was no way to get rid of it from inside the app. -->
+    <string name="pref__other__clear_cache__label" comment="Label of the preference that empties the app\'s temporary files">Clear cache</string>
+    <string name="pref__other__clear_cache__summary" comment="Summary under \'Clear cache\'; {size} is a formatted file size such as 12 MB">Temporary files: {size}</string>
+    <string name="pref__other__clear_cache__confirm" comment="Button that confirms emptying the cache">Clear</string>
+    <string name="pref__other__clear_cache__message" comment="Dialog text before the cache is emptied. Names what survives, because \'clear\' next to a keyboard that stores dictation history needs defusing.">Deletes temporary files the app can create again: a shared file being transcribed, downloaded GIFs and stickers, decoded images. Your dictation history, recordings, settings and dictionaries are not touched. A recording or transcription running right now may be interrupted.</string>
 
     <!-- About UI strings -->
     <string name="about__title" comment="Title of About activity">About</string>
@@ -812,6 +1061,149 @@
     <string name="apptour60__outro_eyebrow">That is 6.0</string>
     <string name="apptour60__outro_title">Have fun with it</string>
     <string name="apptour60__outro_body">Whichever way you use Dictate — your own key, your own server, a model on the device, or credit — nothing about the other ways has changed. You can revisit any tour under Settings › About.</string>
+    <string name="apptour61__cta_try" comment="Button on a what\'s-new page that opens the settings screen for the feature just described">Try it</string>
+    <string name="apptour61__art_folder" comment="Folder name shown on the sticker-grid illustration; a plausible folder someone would point the keyboard at">Stickers</string>
+    <string name="apptour61__art_share" comment="Label on the share-sheet card in the illustration, above the app name">Share with</string>
+    <string name="apptour61__art_typed" comment="A misspelled word shown being corrected in the illustration. Should look like a real thumb slip in the target language.">teh</string>
+    <string name="apptour61__art_fixed" comment="The correction of apptour61__art_typed, shown replacing it in the illustration">the</string>
+    <string name="apptour61__intro_eyebrow">Dictate 6.1</string>
+    <string name="apptour61__intro_title">Stickers, voice messages, and an autocorrect that catches the typo</string>
+    <string name="apptour61__intro_body">Point the keyboard at a folder of your own stickers, share a voice message straight to Dictate to find out what it says, and get an autocorrect that finally sees the mistake it was built not to see.</string>
+    <string name="apptour61__stickers_eyebrow">New: your own stickers</string>
+    <string name="apptour61__stickers_title">A folder on your phone, on the keyboard</string>
+    <string name="apptour61__stickers_body">Point Dictate at any folder and its pictures become stickers — subfolders turn into tabs, with favourites and recents of their own. Add one from any app through the share sheet, delete one without leaving the keyboard. What a chat app will actually accept is not what it says it accepts, so each sticker is brought into shape once on the way in and simply sent from there.</string>
+    <string name="apptour61__share_eyebrow">New: share to Dictate</string>
+    <string name="apptour61__share_title">Find out what that voice message says</string>
+    <string name="apptour61__share_body">Dictate now appears in the share sheet for audio and video. Share a voice message to it and a screen opens that starts transcribing by itself — no field to find, no button to press. The transcript is searchable, and long recordings are handled in pieces instead of being turned away.</string>
+    <string name="apptour61__autocorrect_eyebrow">Autocorrect</string>
+    <string name="apptour61__autocorrect_title">The typo it was built not to see</string>
+    <string name="apptour61__autocorrect_body">The rule deciding whether a word could be corrected let through a finger that slid most of the way to the next key — but never one that landed on it squarely, which is the ordinary typo. That is fixed, and how eagerly it corrects is now yours to set. The word space is about to take is marked in your accent colour, and backspace right after a correction gives back exactly what you typed.</string>
+    <string name="apptour61__contacts_eyebrow">Contacts</string>
+    <string name="apptour61__contacts_title">Names it stops underlining</string>
+    <string name="apptour61__contacts_body">Your contacts\' names can go into the personal dictionary, so the keyboard stops treating them as typos and starts suggesting them. It does not ask for access to your address book — you pick the names yourself, or import a vCard. Nothing is read that you did not hand over.</string>
+    <string name="apptour61__models_eyebrow">Gemini and Deepgram Flux</string>
+    <string name="apptour61__models_title">Two providers that got better at listening</string>
+    <string name="apptour61__models_body">Google shipped speech-to-text models of its own, so Gemini no longer transcribes with a chat model under instruction — and it can do it live now too. Deepgram\'s Flux decides for itself when you have stopped talking instead of waiting out a silence timer. And if you speak more than one language, you can now say which ones instead of picking one and hoping.</string>
+    <string name="apptour61__more_eyebrow">Also</string>
+    <string name="apptour61__more_title">A lot of small things</string>
+    <string name="apptour61__more_body">Prompts can be triggered by typing a shortcut, not just by tapping one. Russian can be typed phonetically, and French finds its accents from the plain letters. Very wide tablets get a keyboard in landscape again. And the suggestions switch now really switches suggestions off — including when an app tries to do it for you.</string>
+    <string name="apptour61__outro_eyebrow">That is 6.1</string>
+    <string name="apptour61__outro_title">Same keyboard, fewer edges</string>
+    <string name="apptour61__outro_body">Nothing about how you already dictate has changed — your own key, your own server, or a model on the device. You can revisit any tour under Settings › About.</string>
+    <string name="apptour62__cta_try" comment="Button on a what\'s-new page that opens the settings screen for the feature just described">Try it</string>
+    <string name="apptour62__cta_manage" comment="Button on a what\'s-new page for a feature this release switches ON for everyone; it opens the screen holding the switch, so the label must offer the way out, not the way in">Where to switch it off</string>
+    <string name="apptour62__art_word" comment="A word shown being learned in the illustration. Pick a first name or term that no dictionary in your language would know — short, at most about eight letters.">Zoya</string>
+    <string name="apptour62__art_emoji_word" comment="A word shown being typed in the illustration, for which an emoji is then suggested. Must be an everyday word in your language whose emoji is obvious — keep it short.">cake</string>
+    <string name="apptour62__art_emoji" comment="The emoji suggested for apptour62__art_emoji_word in the illustration. Change it only if your word needs a different one.">🍰</string>
+    <string name="apptour62__intro_eyebrow">Dictate 6.2</string>
+    <string name="apptour62__intro_title">It learns your words, and it has five new looks</string>
+    <string name="apptour62__intro_body">The keyboard can remember the words you type that no dictionary knows, the keys can let the app show through, and both thumbs can have a half of their own. Plus a handful of small helpers for the things you do every day.</string>
+    <string name="apptour62__learning_eyebrow">New: it learns as you type</string>
+    <string name="apptour62__learning_title">The words no dictionary knows</string>
+    <string name="apptour62__learning_body">Type a name or a term often enough and the keyboard keeps it, so it stops marking it as a mistake and starts suggesting it. This update switches that on for everyone, including anyone who had it off. Nothing is learned in incognito mode, in password fields or from anything you did not type key by key; it all stays on this device, and the button below opens the list — and the switch.</string>
+    <string name="apptour62__themes_eyebrow">Five new designs</string>
+    <string name="apptour62__themes_title">Glass, Sand, Deep and a dark E-Ink</string>
+    <string name="apptour62__themes_body">Dictate Glass lets the app show through the gaps between the keys, while the keys themselves stay solid enough to read on; Glass Clear goes further and looks better, at the price of text showing through in apps that draw behind the keyboard. Sand is a warm light theme, Deep a quiet dark one, and E-Ink finally has a night version — so automatic switching no longer hands you a white keyboard after dark.</string>
+    <string name="apptour62__split_eyebrow">New: split keyboard</string>
+    <string name="apptour62__split_title">Both thumbs, without the stretch</string>
+    <string name="apptour62__split_body">A new quick action, next to one-handed and floating, pulls the rows apart so each thumb keeps to its own half. Every layout splits, not just QWERTY, because the seam is worked out from the key widths rather than written into each layout. And in landscape the app now stays visible whenever there is room for both.</string>
+    <string name="apptour62__emoji_eyebrow">Emoji</string>
+    <string name="apptour62__emoji_title">The word finds its emoji</string>
+    <string name="apptour62__emoji_body">Type a word and the emoji that means it is offered in the strip — in about fifty languages, from the same data the system itself uses. It rides along next to the suggestions instead of taking one of their seats. There is also an optional row of your pinned and recently used emojis above the keys.</string>
+    <string name="apptour62__helpers_eyebrow">Four small helpers</string>
+    <string name="apptour62__helpers_title">Incognito, clean links, and the answer to the sum</string>
+    <string name="apptour62__helpers_body">Incognito mode stops anything being remembered while it is on — nothing learned, nothing kept. Pasted links can have their tracking parameters removed on the way into the field. Type a sum ending in = and the answer appears as a suggestion. And with the number row switched on, the letters show their digits again.</string>
+    <string name="apptour62__selection_eyebrow">Selecting and moving</string>
+    <string name="apptour62__selection_title">See what you have selected</string>
+    <string name="apptour62__selection_body">The row that used to stand empty during a selection now counts its words and characters. New buttons jump to the very start and end of the field, and copying can leave the stray spaces at the edges behind. The actions row steps aside as soon as a selection begins, instead of talking over it.</string>
+    <string name="apptour62__clipboard_eyebrow">Clipboard</string>
+    <string name="apptour62__clipboard_title">Find a clip by what it says</string>
+    <string name="apptour62__clipboard_body">The clipboard can be searched now, across everything in it. What you just copied is offered in the suggestion strip as a pill you can dismiss, and copying the same text twice counts as twice, so it comes back. Deleting a clip now also deletes the file behind it, instead of leaving the picture on your phone.</string>
+    <string name="apptour62__gestures_eyebrow">Gestures</string>
+    <string name="apptour62__gestures_title">Hold ?123, slide, let go</string>
+    <string name="apptour62__gestures_body">Hold the symbol key, slide onto the character you want and let go: it is inserted and the letters are back, without switching in and out. Swiping up on the space bar now reaches the line above, not just the word before it. And the gap between the keys can be set across a range you can actually see.</string>
+    <string name="apptour62__export_eyebrow">New: dictations as files</string>
+    <string name="apptour62__export_title">Every dictation into a folder you choose</string>
+    <string name="apptour62__export_body">Pick a folder once and every finished dictation is also written into it as a plain text file, the moment it is done. Whatever watches that folder — a notes app, a sync tool, your backup — gets your transcripts without Dictate having to learn its language.</string>
+    <string name="apptour62__more_eyebrow">Also</string>
+    <string name="apptour62__more_title">A lot of small things</string>
+    <string name="apptour62__more_body">Suggestions now look at the two words before the cursor in every language, not just in English. A backup can be made without your API keys, so it can be passed on safely. Azure\'s own transcription models are reachable, choosing a model for offline use now switches to the offline engine as well, and every request has a time limit that fits the wait. Dictations appear in the history the moment they are sent, imports say which step they are on and can be cancelled, and text lands more reliably in the apps that were fussy about it.</string>
+    <string name="apptour62__outro_eyebrow">That is 6.2</string>
+    <string name="apptour62__outro_title">Same keyboard, more of it yours</string>
+    <string name="apptour62__outro_body">Nothing about the way you dictate has changed — your own key, your own server, or a model on the device. You can revisit any tour under Settings › About.</string>
+    <string name="apptour63__cta_try" comment="Button on a what\'s-new page that opens the settings screen for the feature just described">Try it</string>
+    <string name="apptour63__intro_eyebrow">Dictate 6.3</string>
+    <string name="apptour63__intro_title">More of the keyboard, without leaving it</string>
+    <string name="apptour63__intro_body">Point the camera at printed text and it lands in the field. The cursor, the selection and the clipboard finally share one panel. Any Smartbar button can carry a second action under a long press. And offline dictation has models that actually fit on a phone.</string>
+    <string name="apptour63__scan_eyebrow">New: scan text</string>
+    <string name="apptour63__scan_title">Printed text, straight into the field</string>
+    <string name="apptour63__scan_body">An IBAN off a letter, a serial number off a box, an address off a parcel: point the camera at it and the text arrives where you were typing, instead of being read out and typed again. It is recognised on this device — nothing is uploaded and no provider is involved. Dictate never asks for the camera permission either: the system camera takes the photo and hands back that one picture, which is deleted as soon as it has been read.</string>
+    <string name="apptour63__editing_eyebrow">New: editing panel</string>
+    <string name="apptour63__editing_title">Cursor, selection and clipboard in one place</string>
+    <string name="apptour63__editing_body">All of it existed already, spread across eleven keys you had to know were there. Now it is one panel: move by character, word or line, select, copy, paste, undo. Holding a key repeats it instead of asking for eleven taps. And the number pad can be asked for by name now, rather than only being stumbled into by a gesture nobody had bound.</string>
+    <string name="apptour63__second_eyebrow">New: hold for a second action</string>
+    <string name="apptour63__second_title">Two actions in one Smartbar seat</string>
+    <string name="apptour63__second_body">Pair a second action to a button yourself and a long press runs it. Only five or six buttons are ever visible at once, so this is the difference between having a feature and having room for it. A small mark in the corner shows which buttons carry one.</string>
+    <string name="apptour63__floating_eyebrow">Floating button</string>
+    <string name="apptour63__floating_title">A menu on hold, and only where you want it</string>
+    <string name="apptour63__floating_body">Hold the floating button for a short menu — transcribing a file is the first thing in it. You can also tell it which apps it is welcome in, instead of it following you into every one. Stop now stays exactly where start was, and the pill opens smoothly whichever side of the screen it sits on.</string>
+    <string name="apptour63__offline_eyebrow">Offline dictation</string>
+    <string name="apptour63__offline_title">Models that fit on a phone</string>
+    <string name="apptour63__offline_body">English, German and Russian can now be dictated offline with models in the hundred-megabyte range, instead of only the 670 MB ones. Dolphin adds forty Eastern languages the catalogue could answer only badly before. And the picker is ordered by what most people will actually download rather than by architecture — ten rows instead of twenty-four, with the details behind a tap.</string>
+    <string name="apptour63__more_eyebrow">Also</string>
+    <string name="apptour63__more_title">A lot of small things</string>
+    <string name="apptour63__more_body">Your own word list can arrive as a file now, and leave as one. The recording bar draws a waveform, so it is visible when your voice has stopped. A provider account can choose the region its data stays in, and the streaming host moves with it. A dictation survives the microphone it was recording from going away. The connection test says only what it really checked, the provider\'s own key page is one tap from the field where the key goes, and a fresh install opens on what the keyboard is for rather than on the order its features happened to ship in.</string>
+    <string name="apptour63__outro_eyebrow">That is 6.3</string>
+    <string name="apptour63__outro_title">Fewer detours, same keyboard</string>
+    <string name="apptour63__outro_body">Nothing about the way you dictate has changed — your own key, your own server, or a model on the device. You can revisit any tour under Settings › About.</string>
+    <string name="apptour64__cta_languages" comment="Button on the what\'s-new translation page that opens the screen where translation languages are downloaded">Choose languages</string>
+    <string name="apptour64__cta_providers" comment="Button on a what\'s-new page that opens the list of transcription and rewording providers">Show providers</string>
+    <string name="apptour64__intro_eyebrow">Dictate 6.4</string>
+    <string name="apptour64__intro_title">Translated on the phone, symbols of your own</string>
+    <string name="apptour64__intro_body">Type in one language and the field fills up in another, translated on this device. Both symbol pages can hold the keys you choose. There are new providers and a much better offline model, a word you say to turn a dictation into an instruction, and a privacy and security review of the whole app.</string>
+    <string name="apptour64__translate_eyebrow">New: translate</string>
+    <string name="apptour64__translate_title">Translation that never leaves the phone</string>
+    <string name="apptour64__translate_body">Tap Translate in the Smartbar and type into the field above it — the app’s field fills with the translation as you go. Mozilla’s models do the work on this device, in 49 languages, and nothing you type is sent anywhere. Enter puts in the finished translation before it sends, so a message never goes out half translated. Each language is a one-time download, and the list shows its size before you get it.</string>
+    <string name="apptour64__symbols_eyebrow">New: your own symbols</string>
+    <string name="apptour64__symbols_title">The symbols you use, where you want them</string>
+    <string name="apptour64__symbols_body">Under Keyboard › Custom symbols, both symbol pages become yours, in every language. Tap a key in the picture of the page, choose what it types and what its long press offers, and drag those into order. A palette has the symbols your keyboard does not have yet. Until you change a key the pages look exactly like the built-in ones, and a finished layout can be exported to share.</string>
+    <string name="apptour64__providers_eyebrow">Providers and offline models</string>
+    <string name="apptour64__providers_title">New providers, and a better offline model</string>
+    <string name="apptour64__providers_body" comment="Parakeet Ultra and Parakeet TDT 0.6B v3 are model names and stay as they are">xAI’s Grok now transcribes as well, as a file and live, with the same key that rewords. Scaleway and OVHcloud keep audio and text inside the EU. Offline, Parakeet Ultra replaces Parakeet TDT 0.6B v3: the same 670 MB and the same 25 languages, with 29 % fewer errors in German. If you use v3, download Ultra in the list of on-device models and delete the old one — v3 keeps working until you do. And the providers list now shows only the ones you use; all the others are under “Add a provider”, with a search.</string>
+    <string name="apptour64__command_eyebrow">New: command word</string>
+    <string name="apptour64__command_title">Say the word, and the dictation becomes an instruction</string>
+    <string name="apptour64__command_body">Choose a word under Rewording — “Jarvis”, say. A dictation that starts with it runs as a live prompt: on the selected text, or as a question when nothing is selected. Only the first word counts, so a sentence that merely mentions it is written as usual. Automatic prompts also work as intended now: they always get the dictation they run on, and one that is only [text in brackets] is added to the end as written instead of going to the model.</string>
+    <string name="apptour64__privacy_eyebrow">Privacy and security</string>
+    <string name="apptour64__privacy_title">The whole app, checked</string>
+    <string name="apptour64__privacy_body">Every part of Dictate was reviewed for privacy and security, and what turned up is fixed. A dictation into a password or PIN field stays out of the history, now also through the floating button. Android’s cloud backup only takes your API keys end-to-end encrypted. And “Trust user certificates” is now set per provider account rather than for all of them at once.</string>
+    <string name="apptour64__more_eyebrow">Also</string>
+    <string name="apptour64__more_title">Everything else in 6.4</string>
+    <string name="apptour64__more_body">The smaller changes, for anyone who wants the details. Skip ahead if you don’t.</string>
+    <string name="apptour64__more_typing" comment="Heading of a group of small changes on the what\'s-new page">Typing</string>
+    <string name="apptour64__more_typing_slips">Suggestions read slips: a letter on the wrong key, two swapped, a slip in a half-typed word. The word you meant shows up far more often, and every key press is quicker.</string>
+    <string name="apptour64__more_typing_autocorrect">With auto-correct off, fixes still appear in the strip. The switch only decides whether Space swaps the word.</string>
+    <string name="apptour64__more_typing_glide">Glide typing finds words that start or end on an accented letter — in Hungarian, Russian, Finnish, Polish, Turkish and more.</string>
+    <string name="apptour64__more_typing_swipe">A sideways swipe over the letters no longer switches the language, which mostly happened by accident. The globe key still does, and Gestures brings the swipe back.</string>
+    <string name="apptour64__more_typing_punctuation">A punctuation mark right after an auto-correction takes its space, and a glide along the space bar stays on its line.</string>
+    <string name="apptour64__more_typing_calculator">The calculator answers before the “=”, and a tap on the answer completes the line.</string>
+    <string name="apptour64__more_typing_size">The keyboard remembers its size for each language.</string>
+    <string name="apptour64__more_typing_languages">Afrikaans is a full keyboard language. A new layout only needs its language picked — the other fields fill themselves in.</string>
+    <string name="apptour64__more_dictation" comment="Heading of a group of small changes on the what\'s-new page">Dictation</string>
+    <string name="apptour64__more_dictation_stop">Stopping a dictation that is still waiting for the server keeps the recording, ready to send again.</string>
+    <string name="apptour64__more_dictation_timeout">A connection that stalls gives up after one timeout instead of four, and a request the provider refused is not sent again.</string>
+    <string name="apptour64__more_dictation_live">A word you delete during a live dictation stays deleted, and two dictations in a row get a space between them.</string>
+    <string name="apptour64__more_dictation_hold">Holding the mic to talk: a slow tap stays a tap, and a hold shorter than a second is discarded.</string>
+    <string name="apptour64__more_dictation_talkback">TalkBack can find and press the mic, and says what the dictation is doing.</string>
+    <string name="apptour64__more_clipboard" comment="Heading of a group of small changes on the what\'s-new page">Clipboard and emoji</string>
+    <string name="apptour64__more_clipboard_pins">Pinned clips now sit at the bottom, with tabs to jump between the groups. “Pinned items on top” brings the old order back.</string>
+    <string name="apptour64__more_clipboard_chips">The link, email and number chips beside a copied text can be switched off.</string>
+    <string name="apptour64__more_clipboard_emoji">The emoji row scrolls and answers a long press, and the emoji search shows two rows.</string>
+    <string name="apptour64__more_elsewhere" comment="Heading of a group of small changes on the what\'s-new page">Floating button and watch</string>
+    <string name="apptour64__more_elsewhere_bubble">The floating button can wait for a keyboard before it appears, and writes into the web field you tapped.</string>
+    <string name="apptour64__more_elsewhere_watch">On the watch, a dictation finishes the way its field asks — send, search or a check mark — with auto-send if you want it, and the wait shows its seconds.</string>
+    <string name="apptour64__outro_eyebrow">That is 6.4</string>
+    <string name="apptour64__outro_title">More on the phone, more your own</string>
+    <string name="apptour64__outro_body">Translation and the new offline model work without a connection, and everything else still runs the way you set it up — your own key, your own server, or a model on the device. You can revisit any tour under Settings › About.</string>
     <string name="about__website__title" comment="Preference title linking to the marketing website">Website</string>
     <string name="about__repository__title" comment="Preference title">Repository (GitHub)</string>
     <string name="about__repository__summary" comment="Preference summary">Source code, discussions, issues and info</string>
@@ -842,7 +1234,7 @@
     <string name="setup__nav_next" comment="Setup wizard: go to the next, already-reached step">Next</string>
 
     <string name="setup__enable_ime__title">Enable {app_name}</string>
-    <string name="setup__enable_ime__description">Android requires that every custom keyboard is separately enabled before you can use it. Open the System <i>Language &amp; Input</i> Settings, there enable "{app_name}".</string>
+    <string name="setup__enable_ime__description">Android requires that every custom keyboard is separately enabled before you can use it. Open the System <i>Language &amp; Input</i> Settings, there enable “{app_name}”.</string>
     <string name="setup__enable_ime__open_settings_btn">Open System Settings</string>
 
     <string name="setup__select_ime__title">Select {app_name}</string>
@@ -926,7 +1318,12 @@
     <string name="backup_and_restore__back_up__destination_share_intent">Third-party app via share menu</string>
     <string name="backup_and_restore__back_up__files">Select what to back up</string>
     <string name="backup_and_restore__back_up__files_jetpref_datastore">Preferences</string>
+    <string name="backup_and_restore__back_up__files_provider_credentials">API keys and passwords</string>
+    <string name="backup_and_restore__back_up__credentials_warning">This archive contains your API keys and passwords in plain text, along with your Dictate Cloud credit — anyone you give it to can dictate at your expense. Do not pass it on, and if you already have, change the key at your provider. Whatever else is ticked below travels with it, including your transcription history and your clipboard.</string>
+    <string name="backup_and_restore__back_up__credentials_excluded_note">This archive carries no API keys, passwords or Dictate Cloud credit, so it can be passed on — but it will not restore yours either. Whatever else is ticked below is still in it, including your transcription history and your clipboard.</string>
+    <string name="backup_and_restore__back_up__personal_content_note">This archive carries no API keys or passwords, but it does carry what is ticked below — your transcription history with any kept recordings, your clipboard, your prompts and the words the keyboard has learned from you.</string>
     <string name="backup_and_restore__back_up__files_dictate_prompts">Saved rewording prompts</string>
+    <string name="backup_and_restore__back_up__files_personal_dictionary">Personal dictionary and learned words</string>
     <string name="backup_and_restore__back_up__files_ime_keyboard">Keyboard extensions</string>
     <string name="backup_and_restore__back_up__files_ime_spelling">Spelling extensions / dictionaries</string>
     <string name="backup_and_restore__back_up__files_ime_theme">Theme extensions</string>
@@ -942,6 +1339,7 @@
     <string name="backup_and_restore__restore__metadata">Selected backup archive</string>
     <string name="backup_and_restore__restore__metadata_warn_different_version">This backup archive was generated in another version than current, which is generally supported. Be aware though that minor issues can occur or some preferences may not get transferred properly due to feature differences.</string>
     <string name="backup_and_restore__restore__metadata_warn_different_vendor">This backup archive was generated in a third-party app, which is generally not supported. Data losses may occur, restore at your own risk!</string>
+    <string name="backup_and_restore__restore__metadata_note_no_credentials">This backup archive contains no API keys or passwords. Everything else is restored. Merging keeps the keys already on this device; erasing removes them — including a Dictate Cloud recovery code, which cannot be typed back in.</string>
     <string name="backup_and_restore__restore__metadata_error_invalid_metadata">This backup archive contains invalid metadata. Either it has been corrupted or poorly modified. Restoring from this archive is not possible, please select another one.</string>
     <string name="backup_and_restore__restore__metadata_error_nothing_to_restore">This backup archive does not contain any files to restore, please select another one.</string>
     <string name="backup_and_restore__restore__mode">Restore mode</string>
@@ -967,8 +1365,13 @@
     <string name="crash_multiple_notification__body" comment="Body of the notification for consecutive crashes">Falling back to previous keyboard to stop infinite crash loop. Tap to view error details</string>
 
 
+    <!-- Text editing panel strings -->
+    <string name="editing__back_to_keyboard" comment="Content description of the ABC key in the text editing panel">Back to the keyboard</string>
+
     <!-- Clipboard strings -->
     <string name="clipboard__header_title">Clipboard</string>
+    <string name="clipboard__search_placeholder" comment="Hint inside the clipboard search field">Search your clips</string>
+    <string name="clipboard__search_no_results" comment="Shown when no clip contains what was typed">No clip contains that</string>
     <string name="clipboard__disabled__title">Clipboard history is currently disabled</string>
     <string name="clipboard__disabled__message">{app_name}\'s clipboard history allows you to quickly store and access text and images you copy, with the ability to pin items, configure automatic clean-up and set a maximum item limit.</string>
     <string name="clipboard__disabled__enable_button">Enable clipboard history</string>
@@ -1000,9 +1403,15 @@
     <string name="pref__clipboard__sync_from_system_clipboard__label">Sync from system clipboard</string>
     <string name="pref__clipboard__sync_to_system_clipboard__label">Sync to system clipboard</string>
     <string name="pref__clipboard__group_clipboard_suggestion__label">Clipboard suggestions</string>
+    <string name="pref__clipboard__strip_tracking_params__label" comment="Preference title">Remove tracking from links</string>
+    <string name="pref__clipboard__strip_tracking_params__summary" comment="Preference summary">Strips utm_, si, fbclid and the like when pasting</string>
+    <string name="pref__clipboard__trim_on_copy__label" comment="Preference title, keep short">Trim when copying</string>
+    <string name="pref__clipboard__trim_on_copy__summary" comment="Preference summary, keep short (one line)">Drops spaces and line breaks at both ends</string>
     <string name="pref__clipboard__suggestion_enabled__label" comment="Preference title">Clipboard content suggestions</string>
     <string name="pref__clipboard__suggestion_enabled__summary" comment="Preference summary">Suggest previously copied clipboard content</string>
+    <string name="pref__clipboard__suggestion_show_extracted__label" comment="Preference title (switch) in the group Clipboard suggestions, keep short (one line): whether the links, email addresses and phone numbers found inside a copied text are also offered as suggestions of their own, next to the whole text">Links, emails and numbers</string>
     <string name="pref__clipboard__num_history_grid_columns__label">Number of grid columns</string>
+    <string name="pref__clipboard__history_pinned_on_top__label" comment="Preference title">Pinned items on top</string>
     <string name="pref__clipboard__suggestion_timeout__label" comment="Preference title; Translators: This should form a sentence together with `pref__clipboard__suggestion_timeout__summary` and is the first part">Limit clipboard suggestions to</string>
     <string name="pref__clipboard__suggestion_timeout__summary" comment="Preference summary; Translators: This should form a sentence together with `pref__clipboard__suggestion_timeout__label` and is the second part">Items copied within the last {v} s</string>
     <string name="pref__clipboard__group_clipboard_history__label">Clipboard history</string>
@@ -1036,6 +1445,8 @@
     <string name="devtools__show_inline_autofill_overlay__label">Show inline autofill overlay</string>
     <string name="devtools__show_inline_autofill_overlay__summary">Overlays the current inline autofill results for debugging</string>
     <string name="devtools__show_key_touch_boundaries__label" comment="Label of Show key touch boundaries in Devtools">Show key touch boundaries</string>
+    <string name="devtools__force_legacy_insertion__label" comment="Label of the debug switch that makes the floating button insert the pre-Android-13 way">Floating button: insert like Android 12</string>
+    <string name="devtools__force_legacy_insertion__summary" comment="Summary of that debug switch">Pretend the accessibility input connection does not exist, so inserts go through the node and the clipboard the way they must on Android 12 and older. Debug builds only.</string>
     <string name="devtools__show_key_touch_boundaries__summary" comment="Summary of Show key touch boundaries in Devtools">Outline the key touch boundaries in red</string>
     <string name="devtools__show_drag_and_drop_helpers__label" comment="Label of Show drag and drop helpers in Devtools">Show drag&amp;drop helpers</string>
     <string name="devtools__show_drag_and_drop_helpers__summary" comment="Summary of Show drag and drop helpers in Devtools">Render otherwise invisible helpers in drag&amp;drop screens for debugging</string>
@@ -1089,7 +1500,7 @@
     <string name="ext__meta__title">Title</string>
     <string name="ext__meta__version">Version</string>
     <string name="ext__error__not_found_title">Extension not found</string>
-    <string name="ext__error__not_found_description">No extension with ID "{id}" could be found.</string>
+    <string name="ext__error__not_found_description">No extension with ID “{id}” could be found.</string>
     <string name="ext__editor__title_create_any">Create extension</string>
     <string name="ext__editor__title_create_keyboard">Create keyboard extension</string>
     <string name="ext__editor__title_create_theme">Create theme extension</string>
@@ -1366,6 +1777,7 @@
     <string name="enum__space_bar_mode__nothing" comment="Enum value label">No label</string>
     <string name="enum__space_bar_mode__current_language" comment="Enum value label">Current language</string>
     <string name="enum__space_bar_mode__space_bar_key" comment="Enum value label">␣</string>
+    <string name="enum__space_bar_mode__transcription_provider" comment="Enum value label: the space bar shows the name of the active transcription provider, e.g. Groq">Transcription provider</string>
 
     <string name="enum__spelling_language_mode__use_system_languages" comment="Enum value label">Use system languages</string>
     <string name="enum__spelling_language_mode__use_keyboard_subtypes" comment="Enum value label">Use keyboard subtypes</string>
@@ -1388,6 +1800,7 @@
     <string name="enum__swipe_action__move_cursor_start_of_page" comment="Enum value label">Move cursor to start of page</string>
     <string name="enum__swipe_action__move_cursor_end_of_page" comment="Enum value label">Move cursor to end of page</string>
     <string name="enum__swipe_action__switch_to_clipboard_context" comment="Enum value label">Open clipboard manager/history</string>
+    <string name="enum__swipe_action__switch_to_editing_context" comment="Enum value label">Open text editing panel</string>
     <string name="enum__swipe_action__switch_to_media_context" comment="Enum value label">Open emoji panel</string>
     <string name="enum__swipe_action__shift" comment="Enum value label">Shift</string>
     <string name="enum__swipe_action__redo" comment="Enum value label">Redo</string>
@@ -1441,6 +1854,10 @@
         <item quantity="one">{v} character</item>
         <item quantity="other">{v} characters</item>
     </plurals>
+    <plurals name="unit__words__written">
+        <item quantity="one">{v} word</item>
+        <item quantity="other">{v} words</item>
+    </plurals>
     <plurals name="unit__candidates__written">
         <item quantity="one">{v} candidate</item>
         <item quantity="other">{v} candidates</item>
@@ -1468,9 +1885,20 @@
     <string name="dictate__floating_button_disclosure_continue" comment="Confirm button that opens the system accessibility settings">Open settings</string>
     <string name="dictate__floating_button_mic_title" comment="Row to grant the microphone permission for the floating button">Microphone access</string>
     <string name="dictate__floating_button_mic_summary" comment="Summary of the microphone row when the permission is missing">Required to record your voice · tap to grant</string>
-    <string name="dictate__floating_button_show_with_keyboard_title" comment="Toggle: whether to also show the floating button while the Dictate keyboard itself is active">Show with Dictate keyboard</string>
-    <string name="dictate__floating_button_show_with_keyboard_summary_on" comment="Summary when the floating button is shown even with the Dictate keyboard active">The button also appears while the Dictate keyboard is active.</string>
-    <string name="dictate__floating_button_show_with_keyboard_summary_off" comment="Summary when the floating button is hidden while the Dictate keyboard is active">Hidden while the Dictate keyboard is active, since it already has a mic key.</string>
+    <string name="dictate__floating_button_show_when_title" comment="Setting title: in which situation the floating dictation button appears; opens a list of three choices">When to show</string>
+    <string name="dictate__floating_button_show_when_field" comment="Choice: the floating button appears as soon as a text field is focused, even before any keyboard opens">As soon as a text field is selected</string>
+    <string name="dictate__floating_button_show_when_keyboard" comment="Choice: the floating button appears only while an on-screen keyboard (any keyboard) is open">Only while a keyboard is open</string>
+    <string name="dictate__floating_button_show_when_dictate_keyboard" comment="Choice: like “as soon as a text field is selected”, and also while the Dictate keyboard itself is open (normally hidden then, as it has its own mic key)">Also with the Dictate keyboard</string>    <string name="dictate__floating_button_apps_title" comment="Row that opens the per-app visibility screen for the floating button">App visibility</string>
+    <string name="dictate__floating_button_apps_summary_all" comment="Summary of the app-visibility row when no filter is set">In every app</string>
+    <string name="dictate__floating_button_apps_summary_only" comment="Summary of the app-visibility row in allow-list mode; {n} is the number of chosen apps">Only in {n} apps</string>
+    <string name="dictate__floating_button_apps_summary_except" comment="Summary of the app-visibility row in block-list mode; {n} is the number of chosen apps">Everywhere except {n} apps</string>
+    <string name="dictate__floating_button_apps_scope_all" comment="App-visibility mode: no filter">Every app</string>
+    <string name="dictate__floating_button_apps_scope_only" comment="App-visibility mode: allow-list">Only the apps below</string>
+    <string name="dictate__floating_button_apps_scope_except" comment="App-visibility mode: block-list">Every app except those below</string>
+    <string name="dictate__floating_button_apps_note" comment="Note explaining what the app filter does and does not hide">The button is never drawn over an app you leave out, and Dictate does not read its text fields. An app that objects to accessibility services as such will still notice the service is switched on.</string>
+    <string name="dictate__floating_button_apps_list_title" comment="Header above the app list in the app-visibility screen">Apps</string>
+    <string name="dictate__floating_button_apps_search" comment="Placeholder in the app-visibility search field">Search apps</string>
+    <string name="dictate__floating_button_apps_none" comment="Shown when no installed app matches the search; {search_term} is what was typed">No app found for “{search_term}”</string>
     <string name="dictate__floating_button_design_title" comment="Title of the floating-button visual style picker">Button style</string>
     <string name="dictate__floating_button_design_ring" comment="Floating-button style option: compact ring">Ring</string>
     <string name="dictate__floating_button_design_ring_summary" comment="Description of the ring floating-button style">Compact circle with a ring that animates while recording and transcribing.</string>
@@ -1498,16 +1926,13 @@
     <string name="dictate__floating_button_remember_position_title" comment="Toggle: remember the floating button position per app">Remember position per app</string>
     <string name="dictate__floating_button_remember_position_summary_on" comment="Summary when per-app position memory is on">Each app keeps its own button position.</string>
     <string name="dictate__floating_button_remember_position_summary_off" comment="Summary when per-app position memory is off">One shared position for all apps.</string>
-    <string name="dictate__floating_button_haptic_title" comment="Toggle: vibrate when the floating button is tapped">Vibrate on tap</string>
-    <string name="dictate__floating_button_haptic_summary_on" comment="Summary when tap vibration is on">A short buzz when you tap the button.</string>
-    <string name="dictate__floating_button_haptic_summary_off" comment="Summary when tap vibration is off">No vibration on tap.</string>
-    <string name="dictate__floating_button_undo_title" comment="Toggle: show an undo button on the floating button to revert the last dictation">Undo button</string>
-    <string name="dictate__floating_button_undo_summary_on" comment="Summary when the floating undo button is enabled">After a dictation, an undo button appears next to the button to remove the inserted text in one tap.</string>
-    <string name="dictate__floating_button_undo_summary_off" comment="Summary when the floating undo button is disabled">No undo button shown.</string>
+    <string name="dictate__floating_button_side_buttons_title" comment="Setting and dialog title: which small buttons appear beside the floating button (cancel, pause, undo), ticked in a dialog">Extra buttons</string>
     <string name="dictate__floating_button_undo_failed" comment="Toast when the undo button could not remove the last text (field changed)">Couldn\'t undo — the text may have changed.</string>
     <string name="dictate__floating_button_copy_to_clipboard_title" comment="Toggle: copy every floating-button dictation to the clipboard">Copy every dictation to clipboard</string>
     <string name="dictate__floating_button_copy_to_clipboard_summary_on" comment="Summary when copy-every-dictation is enabled">Each dictation is also copied to the clipboard, so you can paste it manually if inserting ever fails. May show a clipboard notice on some phones.</string>
     <string name="dictate__floating_button_copy_to_clipboard_summary_off" comment="Summary when copy-every-dictation is disabled">Dictations are only inserted, not copied to the clipboard.</string>
+    <string name="dictate__floating_button_menu_group" comment="Header above the switches that add entries to the menu opened by holding the floating button">Hold menu</string>
+    <string name="dictate__floating_button_menu_settings_title" comment="Menu entry and switch that opens the Dictate settings from the floating button">Dictate settings</string>
     <string name="dictate__floating_button_no_prompts" comment="Toast when long-pressing the floating button but no rewording prompts exist">No rewording prompts yet — add some in Dictate settings.</string>
     <string name="dictate__floating_button_retry_hint" comment="Toast after a failed floating-button dictation whose recording was kept; %1$s is the error message. Tapping the button re-sends the recording.">%1$s — tap to retry</string>
     <string name="dictate__floating_button_badge_new" comment="Small 'New' badge on the floating-button settings entry. Keep very short.">New</string>
@@ -1584,6 +2009,8 @@
     <string name="dictate__error_transcription_failed" comment="Generic transcription failure">Transcription failed.</string>
     <string name="dictate__error_unknown" comment="Unknown transcription error">Unknown error during transcription.</string>
     <string name="dictate__error_rewording_failed" comment="Generic rewording (GPT) failure">Rewording failed.</string>
+    <string name="dictate__error_rewording_default_model" comment="Rewording error detail: the failing model was the built-in default of the provider preset, because the user never chose one">%1$s is %2$s\'s built-in default model, not one you picked. Choose a rewording model under AI providers.</string>
+    <string name="dictate__notice_rewording_failed" comment="Neutral notice (not a failure) shown after the raw transcript was inserted because the rewording step failed. The text is safely in the field – this only says why it was not polished. One line on the keyboard, so keep it short.">Rewording failed – raw text inserted</string>
     <string name="dictate__error_overlay_insert_clipboard" comment="Floating-button error: the app's text field didn't accept the dictation, so it was put on the clipboard to paste manually">This app wouldn\'t take the text. It\'s on your clipboard — long-press the field and paste.</string>
 
     <!-- Dictate specific provider errors (roadmap 1.12). Kept short to fit the Smartbar; tap shows the full provider detail. -->
@@ -1593,10 +2020,11 @@
     <string name="dictate__error_text_size_limit" comment="Short error: a text was too long to reword — distinct from an over-long audio recording">Text too long to reword</string>
     <string name="dictate__error_format_not_supported" comment="Short error: the provider rejected the audio format">Audio format not supported</string>
     <string name="dictate__error_timeout" comment="Short error: the request timed out">Request timed out</string>
+    <string name="dictate__error_timeout_on_device" comment="Short error replacing the timeout headline when the on-device engine, not a provider, ran out of the configured time budget. Nothing was requested from a server here, so avoid the word 'request'. Keep it short – it has one line on the keyboard.">On-device transcription too slow</string>
     <string name="dictate__error_network" comment="Short error: no network connection reached the provider">No internet connection</string>
     <string name="dictate__error_server" comment="Short error: the provider returned a 5xx server error">Provider unavailable – try again</string>
     <string name="dictate__error_try_on_device" comment="Short error replacing the timeout/no-connection headline when the recording never reached the provider and on-device transcription is not set up yet. Keep it short – it has one line on the keyboard.">No connection – try on-device</string>
-    <string name="dictate__error_try_on_device_detail" comment="Longer explanation in the error details popup, shown under the raw provider error. Match the wording of the settings screens: 'AI providers' and 'Offline fallback'.">On-device transcription needs no connection at all — useful where a provider is blocked as well as where there is no signal. Set it up under AI providers, then turn on Offline fallback so it takes over by itself.</string>
+    <string name="dictate__error_try_on_device_detail" comment="Longer explanation in the error details popup, shown under the raw provider error. Match the wording of the settings screens: 'AI providers' and 'Fallback'.">On-device transcription needs no connection at all — useful where a provider is blocked as well as where there is no signal. Set it up under AI providers, then pick it as Fallback so it takes over by itself.</string>
     <string name="dictate__action_settings" comment="Button on a fixable error that opens the Dictate provider settings">Open settings</string>
     <string name="dictate__action_error_details" comment="Accessibility label: tapping the error shows the full provider error text">Show error details</string>
     <string name="dictate__error_details_title" comment="Title of the popup that shows the full provider error text">Error details</string>
@@ -1619,7 +2047,14 @@
     <string name="dictate__audio_save_failed" comment="Toast when saving a failed recording did not work">Couldn\'t save the audio</string>
     <string name="dictate__action_dismiss" comment="Content description for the button that dismisses the resend error">Dismiss</string>
     <string name="dictate__interrupted_recording" comment="Smartbar chip shown when the keyboard was closed mid-recording; {time} is the captured length like 0:42. Kept short for the single-line Smartbar.">Interrupted ({time})</string>
+    <string name="dictate__transcription_stopped" comment="Smartbar chip after the user stopped a transcription that was still waiting for the server (#437). The recording is kept and the chip has buttons to send it again or drop it. Also read out in a toast from the floating button, followed by ' — tap to retry'. Kept short for the single-line Smartbar.">Stopped, recording kept</string>
+    <string name="dictate__transcription_stopped_in_history" comment="Short notice after the user stopped a transcription while the resend button is switched off, when the recording is in the dictation history (#437). 'History' is the name of the history screen. Kept short for the single-line Smartbar.">Stopped, recording in History</string>
     <string name="dictate__action_continue_recording" comment="Content description for the button that resumes recording on top of an interrupted recording">Continue recording</string>
+    <string name="dictate__a11y_mic_hold_local" comment="Spoken by a screen reader as the long-press action of the Smartbar mic while a recording or a cloud transcription is running: it transcribes this recording with the on-device model instead">Transcribe on this device</string>
+    <string name="smartbar__a11y_show_actions" comment="Spoken by a screen reader for the arrow at the edge of the Smartbar while it shows word suggestions: tapping it shows the action buttons instead">Show actions</string>
+    <string name="smartbar__a11y_show_suggestions" comment="Spoken by a screen reader for the arrow at the edge of the Smartbar while it shows the action buttons: tapping it brings the word suggestions back">Show suggestions</string>
+    <string name="smartbar__a11y_show_more_actions" comment="Spoken by a screen reader for the Smartbar toggle that opens a second row of action buttons">Show more actions</string>
+    <string name="smartbar__a11y_hide_more_actions" comment="Spoken by a screen reader for the Smartbar toggle while the second row of action buttons is open: tapping it closes that row">Hide more actions</string>
     <string name="dictate__action_yes" comment="Content description for the accept button of the rate/donate nudge">Yes</string>
     <string name="dictate__action_no" comment="Content description for the decline button of the rate/donate nudge">No, thanks</string>
     <string name="dictate__promo_rate_message" comment="Smartbar nudge asking the user to rate the app after enough usage. Kept short to fit the single-line Smartbar.">Enjoying Dictate?</string>
@@ -1651,11 +2086,13 @@
     <string name="dictate__custom_server_title" comment="Group title for custom server settings">Custom server</string>
     <string name="dictate__base_url_title" comment="Label for the custom server base URL field">Base URL</string>
     <string name="dictate__base_url_placeholder" translatable="false">https://your-server/v1/</string>
+    <string name="dictate__base_url_placeholder_azure" translatable="false">https://my-speech.cognitiveservices.azure.com/</string>
     <string name="dictate__base_url_required" comment="Summary shown when the custom base URL is not yet set">Required for the custom provider</string>
     <string name="dictate__value_not_set" comment="Generic summary for an unset text setting">Not set</string>
 
     <!-- Dictate AI providers manager -->
     <string name="dictate__providers_title" comment="Title of the AI providers manager screen and the row linking to it">AI providers</string>
+    <string name="dictate__base_url_cleartext_warning" comment="Warning under the base URL field when the address starts with http:// (not https). The API key and the audio are sent unencrypted.">Not encrypted: the API key and your recordings travel as plain text. Fine on your own network, but on any other Wi-Fi someone else could read them.</string>
     <string name="dictate__providers_summary" comment="Summary showing the active provider. {provider} is a provider name like OpenAI.">Active: {provider}</string>
     <string name="dictate__providers_summary_both" comment="Summary showing the active transcription and rewording providers when they differ. {transcription} and {rewording} are provider names like OpenAI.">Transcription: {transcription} · Rewording: {rewording}</string>
     <string name="dictate__providers_active_group" comment="Group title for the active-provider selectors">Active providers</string>
@@ -1671,19 +2108,52 @@
          their speech goes has no reason to open something called "custom endpoint" (issue #273). -->
     <string name="dictate__providers_add_custom" comment="Button to add a user-defined OpenAI-compatible endpoint">Add your own server</string>
     <string name="dictate__providers_add_custom_summary" comment="Summary under the add-your-own-server button">Self-hosted or any OpenAI-compatible endpoint — for speech-to-text and rewording</string>
+    <string name="dictate__providers_add" comment="Row at the end of the providers list, and title of the screen it opens, listing every provider not set up yet">Add a provider</string>
+    <string name="dictate__providers_search" comment="Placeholder of the search field on the add-a-provider screen">Search providers</string>
+    <string name="dictate__providers_filter_eu" comment="Filter chip: providers that keep data in the European Union. Use the usual abbreviation.">EU</string>
+    <string name="dictate__providers_add_none" comment="Shown when the search and filters on the add-a-provider screen leave no provider">No provider matches</string>
+    <string name="dictate__providers_azure_endpoint" comment="Note at the top of the Azure provider editor: where the endpoint comes from, and the only regions that host the model">The endpoint is next to the key on the portal’s “Keys and Endpoint” page. MAI-Transcribe runs only in East US, West US, West US 2, North Europe, Southeast Asia and Central India.</string>
     <string name="dictate__providers_ollama_no_stt" comment="Note at the top of the Ollama provider editor; Ollama serves no transcription endpoint">Ollama has no speech-to-text endpoint, so it can only reword. To dictate through a server of your own, run a speech server (such as Speaches, faster-whisper-server or whisper.cpp) and add it under “Add your own server” — or use the on-device engine, which needs no server at all.</string>
+    <!-- Data residency (issue #403). The region is picked from a list because the valid addresses are the
+         provider’s own and short, and a mistyped residency host does not fail — it answers, from the
+         wrong continent. -->
+    <string name="dictate__providers_region_title" comment="Label of the field that picks a provider’s data-residency region">Region</string>
+    <string name="dictate__providers_region_us" comment="Name of the United States data-residency region">United States</string>
+    <string name="dictate__providers_region_eu" comment="Name of the European Union data-residency region">European Union</string>
+    <string name="dictate__providers_region_jp" comment="Name of the Japan data-residency region">Japan</string>
+    <string name="dictate__providers_region_in" comment="Name of the India data-residency region">India</string>
+    <string name="dictate__providers_region_global" comment="Name of the worldwide (non-regional) endpoint">Worldwide</string>
     <string name="dictate__providers_custom_title" comment="Dialog title when editing a custom endpoint">Custom server</string>
+    <string name="dictate__providers_get_key" comment="Accessibility label for the key icon beside the provider dialog title; it opens the provider's own page for creating an API key">Get an API key</string>
     <string name="dictate__providers_field_name" comment="Label for the custom endpoint display name field">Name</string>
     <string name="dictate__providers_field_transcription_model" comment="Label for the transcription model field in the provider editor">Transcription model</string>
     <string name="dictate__providers_field_transcription_rewording_model" comment="Label for the model field when single-call is on, where one model does transcription and rewording">Transcription &amp; rewording model</string>
     <string name="dictate__providers_field_chat_model" comment="Label for the chat/rewording model field in the provider editor">Rewording model</string>
     <string name="dictate__providers_single_call_title" comment="Toggle: send audio directly to a multimodal chat model in one call">Single-call multimodal</string>
     <string name="dictate__providers_single_call_summary" comment="Short summary for the single-call multimodal toggle">One audio-capable model transcribes and formats in a single request.</string>
-    <string name="dictate__providers_single_call_pick_audio" comment="Hint shown when single-call is on but the chosen transcription model does not accept audio">Pick an audio-capable model (marked 🎤 in the model list).</string>
     <string name="dictate__providers_rewording_single_call_note" comment="Info shown at the rewording provider when single-call is active at the transcription provider">Not used right now — your transcription provider does rewording in its single call.</string>
-    <string name="dictate__providers_test" comment="Button that checks the provider's base URL and API key">Test connection</string>
-    <string name="dictate__providers_test_success" comment="Shown after a successful connection test. {count} is the number of available models.">Connected · {count} models</string>
-    <string name="dictate__providers_test_failed" comment="Generic fallback shown when a connection test fails without a specific message">Connection failed</string>
+    <string name="dictate__providers_test" comment="Button that checks whether the provider accepts the entered API key and endpoint">Test connection</string>
+    <string name="dictate__providers_test_transcribe" comment="Button that sends a short bundled speech sample through the selected transcription model">Test transcription</string>
+    <string name="dictate__providers_check_no_key" comment="Shown when a test is started before an API key has been entered">Enter your API key first.</string>
+    <string name="dictate__providers_check_credentials_ok" comment="Successful connection test at a provider with a live model catalog. {count} is the number of models it returned.">Credentials verified · {count} models</string>
+    <string name="dictate__providers_check_credentials_ok_nocount" comment="Successful connection test at a provider whose model list ships with the app, so no model count was learned from the network">Credentials verified</string>
+    <string name="dictate__providers_check_endpoint_ok" comment="Successful connection test at a server that asks for no key at all, such as a local Ollama. {count} is the number of models it returned.">Server reached · {count} models</string>
+    <string name="dictate__providers_check_credentials_untested" comment="Second line after a successful connection test, saying what was not checked">Transcription not tested.</string>
+    <string name="dictate__providers_check_transcription_ok" comment="Successful transcription test: the provider returned a transcript for the sample">Transcription verified</string>
+    <string name="dictate__providers_check_transcription_text" comment="Second line after a successful transcription test, showing what came back. {text} is the transcript.">Came back as: “{text}”</string>
+    <string name="dictate__providers_check_transcription_empty" comment="Second line when the provider accepted the sample but returned no text at all">The request went through, but no text came back — the connection works, this model did not understand the sample.</string>
+    <string name="dictate__providers_check_failed_connection" comment="Headline when the connection test failed">Connection test failed</string>
+    <string name="dictate__providers_check_failed_transcription" comment="Headline when the transcription test failed">Transcription test failed</string>
+    <string name="dictate__providers_check_err_auth" comment="What to do when the provider rejected the key">The key was rejected. Check it, and that the endpoint belongs to the same account.</string>
+    <string name="dictate__providers_check_err_quota" comment="What to do when the key works but the account has nothing left to spend">The key works, but the account is out of quota or over a rate limit. Check your plan with the provider.</string>
+    <string name="dictate__providers_check_err_network" comment="What to do when the server could not be reached at all">The server could not be reached. Check the address and your internet connection.</string>
+    <string name="dictate__providers_check_err_timeout" comment="What to do when the provider did not answer in time">No answer in time. The provider may be busy — try again.</string>
+    <string name="dictate__providers_check_err_server" comment="What to do when the provider itself reported an error">The provider reported an error of its own. Nothing to change here; try again later.</string>
+    <string name="dictate__providers_check_err_format" comment="What to do when the provider refused the sample audio">The provider refused the sample audio. It may not accept this format.</string>
+    <string name="dictate__providers_check_err_unknown" comment="Fallback when a failure fits none of the known categories">The request failed.</string>
+    <string name="dictate__providers_azure_link_signup" comment="Link next to the Azure endpoint field: the page where a new Azure account is created">Create an Azure account</string>
+    <string name="dictate__providers_azure_link_portal" comment="Link next to the Azure endpoint field: the Azure portal, where the key and endpoint are found">Azure portal</string>
+    <string name="dictate__providers_azure_link_guide" comment="Link next to the Azure endpoint field: Microsoft's own setup guide and prerequisites for the MAI-Transcribe model">Setup guide</string>
     <!-- Dictate Cloud: prepaid credit bought in the app, as an alternative to bringing your own API key -->
     <string name="dictate__cloud_title" comment="Title of the Dictate Cloud screen and the row linking to it">Dictate Cloud</string>
     <string name="dictate__cloud_row_summary_none" comment="Summary of the Dictate Cloud row when no credit account exists">Buy dictation credit — no API key needed</string>
@@ -1748,6 +2218,11 @@
     <string name="dictate__cloud_other_way_body">You can switch to your own API key at any time, and back again. Your credit stays where it is.</string>
 
     <string name="dictate__providers_network_group" comment="Group title for network-level provider settings (proxy)">Network</string>
+    <!-- How long a request to the AI provider may take (issue #337). One number for the gap between
+         bytes and for the whole call: telling those two apart takes knowing how the HTTP client works,
+         and the person waiting only has one question. -->
+    <string name="dictate__request_timeout_title" comment="Title of the slider setting how long a request to the AI provider may take before it counts as failed">Request timeout</string>
+    <string name="dictate__request_timeout_summary" comment="Summary under the request timeout slider; {v} is the chosen number of seconds">{v} s · raise this for a slow server of your own</string>
 
     <string name="dictate__wear_title" comment="Title of the Wear OS companion settings screen">Wear OS</string>
     <string name="dictate__wear_summary" comment="Summary of the Wear OS settings entry on the main Dictate screen">Options for dictating from a paired watch</string>
@@ -1757,6 +2232,8 @@
     <string name="dictate__wear_auto_rewording_summary" comment="Short summary for the auto-rewording-on-watch toggle">Reword dictations made from the watch, like on the phone.</string>
     <string name="dictate__wear_standalone_title" comment="Title of the toggle that lets a paired Wear OS watch transcribe on its own">Sync key to watch</string>
     <string name="dictate__wear_standalone_summary" comment="Short summary for the Wear OS standalone transcription toggle">Send your API key to the watch so it can dictate without the phone nearby.</string>
+    <string name="dictate__wear_tether_notif_channel_name" comment="Notification channel name for the short notice shown while the phone transcribes a watch dictation">Watch dictation</string>
+    <string name="dictate__wear_tether_notif_title" comment="Silent notification shown for the few seconds the phone transcribes a dictation sent from the watch">Transcribing for your watch…</string>
 
     <!-- Dictate network proxy -->
     <string name="dictate__proxy_title" comment="Title of the proxy settings screen / row">Proxy</string>
@@ -1774,7 +2251,6 @@
     <string name="dictate__proxy_auth_group" comment="Group title for optional proxy authentication (HTTP only)">Authentication (optional)</string>
     <string name="dictate__proxy_username_title" comment="Label for the proxy username field">Username</string>
     <string name="dictate__proxy_password_title" comment="Label for the proxy password field">Password</string>
-    <string name="dictate__security_group" comment="Group title for connection security settings">Security</string>
     <string name="dictate__trust_user_certs_title" comment="Title of the setting to trust user-installed CA certificates">Trust user certificates</string>
     <string name="dictate__trust_user_certs_summary" comment="Summary explaining the user-installed CA trust setting">Trust CA certificates you installed, for self-hosted endpoints behind a private CA.</string>
 
@@ -1808,8 +2284,16 @@
     <string name="dictate__local_model_none_selected" comment="Summary on the on-device provider row when no model is downloaded/selected yet">No model downloaded yet</string>
     <string name="dictate__local_model_delete_confirm" comment="Confirmation question before deleting a downloaded model. {model} is the model name.">Delete “{model}”? You can download it again later.</string>
     <string name="dictate__local_model_not_installed_error" comment="Error shown when trying to dictate with the on-device provider but no model is downloaded">No on-device model downloaded</string>
-    <string name="dictate__local_fallback_title" comment="Title of the toggle that enables on-device transcription as an offline fallback">Offline fallback</string>
-    <string name="dictate__local_fallback_summary" comment="Explains the offline fallback toggle">When offline, transcribe on-device with the downloaded model after the provider fails</string>
+    <plurals name="dictate__local_model_languages" comment="How many languages an on-device model covers, shown under its name when there are too many to name one by one (issue #406). {count} is a number; it is never below six, because up to five are listed instead.">
+        <item quantity="one">{count} language</item>
+        <item quantity="other">{count} languages</item>
+    </plurals>
+    <string name="dictate__local_model_family_installed" comment="Shown under a model family (Whisper, Kroko) in the on-device picker when some of its variants are downloaded. Both {count} and {total} are numbers.">{count} of {total} installed</string>
+    <string name="dictate__local_model_family_open" comment="Spoken action label for the row that opens a model family (Whisper, Kroko) and shows the variants inside it">Show variants</string>
+    <string name="dictate__fallback_title" comment="Label of the drop-down under the provider list in the Transcription dialog (AI providers): the provider that takes over a dictation when the transcription provider cannot do it — the on-device engine or another set-up provider. Also the screen-reader name of the detour icon shown next to a fallback provider's name while it transcribes. Keep it short.">Fallback</string>
+    <string name="dictate__fallback_off" comment="The Fallback setting's value when no provider takes over">Off</string>
+    <string name="dictate__fallback_hint" comment="One line under the Fallback drop-down, saying when the chosen provider takes over. 'Reached' as in: no connection could be made at all; a provider that is merely slow keeps the dictation.">Takes over a dictation when the transcription provider can’t be reached.</string>
+    <string name="dictate__providers_transcription_with_fallback" comment="Summary of the Transcription row under AI providers when a fallback is set: {provider} is the transcription provider, {fallback} the one that takes over when it cannot be reached (e.g. 'Home server · Fallback: OpenRouter'). The word must match the Fallback label.">{provider} · Fallback: {fallback}</string>
 
     <!-- Dictate recording settings -->
     <string name="dictate__recording_group" comment="Group title for recording-related settings">Recording</string>
@@ -1837,8 +2321,10 @@
     <string name="dictate__recording_animation_static_description" comment="Option description">Stays a solid red dot while recording</string>
     <string name="dictate__recording_animation_pulse_label" comment="Option: steady pulse">Pulsing</string>
     <string name="dictate__recording_animation_pulse_description" comment="Option description">Pulses at a steady rate</string>
-    <string name="dictate__recording_animation_level_label" comment="Option: reacts to microphone level">Follows your voice</string>
+    <string name="dictate__recording_animation_level_label" comment="Option: reacts to microphone level">Follows your voice (Dot)</string>
     <string name="dictate__recording_animation_level_description" comment="Option description">Reacts to the microphone level, showing that the mic is picking you up</string>
+    <string name="dictate__recording_animation_wave_label" comment="Option: live waveform">Follows your voice (Wave)</string>
+    <string name="dictate__recording_animation_wave_description" comment="Option description">Draws the last seconds as a live waveform, so you can see when you have gone quiet</string>
     <string name="dictate__skip_silent_title" comment="Setting: skip transcribing recordings that contain no speech">Skip silent recordings</string>
     <string name="dictate__skip_silent_summary" comment="Summary for the skip-silent-recordings setting">Avoid ghost text and wasted API calls on silent audio</string>
     <string name="dictate__trim_silent_gaps_title" comment="Setting: cut long pauses out of a recording before uploading it (issue #232)">Trim long pauses</string>
@@ -1854,12 +2340,15 @@
     <string name="dictate__paragraph_split_value" comment="Slider value label: after how many words a paragraph break may start. {n} is the word count">After {n} words</string>
 
     <string name="dictate__realtime_title" comment="Setting: real-time streaming transcription">Real-time transcription</string>
-    <string name="dictate__realtime_summary" comment="Summary for the real-time transcription setting">Show text live while you speak, for providers that support it</string>
+    <string name="dictate__realtime_summary" comment="Explanation shown inside the real-time transcription dialog">Transcribes while you speak instead of after you stop, for providers that support it</string>
+    <string name="dictate__realtime_mode_off" comment="Real-time transcription: the feature is switched off">Off</string>
+    <string name="dictate__realtime_mode_live" comment="Real-time transcription: the streamed words appear in the text field as they arrive">Show the text while I speak</string>
+    <string name="dictate__realtime_mode_at_end" comment="Real-time transcription: the words are transcribed while speaking but only inserted once the recording is stopped">Show the text only when I stop</string>
     <string name="dictate__providers_field_realtime_model" comment="Label for the real-time streaming model picker">Real-time model</string>
     <string name="dictate__providers_custom_realtime" comment="Switch label: a self-hosted server that supports realtime streaming (#249)">Real-time streaming</string>
     <string name="dictate__providers_custom_realtime_summary" comment="Explains what the server must support for realtime streaming">This server speaks the OpenAI realtime protocol at /v1/realtime</string>
-    <string name="dictate__providers_custom_warm_up" comment="Switch label: ping a sleeping self-hosted server early so it can wake up (#189)">Wake before rewording</string>
-    <string name="dictate__providers_custom_warm_up_summary" comment="Explains the early wake-up request">Pings this server early so a sleeping machine has time to start</string>
+    <string name="dictate__providers_custom_warm_up" comment="Switch label: ping a sleeping self-hosted server early so it can wake up (#189)">Wake up early</string>
+    <string name="dictate__providers_custom_warm_up_summary" comment="Explains the early wake-up request, sent when a recording starts (transcription) or a rewording is coming">Pings this server early so a sleeping machine has time to start</string>
     <string name="dictate__providers_realtime_model_default" comment="Marks the provider's default real-time model in the picker">Default</string>
     <string name="dictate__longform_title" comment="Setting: long-form segmented dictation">Long-form dictation</string>
     <string name="dictate__longform_summary" comment="Summary for the long-form dictation setting">Transcribe long dictations in the background, part by part while you keep talking — tap Next during recording to send the current part, so there is no long wait at the end.</string>
@@ -1878,6 +2367,10 @@
     <string name="dictate__longform_mode_manual_summary" comment="Summary for the manual long-form mode">Send each part with the Next button while recording.</string>
     <string name="dictate__instant_recording_title" comment="Setting: start recording when the keyboard opens">Instant recording</string>
     <string name="dictate__instant_recording_summary" comment="Summary for the instant recording setting">Start recording automatically when the keyboard opens</string>
+    <string name="dictate__instant_recording_mode_off" comment="Instant recording: the feature is switched off">Off</string>
+    <string name="dictate__instant_recording_mode_always" comment="Instant recording: start recording whenever the keyboard opens on a text field">Every time the keyboard opens</string>
+    <string name="dictate__instant_recording_mode_after_switch" comment="Instant recording: start recording only when the user has just switched to this keyboard from another one">Only after switching to {app_name}</string>
+    <string name="dictate__instant_recording_in_numeric" comment="Checkbox inside the instant-recording dialog: whether it also starts in number-only fields (phone, PIN, date)">Also in number fields</string>
     <string name="dictate__instant_recording_skip_numeric_title" comment="Setting: don't auto-start recording on number-only fields">Skip number fields</string>
     <string name="dictate__instant_recording_skip_numeric_summary" comment="Summary: instant recording won't auto-start on number/phone/PIN fields">Don\'t auto-start on number, phone or PIN fields</string>
     <string name="dictate__instant_recording_info_title" comment="Title of the dialog shown when enabling instant recording">Heads up</string>
@@ -1894,7 +2387,7 @@
     <string name="dictate__haptic_feedback_title" comment="Setting: vibrate on dictation state changes">Haptic feedback</string>
     <string name="dictate__haptic_feedback_summary" comment="Summary for the haptic feedback setting">Vibrate on record start/stop, when a transcription is ready, and on rewording.</string>
     <string name="dictate__remember_last_dictation_title" comment="Setting: keep the last dictation so it can be re-inserted">Remember last dictation</string>
-    <string name="dictate__remember_last_dictation_summary" comment="Summary explaining the re-insert safety net">Keep your last dictation so you can re-insert it via the Smartbar\'s Re-insert button.</string>
+    <string name="dictate__remember_last_dictation_summary" comment="Summary explaining the re-insert safety net">Keep your last dictation so the floating button can undo it and the classic layout can re-insert it.</string>
 
     <!-- Dictate main screen pipeline groups -->
     <string name="dictate__transcription_group" comment="Group title for the transcription (speech-to-text) stage on the main Dictate screen">Transcription (speech → text)</string>
@@ -1910,7 +2403,10 @@
     <string name="dictate__languages_title" comment="Setting: pick which dictation languages to cycle through">Transcription languages</string>
     <string name="dictate__languages_summary" comment="Explanation on the language picker screen">Pick the languages you dictate in. Switch between them quickly from the recording bar.</string>
     <string name="dictate__language_detect" comment="Language option: let the model auto-detect the spoken language">Detect automatically</string>
+    <string name="dictate__languages_selected_title" comment="Row/dialog title: the languages the user dictates in, listed by name under it; tapping opens a dialog with every language and a checkbox each">Selected languages</string>
     <string name="dictate__languages_active_title" comment="Row/dialog title to pick the currently active transcription language">Active language</string>
+    <string name="dictate__languages_follow_keyboard" comment="Switch title: the dictation language follows the keyboard language">Follow the keyboard language</string>
+    <string name="dictate__languages_follow_keyboard_summary" comment="Switch summary. Only languages chosen under “Selected languages” are switched to. Must fit two lines">Switches dictation too, if the language is selected</string>
 
     <!-- Dictate prompt selection (system & style prompt: none / predefined / custom) -->
     <string name="dictate__prompt_selection_none" comment="Prompt option: do not send any prompt">None</string>
@@ -1929,6 +2425,26 @@
     <string name="dictate__custom_words_title" comment="Setting: custom vocabulary added to the transcription prompt so names/jargon are spelled correctly">Custom words</string>
     <string name="dictate__custom_words_summary_empty" comment="Summary shown when no custom words are set">Add names or technical terms to spell correctly</string>
     <string name="dictate__custom_words_placeholder" comment="Placeholder listing example custom words, comma-separated">e.g. FlorisBoard, Kubernetes, Renée, OAuth, Anthropic</string>
+    <string name="dictate__custom_words_summary" comment="Summary on the custom words row once words are set. Placeholders: how many words, the estimated token cost, and the budget the speech model reads.">{count} words · about {tokens} of {budget} tokens</string>
+    <string name="dictate__custom_words_budget_info" comment="Info card shown once the word list uses most of the prompt budget. Placeholders: the budget and the estimated tokens in use.">Every word here travels with every dictation, and the speech model reads only about {budget} tokens of context. Your list is using about {tokens}.</string>
+    <string name="dictate__custom_words_budget_over" comment="Warning card shown when the word list is longer than the speech model can read. Placeholders: how many words still reach the model, and how many there are in total.">Your list is longer than the speech model reads. About {fits} of your {count} words reach it; the rest are sent with every dictation and ignored. For a longer vocabulary use custom mappings — they are exact, work offline and cost nothing.</string>
+    <string name="dictate__custom_words_import" comment="Row that opens a file picker to import a word list">Import a word list</string>
+    <string name="dictate__custom_words_export" comment="Row that saves the word list as a text file">Export the word list</string>
+    <string name="dictate__custom_words_export_filename" comment="Default file name for the word list export">dictate_words.txt</string>
+    <string name="dictate__custom_words_import_title" comment="Title of the dialog shown before an imported word list is written">Import a word list</string>
+    <string name="dictate__custom_words_import_fitting" comment="Import dialog: how many new words from the file fit into the list. Placeholder inserts the count.">{count} new words from this file fit in your list.</string>
+    <string name="dictate__custom_words_import_known" comment="Import dialog: how many words were already in the list. Placeholder inserts the count.">{count} were already in it.</string>
+    <string name="dictate__custom_words_import_nofit" comment="Import dialog: how many words were left out because the prompt budget is full, and why. Placeholders: the count and the token budget.">{count} were left out — the speech model reads only about {budget} tokens of context, so they would have been sent with every dictation and ignored.</string>
+    <string name="dictate__custom_words_import_unusable" comment="Import dialog: how many lines held nothing usable. Placeholder inserts the count.">{count} lines held nothing to spell and were skipped.</string>
+    <string name="dictate__custom_words_import_truncated" comment="Import dialog: the file was longer than the app reads. Placeholder inserts the entry limit.">Only the first {count} entries of the file were read.</string>
+    <string name="dictate__custom_words_import_also_dictionary" comment="Checkbox in the import dialog: also write the words into the personal typing dictionary">Also add them to the personal dictionary</string>
+    <string name="dictate__custom_words_import_also_dictionary_summary" comment="Explains the difference between the two lists, because an import is where people expect one to do both">This list only tells the speech model how to spell a word. The personal dictionary is what the keyboard uses while you type — it has no length limit, so every word in the file goes in, not only the ones that fit above.</string>
+    <string name="dictate__custom_words_import_empty" comment="Toast when the chosen file held no usable words at all">No words found in that file</string>
+    <string name="dictate__custom_words_import_done" comment="Toast after words were added. Placeholder inserts how many.">Added {count} words</string>
+    <string name="dictate__custom_words_import_done_dictionary" comment="Toast after words were added to both lists. Placeholders: how many reached the speech vocabulary and how many the personal dictionary.">Added {count} words, and {dict} to your personal dictionary</string>
+    <string name="dictate__file_unreadable" comment="Toast when a chosen file could not be read">That file could not be read</string>
+    <string name="dictate__file_export_done" comment="Toast after a file was written successfully">File saved</string>
+    <string name="dictate__file_export_failed" comment="Toast when a file could not be written">Could not write that file</string>
 
     <!-- Dictate custom mappings: deterministic find-and-replace on the transcript (issue #129) -->
     <string name="dictate__mappings_title" comment="Title of the custom find-and-replace mappings screen">Custom mappings</string>
@@ -1950,6 +2466,16 @@
     <string name="dictate__mappings_wholeword_summary" comment="Summary for the whole-word toggle">Only replace standalone words, not matches inside longer words.</string>
     <string name="dictate__mappings_matchcase_title" comment="Toggle: case-sensitive matching">Match case</string>
     <string name="dictate__mappings_matchcase_summary" comment="Summary for the match-case toggle">Only replace when the capitalization matches exactly.</string>
+    <string name="dictate__mappings_import" comment="Menu option that imports find-and-replace rules from a file">Import rules</string>
+    <string name="dictate__mappings_export" comment="Menu option that saves the find-and-replace rules as a file">Export rules</string>
+    <string name="dictate__mappings_export_filename" comment="Default file name for the mapping rules export">dictate_mappings.tsv</string>
+    <string name="dictate__mappings_import_title" comment="Title of the dialog shown before imported rules are written">Import rules</string>
+    <string name="dictate__mappings_import_message" comment="Import dialog: how many new rules the file holds. Placeholder inserts the count.">{count} new rules from this file. Add them to your list?</string>
+    <string name="dictate__mappings_import_known" comment="Import dialog: how many rules were already in the list. Placeholder inserts the count.">{count} were already in it.</string>
+    <string name="dictate__mappings_import_unusable" comment="Import dialog: how many lines named no replacement. Placeholder inserts the count.">{count} lines named no replacement and were skipped.</string>
+    <string name="dictate__mappings_import_format" comment="Import dialog: the file format the importer expects">One rule per line: what is heard, a tab, what it should become.</string>
+    <string name="dictate__mappings_import_empty" comment="Toast when the chosen file held no usable rules">No rules found in that file</string>
+    <string name="dictate__mappings_import_done" comment="Toast after rules were added. Placeholder inserts how many.">Added {count} rules</string>
 
     <!-- Dictate rewording (AI) settings -->
     <string name="dictate__rewording_group" comment="Group title for the rewording (AI editing) stage on the main Dictate screen">Rewording (AI editing)</string>
@@ -1996,6 +2522,26 @@
     <string name="dictate__history_clear_title" comment="Title of the clear-history confirmation dialog">Clear history?</string>
     <string name="dictate__history_clear_message" comment="Body of the clear-history confirmation dialog">This permanently deletes all history entries and any retained audio.</string>
     <string name="dictate__history_clear_confirm" comment="Confirm button that clears the whole history">Clear all</string>
+    <string name="dictate__history_export_title" comment="Title of the folder-export dialog on the history screen">Export to a folder</string>
+    <string name="dictate__history_export_summary" comment="Intro line of the folder-export dialog">Every new dictation is also written into this folder as a plain text file, the moment it is finished.</string>
+    <string name="dictate__history_export_folder" comment="Label above the chosen export folder">Folder</string>
+    <string name="dictate__history_export_folder_unset" comment="Shown in place of the folder name when no export folder has been chosen">Not set</string>
+    <string name="dictate__history_export_folder_unavailable" comment="Shown when the export folder can no longer be written to (permission revoked, storage removed, restored backup)">Folder unavailable — pick it again</string>
+    <string name="dictate__history_export_choose" comment="Button that opens the folder picker for the first time">Choose folder</string>
+    <string name="dictate__history_export_change" comment="Button that opens the folder picker to swap the export folder">Change</string>
+    <string name="dictate__history_export_disconnect" comment="Button that stops the folder export and gives up access to the folder">Disconnect</string>
+    <string name="dictate__history_export_audio_title" comment="Toggle: also write the recording next to the exported transcript">Also export the recording</string>
+    <string name="dictate__history_export_audio_summary" comment="Summary of the export-the-recording toggle when it can be used">Saves the audio next to the transcript.</string>
+    <string name="dictate__history_export_audio_needs_retention" comment="Summary of the export-the-recording toggle while Keep audio is off, which leaves no recording to export">Needs “Keep audio” to be switched on.</string>
+    <string name="dictate__history_export_all" comment="Button that writes the whole history into the export folder in one pass">Export everything now</string>
+    <string name="dictate__history_export_all_summary" comment="Explains what the export-everything button is for">Writes every dictation that is not in the folder yet — the ones from before you picked it, and any the app could not write while the folder was unreachable.</string>
+    <string name="dictate__history_export_all_result" comment="Summary after an export-everything run. {written}, {skipped} and {failed} are counts">{written} written, {skipped} already there, {failed} failed</string>
+    <string name="dictate__history_export_last_failure" comment="Warning that a dictation could not be written to the folder. {when} is a relative time like 5 minutes ago">A write failed {when}. “Export everything now” puts what is missing back.</string>
+    <string name="dictate__history_export_warning_title" comment="Title of the dialog shown before the export folder is picked for the first time">What lands there</string>
+    <string name="dictate__history_export_warning_message" comment="Body of the dialog shown before the export folder is picked for the first time">The folder will hold the text of every dictation you make from now on, and the recordings too if you switch that on. Anything that syncs it — a cloud client, a backup tool, another app — carries those transcripts off this device.\n\nDictate keeps writing until you disconnect the folder, and it never deletes from it: entries that drop out of the history stay in the folder. Password and incognito fields are never recorded, and so are never exported.</string>
+    <string name="dictate__history_export_needs_history" comment="Shown when the export is opened while the history is switched off">Folder export writes what the history records, so the history has to be switched on for it.</string>
+    <string name="dictate__history_export_enable_history" comment="Button that switches the history on from the export dialog">Turn on history</string>
+    <string name="dictate__history_export_pick_failed" comment="Toast shown when Android refused write access to the picked folder">Could not get write access to that folder</string>
     <string name="dictate__stats_empty" comment="Shown on the statistics screen before any dictation exists">No dictations yet — your stats will appear here once you start dictating.</string>
     <string name="dictate__stats_time_saved" comment="Label of the hero time-saved statistic">Time saved</string>
     <string name="dictate__stats_time_saved_sub" comment="Subtitle under the time-saved figure">vs. typing on a keyboard</string>
@@ -2034,6 +2580,12 @@
     <string name="dictate__manage_prompts_title" comment="Setting: open the prompt management screen">Manage prompts</string>
     <string name="dictate__manage_prompts_summary" comment="Summary showing how many prompts exist. {count} is a number.">{count} prompts</string>
     <string name="dictate__manage_prompts_summary_loading" comment="Summary shown while the prompt count is loading">Add, edit and remove your prompts</string>
+    <string name="dictate__command_word_title" comment="Setting: a spoken word that turns a dictation into an instruction">Command word</string>
+    <string name="dictate__command_word_off" comment="Summary shown when no command word is set, i.e. the feature is off">Off</string>
+    <string name="dictate__command_word_summary" comment="Summary for the command word setting. {word} is the word the user picked.">Dictations starting with “{word}” run as a live prompt</string>
+    <string name="dictate__command_word_placeholder" comment="Example command word shown in the empty input field">Jarvis</string>
+    <string name="dictate__command_word_info_title" comment="Title of the info box explaining the command word">About the command word</string>
+    <string name="dictate__command_word_info_description" comment="Info box explaining what the command word does">Normally Dictate writes down what you say. With a command word set, a dictation that begins with it becomes an instruction instead: the word is removed and the rest is sent to the AI, together with the selected text if there is any.\n\n“Jarvis, make this more formal” rewrites the selection. “Jarvis, what is the capital of Japan” writes the answer into the field. It is the Live prompt button, reached by saying its name instead of tapping it.\n\nThe word only counts at the very start of a dictation and only as a whole word, so pick something you rarely begin a sentence with.</string>
     <string name="dictate__auto_formatting_title" comment="Setting: turn spoken formatting cues into Markdown">Auto-formatting</string>
     <string name="dictate__auto_formatting_summary" comment="Summary for the auto-formatting setting">Turn spoken formatting cues into Markdown (headings, lists, …)</string>
     <string name="dictate__system_prompt_title" comment="Setting: base instruction sent with every rewording request">Rewording instruction</string>
@@ -2050,7 +2602,11 @@
     <string name="dictate__prompt_name_title" comment="Label for the prompt name field">Name</string>
     <string name="dictate__prompt_name_placeholder" comment="Placeholder for the prompt name field">e.g. Fix grammar</string>
     <string name="dictate__prompt_text_title" comment="Label for the prompt instruction field">Prompt</string>
-    <string name="dictate__prompt_text_placeholder" comment="Placeholder for the prompt instruction field">Instruction sent to the AI model</string>
+    <string name="dictate__prompt_text_placeholder" comment="Hint inside the prompt field: shown in place of the label while the field is empty and untouched, and as the placeholder afterwards. The brackets are the literal snippet syntax and must stay.">Instruction for the AI — or [text in brackets] to insert it as-is</string>
+    <string name="dictate__prompt_trigger_title" comment="Label for the typed shortcut field in the prompt editor">Typing shortcut (optional)</string>
+    <string name="dictate__prompt_trigger_placeholder" comment="Placeholder for the typed shortcut field, an example shortcut">e.g. ;sig</string>
+    <string name="dictate__prompt_trigger_error_invalid" comment="Error under the typing shortcut field when it contains spaces or is too long">A shortcut is one word without spaces, up to 32 characters.</string>
+    <string name="dictate__prompt_trigger_error_duplicate" comment="Error under the typing shortcut field when another prompt already uses it. {name} is that prompt’s name.">Already used by “{name}”.</string>
     <string name="dictate__prompt_requires_selection_title" comment="Switch: prompt operates on the selected text">Requires selection</string>
     <string name="dictate__prompt_requires_selection_summary" comment="Summary for the requires-selection switch">Operates on the selected text and replaces it</string>
     <string name="dictate__prompt_auto_apply_title" comment="Switch: run the prompt automatically after each transcription">Apply automatically</string>
@@ -2106,6 +2662,7 @@
     <string name="dictate__prompt_library_all" comment="Filter chip that shows prompts of every category">All</string>
     <string name="dictate__prompt_library_add" comment="Button that imports a library prompt into the user\'s own list">Add</string>
     <string name="dictate__prompt_library_added" comment="Marker/label shown once a library prompt has been imported">Added</string>
+    <string name="dictate__prompt_library_add_again" comment="Confirm button in the preview dialog for a prompt that is already in the user\'s list; adds a second copy">Add again</string>
     <string name="dictate__prompt_library_empty" comment="Shown when no library prompt matches the search/filter">No prompts match your search.</string>
     <string name="dictate__prompt_library_error" comment="Shown when the community library could not be downloaded">Couldn\'t load the community library. Check your connection and try again.</string>
     <string name="dictate__prompt_library_retry" comment="Button to retry loading the community library">Retry</string>
@@ -2124,6 +2681,39 @@
     <string name="dictate__file_preparing" comment="Toast shown while the picked file is copied to the cache">Preparing file…</string>
     <string name="dictate__file_too_large" comment="Toast when the chosen file exceeds the provider upload limit">File is too large – the provider accepts at most 25 MB.</string>
     <string name="dictate__file_read_error" comment="Toast when the chosen file could not be read">Could not read the selected file.</string>
+
+    <!-- Share → Dictate for audio and video (issue #301): a shared voice message is transcribed on a
+         screen of its own, because a share has no text field for the transcript to go into. -->
+    <string name="dictate__import_share_label" comment="Label of the Dictate entry in the system share sheet for audio and video files. One word: the sheet already shows the app name next to it, and another Dictate entry handles images.">Transcribe</string>
+    <string name="dictate__import_title" comment="Title of the screen that transcribes a shared or picked audio file">Transcribe file</string>
+    <string name="dictate__import_menu" comment="Entry on the Dictate settings home that opens the file picker">Transcribe a file</string>
+    <string name="dictate__import_menu_summary" comment="Summary under the \'Transcribe a file\' entry">Pick an audio or video file and read what it says</string>
+    <!-- The steps of an import, listed from the start and ticked off as they finish (issue #337). One
+         "Preparing…" used to cover four different jobs, which made the longest of them look like a hang. -->
+    <string name="dictate__import_step_copy" comment="Step in the import progress list: the shared file is copied out of the temporary share into the app">Receiving the file</string>
+    <string name="dictate__import_step_extract" comment="Step in the import progress list: the sound track is taken out of a shared video">Extracting the audio</string>
+    <string name="dictate__import_step_prepare" comment="Step in the import progress list: the audio is decoded and cut into pieces small enough to send">Preparing the audio</string>
+    <string name="dictate__import_step_upload" comment="Step in the import progress list: the audio is being sent to the transcription service">Uploading</string>
+    <string name="dictate__import_step_transcribe" comment="Step in the import progress list; {provider} is the transcription service, e.g. Gemini">Transcribing with {provider}</string>
+    <string name="dictate__import_step_transcribe_local" comment="Step in the import progress list when transcription runs offline on the phone itself">Transcribing on this device</string>
+    <string name="dictate__import_step_finish" comment="Step in the import progress list: the transcript is saved to the history">Finishing up</string>
+    <string name="dictate__import_step_percent" comment="Progress of the step currently running; {v} is a number between 0 and 100">{v}%</string>
+    <string name="dictate__import_step_part" comment="Which piece of a split file is being worked on; {current} is the piece, {total} how many there are">Part {current} of {total}</string>
+    <string name="dictate__import_result_label" comment="Label above the editable transcript on the import screen">Transcript</string>
+    <string name="dictate__import_prompt_button" comment="Button that opens the menu of prompts to run over the transcript">Rewording</string>
+    <string name="dictate__import_revert" comment="Button that puts the raw transcript back after a prompt rewrote it">Undo</string>
+    <string name="dictate__import_copy" comment="Button that copies the transcript. One word: it sits in a row of four and the screen holds exactly one piece of text.">Copy</string>
+    <string name="dictate__import_copied" comment="Shown on the copy button for a moment after the transcript was copied">Copied!</string>
+    <string name="dictate__import_save" comment="Button that writes the transcript to a text file the user picks">Save as file</string>
+    <string name="dictate__import_saved" comment="Toast after the transcript was written to a file">Transcript saved.</string>
+    <string name="dictate__import_save_failed" comment="Toast when the transcript could not be written">Could not save the transcript.</string>
+    <string name="dictate__import_search" comment="Button and field label for searching inside the transcript">Search transcript</string>
+    <string name="dictate__import_search_hits" comment="Match counter next to the search field; {current} is the match you are on, {total} how many there are">{current}/{total}</string>
+    <string name="dictate__import_search_none" comment="Match counter when the search text appears nowhere">0/0</string>
+    <string name="dictate__import_retry" comment="Button that starts the transcription over after it failed">Try again</string>
+    <string name="dictate__import_no_file" comment="Shown when the share carried nothing we could read">No audio file was shared.</string>
+    <string name="dictate__import_not_audio" comment="Shown when the shared file turned out to hold no sound at all">This file contains no audio.</string>
+    <string name="dictate__import_only_first" comment="Shown when several files were shared at once; {count} is how many were left out">Only the first file is transcribed – {count} more were left out.</string>
 
     <!-- Dictate onboarding step -->
     <string name="dictate__setup_description" comment="Onboarding text inviting the user to set up Dictate">Set up your AI provider and API key so you can start dictating with the mic.</string>
@@ -2147,4 +2737,22 @@
     <string name="changelog__v4_2_0" comment="What's-new text for the 4.2.0 release. One change per line.">• NEW: Floating dictation button — dictate straight into any app, even when another keyboard is active. Pick from three styles (Pill, Ring, Orb), watch a live waveform while you speak, drag it anywhere with edge-snapping, set its color and size, and long-press to reword. Turn it on in Settings ▸ Dictate ▸ Floating button.\n• NEW: Google Gemini — bring your own AI Studio API key for both transcription and rewording.\n• Prompts now appear in an always-on row above the keys by default.\n• More reliable text insertion across apps, including browsers and other keyboards.</string>
     <string name="changelog__v4_1_1" comment="What's-new text for the 4.1.1 release. One change per line.">• Fix: the accent color could appear green on some devices — keys and buttons are back to the Dictate blue.</string>
 
+    <!-- On-device translation (issue #424). Language names come from the system and need no strings. -->
+    <string name="settings__translation__title" comment="Title of the translation settings screen and its entry on the settings home">Translation</string>
+    <string name="translate__settings_intro" comment="The one line at the top of the translation settings. Say where the feature is opened: use the same word for the Smartbar as settings__smartbar__title and for the button as quick_action__translate.">Translates right on your phone, and nothing you type leaves it. Open it with Translate in the Smartbar.</string>
+    <string name="translate__group_installed" comment="Settings group: the translation languages already on the phone">Downloaded</string>
+    <string name="translate__group_available" comment="Settings group: the translation languages that can be downloaded">Available</string>
+    <string name="translate__english_included" comment="Subtitle of the English row: English needs no download, every language carries it">Always included</string>
+    <string name="translate__size_installed" comment="Subtitle of a downloaded language. {size} is e.g. 72 MB">{size} on this device</string>
+    <string name="translate__size_download" comment="Subtitle of a language not yet downloaded. {download} is what the download costs, {size} what stays on the phone, e.g. 52 MB / 72 MB">{download} download · {size} on this device</string>
+    <string name="translate__hint" comment="Placeholder in the translate bar's input line, above the keyboard">Type to translate</string>
+    <string name="translate__detect" comment="Language chip: the source language is detected automatically">Detect language</string>
+    <string name="translate__detected" comment="Language chip once detection has settled, e.g. German (detected)">{language} (detected)</string>
+    <string name="translate__swap" comment="Accessibility label of the button that swaps source and target language">Swap languages</string>
+    <string name="translate__no_languages" comment="Shown in the translate bar when no language is downloaded">No language downloaded yet</string>
+    <string name="translate__get_languages" comment="Button in the translate bar that opens the translation settings">Get languages</string>
+    <string name="translate__more_languages" comment="Last chip in the translate bar's language list, opens the settings to download more">More languages</string>
+    <string name="translate__missing" comment="{language} is one or more language names">{language} is not downloaded</string>
+    <string name="translate__failed">Translation failed</string>
+    <string name="translate__unsupported">Translation is not available on this device</string>
 </resources>

@@ -54,9 +54,32 @@ export const DASHBOARD_HTML = `<!doctype html>
     --accent-ink: #04121A;        /* text placed ON the accent */
     --accent-soft: rgba(48, 183, 230, .14);
     --bg: #0B0F14;
-    --surface: #121820;
-    --surface-2: #19212B;
-    --line: #1E2833;
+    /*
+     * The panels let the fog through rather than sitting on top of it.
+     *
+     * Deliberately plain alpha and no backdrop-filter. Frosted glass exists to blur detail behind a
+     * surface, and there is none here: the background is a 200-pixel image stretched tenfold, which
+     * is already softer than any blur would make it. A filter would look the same and cost a blur
+     * pass per panel per frame — fifteen panels against a background that repaints sixteen times a
+     * second is two hundred and forty of them a second, which is the trap this whole page has twice
+     * fallen into.
+     */
+    --surface: rgba(18, 24, 32, .56);
+    /* Where a surface must hide what is behind it: dialogs, and the boxes and labels of the network
+       diagram, where a line showing through a label is worse than no transparency at all. */
+    --surface-solid: #121820;
+    /*
+     * The calm ground, for the panels that carry tables.
+     *
+     * Letting the fog through is right for a panel and wrong for forty numbers in rows: a column of
+     * figures wants a contrast that does not depend on where a cloud happens to be. So this sits
+     * behind the rows themselves rather than under the whole panel — everything keeps the glass,
+     * and only the densest thing on the page gets a quieter ground under it.
+     */
+    --surface-dense: rgba(13, 18, 25, .55);
+    /* A lightening rather than a colour, so it holds up over whatever the fog is doing behind it. */
+    --surface-2: rgba(255, 255, 255, .055);
+    --line: rgba(255, 255, 255, .13);
     --text: #E6EDF3;
     --muted: #7D8B9A;
     --ok: #3FB950;
@@ -67,7 +90,8 @@ export const DASHBOARD_HTML = `<!doctype html>
     --z-client: #30B7E6;
     --z-cf: #F5A24A;
     --z-google: #5EC87C;
-    --z-openai: #A99AF0;
+    /* Nur noch Dekoration: der Nebel im Hintergrund. Es gibt keine Zone mehr, die diese Farbe trägt. */
+    --z-violet: #A99AF0;
     --z-ext: #8FA0B4;
   }
   * { box-sizing: border-box; }
@@ -78,12 +102,78 @@ export const DASHBOARD_HTML = `<!doctype html>
     overflow-wrap: break-word;
   }
 
-  header { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
+  /*
+   * The sky behind the numbers — a slow flow of colour, drawn at postage-stamp size.
+   *
+   * Two attempts at this in CSS pegged a GPU, and the reason both times was the same one: a
+   * full-screen layer means the compositor handles millions of pixels, and a 4K window is eight
+   * million of them. Whether the layer scaled, translated or merely tiled a gradient across itself
+   * only decided how often that happened.
+   *
+   * So the field is not a full-screen layer at all. It is a canvas of about 160 by 100 pixels —
+   * fourteen thousand, half a percent of that window — on which five soft lights are drawn
+   * additively, and which the browser then stretches over the whole viewport. The stretch is one
+   * textured quad, the cheapest thing a GPU does, and the bilinear filtering on a 24-fold upscale
+   * is what gives the soft edges: no blur filter, and no banding either, because there is not
+   * enough resolution left to band.
+   *
+   * The lights move on sine pairs whose periods share no factor, so the picture never returns to
+   * an earlier state — that is where the flow comes from, rather than from a keyframe loop.
+   *
+   * Redrawn about twelve times a second, which at this size is a few thousand pixel writes, and not
+   * at all while the tab is in the background. The cards stay opaque, so no column of figures gets
+   * harder to read.
+   */
+  .sky {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    width: 100%; height: 100%; display: block;
+  }
+  /*
+   * The header carries the same sky rather than sitting on it as a slab.
+   *
+   * It cannot simply be made translucent: it is sticky, so what would show through is the content
+   * scrolling underneath it, not the background. It gets its own canvas instead, holding a copy of
+   * the very same image, sized to the viewport and clipped to the bar. Because the header padding
+   * box starts at the viewport top-left corner, the copy lands exactly where the field behind the
+   * page would have been.
+   */
+  #skyBar {
+    position: absolute; left: 0; top: 0; z-index: 0;
+    width: 100vw; height: 100vh; pointer-events: none;
+  }
+
+  /* The base is --bg rather than --surface: with the sky painted across it the bar is a piece of
+     the background, and the cards are the only thing that lifts off it. overflow: hidden is what
+     crops the copy of the field down to the height of the bar. */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    padding-top: env(safe-area-inset-top);
+    overflow: hidden;
+  }
+  /* The canvas is a child too, and would otherwise be lifted along with the labels — it carries its
+     own z-index above, and an id outranks this. */
+  header > * { position: relative; z-index: 1; }
   /* Wraps, and every item may shrink. Without both, the row simply grew past the window: flex
      items refuse to go below their own content width by default, so on a phone the bar pushed the
      whole document 45px wider than the screen and every tab under it sat shifted and clipped. */
   .bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px var(--pad); }
   .bar > * { min-width: 0; }
+  /*
+   * One row, one line.
+   *
+   * Centring boxes is not the same as aligning what is written in them. The bell and the refresh
+   * button were built for different places and came out 32px and 39px tall, so even perfectly
+   * centred they read as two sizes rather than one row; here they are given a common height and
+   * their vertical padding is replaced by it.
+   *
+   * The address was a second, separate problem: it wears .sub, whose 4px top margin is right for
+   * its real job — a line of detail under a value in a card — and simply pushed it down here.
+   */
+  .bar .sub { margin-top: 0; }
+  .bar .bell, .bar button.btn { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; }
+  .bar .bell { padding: 0 13px; }
+  .bar button.btn { padding: 0 15px; }
   /* Loading, shown on the button that asked for it rather than beside it.
      A separate bar needed a strip of the header reserved for it at all times — visible for a second
      now and then, blank the rest of the day. The accent sweeping through the label says the same
@@ -99,9 +189,16 @@ export const DASHBOARD_HTML = `<!doctype html>
     animation: sweep 1s linear infinite;
   }
   @keyframes sweep { from { background-position: 160% 0; } to { background-position: -160% 0; } }
-  /* No sweep where motion is unwelcome — the label simply turns accent-coloured while it works. */
+  /* No sweep where motion is unwelcome — the label simply turns accent-coloured while it works.
+     The sky stops too, and stays as a still image: the point of it is the depth, not the drift. */
   @media (prefers-reduced-motion: reduce) {
     #refresh.working span { animation: none; background: none; color: var(--accent); }
+    /* Everything that arrives, arrives already there; the traffic dots stand still on their routes;
+       the sky is drawn once and left. Nothing here is load-bearing — each is a way of saying
+       something the page also says in words or in a number. */
+    .grid > .card, .stack > .panel, #taxYears > .card, .plans > .card,
+    .spark path.line, .spark path.area, .spark circle, .gedge path.flow { animation: none; }
+    .spark path.line { stroke-dashoffset: 0; }
   }
   .brand { display: flex; align-items: center; gap: 9px; font-weight: 680; letter-spacing: -0.015em; white-space: nowrap; }
   .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); flex: none; }
@@ -125,8 +222,31 @@ export const DASHBOARD_HTML = `<!doctype html>
      because on a desk the tables happen to fit. */
   .stack > *, .dlg-body > * { min-width: 0; }
   .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
-  .card.lead { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  /*
+   * Lifted off the fog rather than drawn on it.
+   *
+   * Two shadows doing two jobs: the outer one puts the panel in front of the background, which a
+   * hairline border alone cannot do once that background has depth of its own; the inner top line
+   * is a lit edge, and it is what makes a translucent surface read as glass instead of as something
+   * that has faded.
+   */
+  .card, .panel, .zgroup, .gwrap {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .09);
+  }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+    /* Beides zusammen ist der Grund, warum ein Hinweistext nicht mehr hinter der Nachbarkachel
+       verschwindet. Die Einblend-Animation weiter unten läuft mit fill-mode: both und lässt
+       deshalb **dauerhaft** einen eigenen Stapelkontext je Kachel zurück; darin nützt das z-index
+       des Hinweises nichts, weil die nächste Kachel im Dokument als Ganzes darüber liegt. Geordnet
+       werden muss also auf der Ebene der Kacheln, und das geht nur, wenn sie positioniert sind. */
+    position: relative; }
+  /* Die Kachel, auf der die Maus steht, kommt nach vorn — samt ihrem Hinweisfeld. focus-within
+     deckt denselben Fall über die Tastatur ab, wo das Fragezeichen den Fokus bekommt.
+     (Keine Backticks in dieser Datei: sie ist ein einziges Template-Literal, und einer davon
+     beendet es. Derselbe Fallstrick wie ein Backslash — siehe modelCell.) */
+  .card:hover, .card:focus-within, .panel:hover, .panel:focus-within { z-index: 40; }
+  /* Keeps its accent ring, and gains the depth with it. */
+  .card.lead { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 10px 30px rgba(0, 0, 0, .45); }
   @media (min-width: 780px) { .card.lead { grid-column: span 2; } }
   .label { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 640; display: flex; align-items: center; gap: 6px; }
   .value { font-size: 27px; font-weight: 680; font-variant-numeric: tabular-nums; margin-top: 5px; letter-spacing: -0.025em; line-height: 1.15; }
@@ -151,6 +271,9 @@ export const DASHBOARD_HTML = `<!doctype html>
     .hint::after { display: none; }
   }
 
+  /* Untereinander statt in einer Zeile: nebeneinander brachen sie bei schmalen Karten mitten im
+     Satz um, und welche Pille zu welcher Aussage gehörte, war dann Ratesache. */
+  .pillcol { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; margin-top: 9px; }
   .pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap; }
   .pill.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
   .pill.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
@@ -164,9 +287,16 @@ export const DASHBOARD_HTML = `<!doctype html>
 
   h2 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; display: flex; align-items: center; gap: 7px; }
   h3 { font-size: 15px; margin: 0 0 10px; font-weight: 660; }
-  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad); }
+  /* Zwei Pakete nebeneinander, sobald zwei nebeneinander passen. Untereinander stand jede Karte
+     über die volle Breite, und die Leiter rechts trieb Bezeichner und Betrag so weit auseinander,
+     dass man mit den Augen die Zeile suchen musste. */
+  .plans { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 1080px) { .plans { grid-template-columns: 1fr 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad); position: relative; }
   .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  /* The rows get their own quieter ground inside the glass, and only they: forty numbers in columns
+     are the one thing on this page whose contrast must not depend on where a cloud happens to be. */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--surface-dense); border-radius: 10px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 650; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -191,9 +321,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   .chart > div { flex: 1; background: color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 3px 3px 0 0; min-height: 2px; }
   .chart > div:last-child { background: var(--accent); }
 
-  dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); padding: 0; max-width: min(940px, 96vw); width: 100%; max-height: 92vh; }
-  dialog::backdrop { background: rgba(4, 12, 18, .55); }
-  .dlg-head { display: flex; align-items: center; gap: 12px; padding: 13px var(--pad); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); z-index: 2; }
+  dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-solid); color: var(--text); padding: 0; max-width: min(940px, 96vw); width: 100%; max-height: 92vh; }
+  dialog::backdrop { background: rgba(4, 12, 18, .7); }
+  .dlg-head { display: flex; align-items: center; gap: 12px; padding: 13px var(--pad); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface-solid); z-index: 2; }
   .dlg-body { padding: var(--pad); display: grid; gap: 18px; overflow: auto; max-height: calc(92vh - 62px); }
   /* The account view is the one screen that has to hold everything known about a wallet at once.
      At the shared dialog width its tables each grew a horizontal scrollbar of their own, and a
@@ -212,10 +342,20 @@ export const DASHBOARD_HTML = `<!doctype html>
   #modal .m-code { font-family: ui-monospace, monospace; font-size: 19px; font-weight: 700; letter-spacing: .06em; background: var(--surface-2); border-radius: 10px; padding: 14px; text-align: center; user-select: all; }
   #modal .m-actions { display: flex; gap: 9px; justify-content: flex-end; flex-wrap: wrap; }
 
+  /* Die Leiter füllt die Karte nicht mehr aus, sondern nur sich selbst: Bezeichner und Betrag
+     stehen so dicht beieinander, dass eine Zeile in einem Blick zu lesen ist statt in zweien. */
+  .ladder { width: auto; min-width: 240px; font-size: 13px; background: none; }
+  .ladder td { border: 0; padding: 3px 0; }
+  .ladder td:first-child { padding-right: 26px; }
   .kv { display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; font-size: 13.5px; }
   .kv dt { color: var(--muted); }
   .kv dd { margin: 0; }
   .muted { color: var(--muted); }
+  /* Für den einen Satz je Karte, der sagt, ob die Zahl darüber zu glauben ist. Als Textfarbe und
+     nicht als Pille: eine Pille zieht das Auge auf sich, und diese Sätze sollen gelesen werden,
+     wenn man ohnehin auf die Zahl schaut. */
+  .ok-text { color: var(--ok); }
+  .warn-text { color: var(--warn); }
   .empty { color: var(--muted); font-size: 13.5px; padding: 14px 0; text-align: center; }
   .pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
   .pager .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-right: auto; }
@@ -235,16 +375,33 @@ export const DASHBOARD_HTML = `<!doctype html>
   .act .label .chg { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 11px; padding: 1px 8px; }
 
   /* ---- network graph ---- */
+  /*
+   * The diagram floats on the fog instead of sitting in a dark box of its own.
+   *
+   * That is what the transparent svg is for: it used to paint --bg across the whole plate, which
+   * made the one page with the most to look at the only one that had cut itself out of the design.
+   * Everything drawn on it — zones, boxes, labels — carries its own backing now, so nothing relies
+   * on the plate underneath being opaque.
+   */
   .gwrap { position: relative; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
   .gtools { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 3; flex-wrap: wrap; justify-content: flex-end; }
-  .gtools button { background: var(--surface); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 11px; font-size: 13px; font-weight: 620; cursor: pointer; }
+  .gtools button { background: var(--surface-solid); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 11px; font-size: 13px; font-weight: 620; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
   .gtools button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-  #gsvg { display: block; width: 100%; height: min(72vh, 720px); touch-action: none; cursor: grab; background: var(--bg); }
+  #gsvg { display: block; width: 100%; height: min(72vh, 720px); touch-action: none; cursor: grab; background: rgba(11, 15, 20, .45); }
   #gsvg.dragging { cursor: grabbing; }
-  .zone-bg { rx: 18; fill-opacity: .07; stroke-opacity: .35; stroke-width: 1.5; stroke-dasharray: 7 6; }
+  /* A shade more presence than before, because the fog behind them now has some of its own. */
+  .zone-bg { rx: 18; fill-opacity: .09; stroke-opacity: .42; stroke-width: 1.5; stroke-dasharray: 7 6; }
   .zone-label { font: 650 15px ui-sans-serif, system-ui, sans-serif; fill-opacity: .85; }
   .zone-sub { font: 400 12px ui-sans-serif, system-ui, sans-serif; fill: currentColor; opacity: .55; }
-  .gnode rect { rx: 11; fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  /*
+   * A box is a card, in SVG.
+   *
+   * The same three things that make the panels read as glass: a translucent ground, a border of
+   * white rather than of grey, and light from above. The sheen is a gradient defined once in defs
+   * and referenced by all twenty-six boxes rather than a filter on each — a drop shadow here would
+   * be re-rasterised on every pan and zoom, which on this page is exactly the cost not to pay.
+   */
+  .gnode rect { rx: 11; fill: url(#gglass); stroke: rgba(255, 255, 255, .16); stroke-width: 1.2; }
   /* Both of these are rects inside .gnode and would otherwise inherit the box's own fill and
      border from the rule above — a CSS declaration beats a fill="…" attribute every time. The
      accent bar was painted over in surface grey, and the invisible tap target came out as an
@@ -260,7 +417,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   .gedge.hot path { opacity: 1; stroke-width: 3; }
   /* Labels live above the nodes, so a chip that lands on a box is still readable. */
   .glabel text { font: 550 10.5px ui-sans-serif, system-ui, sans-serif; fill: var(--text); }
-  .glabel rect.lbl { fill: var(--surface); stroke: var(--line); stroke-width: .8; rx: 5; }
+  /* Chips stay nearly opaque: they sit on the routes, and a line running through a word is worse
+     than any amount of transparency is worth. */
+  .glabel rect.lbl { fill: rgba(12, 17, 24, .93); stroke: rgba(255, 255, 255, .14); stroke-width: .8; rx: 5; }
   .glabel.dim { opacity: .12; }
   .glabel.hot rect.lbl { stroke: var(--accent); stroke-width: 1.6; }
   .glabel.hot text { fill: var(--text); }
@@ -269,11 +428,11 @@ export const DASHBOARD_HTML = `<!doctype html>
   .swatch { width: 22px; height: 3px; border-radius: 2px; }
   .ndetail { padding: var(--pad); border-top: 1px solid var(--line); }
   .gmode { display: flex; gap: 6px; }
-  .gmode button { background: var(--surface); border: 1px solid var(--line); color: var(--muted); border-radius: 10px; padding: 8px 15px; font-size: 13.5px; font-weight: 620; cursor: pointer; }
+  .gmode button { background: var(--surface); border: 1px solid var(--line); color: var(--muted); border-radius: 10px; padding: 8px 15px; font-size: 13.5px; font-weight: 620; cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .07); }
   .gmode button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* The "?" on a box. Drawn as SVG rather than an HTML overlay so it pans and zooms with the
      diagram instead of drifting away from the box it belongs to. */
-  .gask circle { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
+  .gask circle { fill: rgba(255, 255, 255, .07); stroke: rgba(255, 255, 255, .16); stroke-width: 1; }
   .gask text { font: 700 11px ui-sans-serif, system-ui, sans-serif; fill: var(--muted); }
   .gnode:hover .gask circle, .gnode.sel .gask circle { stroke: var(--accent); }
   .gnode:hover .gask text, .gnode.sel .gask text { fill: var(--accent); }
@@ -338,6 +497,13 @@ export const DASHBOARD_HTML = `<!doctype html>
    */
   .pill.test { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line); }
   tr.is-test td:first-child { box-shadow: inset 2px 0 0 var(--muted); }
+  /*
+   * Die Dauer steht in der letzten Spalte, und auf einem schmalen Fenster ist die weggescrollt.
+   * Eine Markierung, die man erst suchen muss, markiert nichts — deshalb dieselbe Kante wie oben,
+   * nur in Warnfarbe, am Anfang der Zeile. Nach .is-test, damit bei einer langsamen Testanfrage
+   * die Langsamkeit gewinnt: Als Test ist sie ohnehin schon an ihrem Schildchen zu erkennen.
+   */
+  tr.is-slow td:first-child { box-shadow: inset 2px 0 0 var(--warn); }
 
   /* ---- skeletons ---- */
   /*
@@ -356,6 +522,61 @@ export const DASHBOARD_HTML = `<!doctype html>
   .spark path.area { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: none; }
   .spark path.line { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; }
   .spark circle { fill: var(--accent); }
+
+  /*
+   * Arriving.
+   *
+   * All one-shot: they run once when a view is rendered and then the element is static for as long
+   * as it is on screen. Nothing here loops, which is what separates a page that settles from one
+   * that fidgets.
+   *
+   * The line draws itself left to right, which is the direction it is read in, and the endpoint
+   * lands last because on a series ending today that is the value being looked for. It works on any
+   * series because the path carries pathLength="100": the dash arithmetic is then in percent and
+   * does not depend on how long the line actually is.
+   */
+  @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+
+  .grid > .card, .stack > .panel, #taxYears > .card, .plans > .card { animation: rise .34s ease-out both; }
+  /* A short ladder, then nothing: past the eighth card the delay would be longer than the animation
+     and the last row would visibly lag behind the scroll. */
+  .grid > .card:nth-child(2), .stack > .panel:nth-child(2), #taxYears > .card:nth-child(2), .plans > .card:nth-child(2) { animation-delay: .04s; }
+  .grid > .card:nth-child(3), .stack > .panel:nth-child(3), #taxYears > .card:nth-child(3), .plans > .card:nth-child(3) { animation-delay: .08s; }
+  .grid > .card:nth-child(4), .stack > .panel:nth-child(4), #taxYears > .card:nth-child(4), .plans > .card:nth-child(4) { animation-delay: .12s; }
+  .grid > .card:nth-child(5), .stack > .panel:nth-child(5), .plans > .card:nth-child(5) { animation-delay: .16s; }
+  .grid > .card:nth-child(6), .stack > .panel:nth-child(6) { animation-delay: .20s; }
+  .grid > .card:nth-child(7) { animation-delay: .24s; }
+  .grid > .card:nth-child(8) { animation-delay: .28s; }
+
+  .spark path.line { stroke-dasharray: 100; stroke-dashoffset: 100; animation: draw .85s ease-out .1s forwards; }
+  .spark path.area { animation: appear .5s ease-out .4s both; }
+  .spark circle { transform-box: fill-box; transform-origin: center; animation: pop .28s ease-out .85s both; }
+
+  /*
+   * Traffic on the diagram: dots travelling each route in the direction the arrow points.
+   *
+   * A dash pattern of zero-length dashes with a round cap is a row of dots, and sliding the offset
+   * by exactly one gap moves them along by one place — so the pattern lands back on itself and
+   * there is no jump at the end of the cycle. The path is a second copy of the same d attribute,
+   * which means the dots follow the routing that graph-layout.ts already worked out, curves and all.
+   *
+   * This is the one animation here that loops, and it is the only reason to watch the GPU on this
+   * page: an SVG dash offset is repainted rather than composited. It runs on this tab alone —
+   * section[hidden] is display: none, and a display: none subtree animates nothing.
+   */
+  .gedge path.flow {
+    fill: none; stroke-width: 3.4; stroke-linecap: round;
+    /* 0.1 rather than 0: a zero-length dash with a round cap is a dot in Chrome but not everywhere,
+       and a tenth of a unit under a 3.4-wide round cap looks identical where it does work. */
+    stroke-dasharray: 0.1 26; opacity: .85;
+    animation: gflow 2.6s linear infinite;
+  }
+  @keyframes gflow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -26; } }
+  /* A route the current filter has dimmed carries no traffic worth showing. */
+  .gedge.dim path.flow { display: none; }
 
   .stale { font-size: 11px; color: var(--muted); }
 
@@ -403,7 +624,13 @@ export const DASHBOARD_HTML = `<!doctype html>
 </head>
 <body>
 
+<!-- Decoration only, and marked as such: a tiny canvas stretched over the window, invisible to a
+     screen reader and untouchable by the pointer. The .sky rules in the stylesheet say why it is
+     drawn at this size, and what the two full-screen attempts before it cost. -->
+<canvas class="sky" id="sky" aria-hidden="true"></canvas>
+
 <header>
+  <canvas id="skyBar" aria-hidden="true"></canvas>
   <div class="bar">
     <span class="brand"><span class="dot"></span>Dictate&nbsp;Cloud</span>
     <span id="killPill"></span>
@@ -461,7 +688,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   <section id="view-stats" class="stack" hidden>
     <div class="panel">
       <h2>Echte Zahlen
-        <span class="hint" tabindex="0" data-tip="Nicht gerechnet, sondern abgefragt: die Erlöse stammen aus Googles Orders-API und stehen je Kauf im Hauptbuch, die Ausgaben aus OpenAIs eigenem Kostenendpunkt."></span>
+        <span class="hint" tabindex="0" data-tip="Nicht gerechnet, sondern abgefragt: die Erlöse stammen aus Googles Orders-API und stehen je Kauf im Hauptbuch, die Ausgaben sind der Listenpreis des tatsächlich Gerechneten aus dem eigenen Hauptbuch."></span>
       </h2>
       <div id="finance"></div>
     </div>
@@ -503,7 +730,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <h2>Was jedes Paket einbringt
         <span class="hint" tabindex="0" data-tip="Zwei Spalten nebeneinander: das Modell, mit dem die Preise kalkuliert wurden, und was tatsächlich passiert ist. Wo noch nichts verkauft wurde, bleibt die Ist-Spalte leer — eine Hochrechnung als Messung auszugeben wäre genau der Fehler, den diese Seite nicht machen darf."></span>
       </h2>
-      <div id="planCards" class="stack"></div>
+      <div id="planCards" class="plans"></div>
     </div>
     <div class="panel">
       <h2>Vergleich</h2>
@@ -518,25 +745,31 @@ export const DASHBOARD_HTML = `<!doctype html>
   <section id="view-tax" class="stack" hidden>
     <div class="panel">
       <h2>Jahresübersicht
-        <span class="hint" tabindex="0" data-tip="Zum Abgleich gedacht, nicht als Steuererklärung. Verbindlich sind Googles monatliche Auszahlungsberichte und OpenAIs Rechnungen — hier siehst du, ob die das sagen, was du erwartest, und dein Steuerberater bekommt eine Aufstellung je Monat."></span>
+        <span class="hint" tabindex="0" data-tip="Zum Abgleich gedacht, nicht als Steuererklärung. Verbindlich sind Googles monatliche Auszahlungsberichte und Cloudflares Rechnungen — hier siehst du, ob die das sagen, was du erwartest, und dein Steuerberater bekommt eine Aufstellung je Monat."></span>
       </h2>
       <div id="taxYears" class="stack"></div>
     </div>
 
     <div class="panel">
-      <h2>Ausgaben erfassen
-        <span class="hint" tabindex="0" data-tip="OpenAI hat keine Schnittstelle für Aufladungen — Verbrauch ist abrufbar, Zahlungen nicht. Bei der Einnahmen-Überschuss-Rechnung ist aber genau die Aufladung die Betriebsausgabe, nicht der später verbrauchte Token. Deshalb hier von Hand, mit Rechnungsnummer."></span>
+      <h2>Abgleich mit Cloudflares Rechnung
+        <span class="hint" tabindex="0" data-tip="Die einzige Prüfung gegen echtes Geld. Bis zum Umzug verglich eine Regel täglich die eigene Rechnung mit der Abrechnung des Anbieters; Workers AI hat keinen solchen Endpunkt, also bleibt die Monatsrechnung von Hand. Links steht, was wir sagen — Neuronen abzüglich Freikontingent, tagweise. Rechts, was berechnet wurde, sobald du die Rechnung unter Ausgaben erfasst hast. Ein abgeschlossener Monat ohne Rechnung meldet sich nach zwei Wochen von selbst. Lag der Monat ganz im Freikontingent, gibt es keine Rechnung — dann gehört er mit 0 erfasst, sonst bleibt er ungeprüft."></span>
       </h2>
-      <p class="sub" style="margin:0 0 12px">Trage ein, was tatsächlich von deinem Konto abgegangen ist. „Belastet" ist der Betrag auf dem Kontoauszug inklusive Fremdwährungsaufschlag — leer gelassen rechne ich mit dem EZB-Kurs des Tages und kennzeichne es als Näherung.</p>
+      <div id="reconcile" class="scroll"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Ausgaben erfassen
+        <span class="hint" tabindex="0" data-tip="Rechnungen werden von Hand erfasst, mit Rechnungsnummer. Für die Einnahmen-Überschuss-Rechnung zählt der Tag, an dem das Geld abgeht — nicht der Tag, an dem die Rechenzeit verbraucht wird. 0 ist ein gültiger Betrag: Ein Monat, der ganz im Freikontingent lag, hat keine Rechnung, und das ist eine Antwort und kein fehlender Eintrag."></span>
+      </h2>
+      <p class="sub" style="margin:0 0 12px">Trage ein, was tatsächlich von deinem Konto abgegangen ist. „Belastet" ist der Betrag auf dem Kontoauszug inklusive Fremdwährungsaufschlag — leer gelassen rechne ich mit dem EZB-Kurs des Tages und kennzeichne es als Näherung. <strong>Lag ein Monat ganz im Freikontingent, trage ihn mit 0 ein</strong> — dann steht er im Abgleich als geprüft und die Erinnerung an die fehlende Rechnung bleibt aus. Als Datum nimmst du den Tag, an dem die Rechnung gekommen wäre; die Rechnungsnummer bleibt leer.</p>
       <div class="row">
         <input id="exDate" type="date" style="width:auto">
         <select id="exKind" style="width:auto">
-          <option value="openai_topup">OpenAI-Aufladung</option>
-          <option value="cloudflare">Cloudflare</option>
+          <option value="cloudflare">Cloudflare (inkl. Workers AI)</option>
           <option value="domain">Domain</option>
           <option value="other">Sonstiges</option>
         </select>
-        <input id="exAmount" type="number" step="0.01" placeholder="Betrag laut Rechnung" style="width:auto">
+        <input id="exAmount" type="number" step="0.01" min="0" placeholder="Betrag laut Rechnung (0 = keine)" style="width:auto">
         <select id="exCurrency" style="width:auto"><option>USD</option><option>EUR</option></select>
         <input id="exHome" type="number" step="0.01" placeholder="belastet (optional)" style="width:auto">
         <input id="exRef" placeholder="Rechnungsnummer" style="width:auto">
@@ -581,7 +814,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   <section id="view-traffic" class="stack" hidden>
     <div class="panel">
       <h2>Verkehr
-        <span class="hint" tabindex="0" data-tip="Eine Zeile je Anfrage — ausschließlich Metadaten. Inhalte, also Audio und Text, werden nie gespeichert. Einzelzeilen werden nach 90 Tagen gelöscht, die Tagessummen bleiben."></span>
+        <span class="hint" tabindex="0" data-tip="Eine Zeile je Anfrage — ausschließlich Metadaten. Inhalte, also Audio und Text, werden nie gespeichert. Einzelzeilen werden nach 90 Tagen gelöscht, die Tagessummen bleiben. Eine gelb markierte Dauer heißt: ein kurzes Diktat (bis 30 s Audio) über der Schwelle, die im Betrieb unter „Kurze Diktate langsam ab“ steht."></span>
       </h2>
       <div class="row">
         <select id="tKind" style="width:auto"><option value="">Alle Arten</option><option value="transcribe">Diktat</option><option value="reword">Umformulierung</option></select>
@@ -744,10 +977,150 @@ var GRAPH = ${GRAPH_JSON};
   }
   function tell(title, text) { return modal({ title: title, text: esc(text), cancel: false }); }
 
+  /*
+   * Welches Modell die Anfrage bearbeitet hat — kurz in der Spalte, genau im Tooltip.
+   *
+   * Nicht der Anbieter: den gibt es nur noch einen, eine Spalte mit einem einzigen Wert in jeder
+   * Zeile ist Rauschen. Das Modell dagegen kann sich ohne Deployment ändern, und dann ist es die
+   * Angabe, die man als Erstes sucht.
+   *
+   * Neuronen stehen im Tooltip dazu: die Menge, die sich als Einzige gegen Cloudflares eigene
+   * Zählung halten lässt.
+   */
+  function modelCell(x) {
+    if (!x.model) return '<span class="muted">—</span>';
+    // Split rather than a regex, and that is not a style choice: this whole document is one template
+    // literal, so a backslash inside it is consumed before the browser ever sees the script. The
+    // regex this replaced read /^@cf\\/[^/]+\\// in the source, arrived as /^@cf/[^/]+// in the page,
+    // and took the entire dashboard down with a syntax error — no data, no working tabs, and nothing
+    // in the toolchain able to say why. Escapes in here are a trap; not needing one is the fix.
+    var parts = String(x.model).split('/');
+    var short = parts[parts.length - 1];
+    var neurons = (x.neuronsMicro || 0) / 1e6;
+    var tip = x.model + (x.provider ? ' · ' + x.provider : '') +
+      (neurons ? ' · ' + neurons.toFixed(3) + ' Neuronen' : '');
+    return '<span class="pill" title="' + esc(tip) + '">' + esc(short) + '</span>';
+  }
+
   function card(label, tip, value, sub, cls, extra) {
     return '<div class="card' + (cls ? ' ' + cls : '') + '"><div class="label">' + esc(label) +
       (tip ? hint(tip) : '') + '</div><div class="value">' + value + '</div>' +
       (sub ? '<div class="sub">' + sub + '</div>' : '') + (extra || '') + '</div>';
+  }
+
+  /* ------------------------------------------------------- Zahlen, die laufen */
+
+  /*
+   * A figure counts up to what it now says — but only when it is not what it said before.
+   *
+   * That condition is the point of the whole thing. On a page that is refreshed all day, motion
+   * that happens every time says nothing; motion that happens only on a change turns the animation
+   * itself into information, and the eye finds the one card that moved without reading the others.
+   *
+   * The numbers arrive here already formatted, as text, so they have to be read back out of it.
+   * [numberIn] does that without guessing a locale: it works out the decimal and grouping
+   * characters from the string in front of it and puts the same ones back, and returns null the
+   * moment anything is ambiguous — a figure that cannot be read back is simply not animated, which
+   * is always better than one that is redrawn wrong.
+   */
+  var seenValues = {}, rollCount = 0, valueTimer = 0;
+  var motionOff = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function numberIn(text) {
+    var m = /^([^\\d-]*)(-?[\\d.,]*\\d)(.*)$/.exec(text);
+    if (!m) return null;
+    var prefix = m[1], raw = m[2], suffix = m[3];
+    var cut = Math.max(raw.lastIndexOf(','), raw.lastIndexOf('.'));
+    var dec = 0, decSep = '', groupSep = '';
+    if (cut >= 0) {
+      var tail = raw.slice(cut + 1);
+      if (!/^\\d+$/.test(tail)) return null;
+      // Exactly three digits after the last separator is a thousands group, not a fraction: 1.234
+      // is a thousand, 33.04 is not. Nothing on this page is written to three decimal places.
+      if (tail.length === 3) {
+        groupSep = raw.charAt(cut);
+      } else {
+        dec = tail.length; decSep = raw.charAt(cut);
+        var earlier = /[.,]/.exec(raw.slice(0, cut));
+        if (earlier) groupSep = earlier[0];
+      }
+    }
+    var digits = '';
+    for (var i = 0; i < raw.length; i++) {
+      var c = raw.charAt(i);
+      if ((c >= '0' && c <= '9') || c === '-') digits += c;
+      else if (i === cut && decSep) digits += '.';
+    }
+    var value = parseFloat(digits);
+    if (!isFinite(value)) return null;
+    return {
+      value: value,
+      write: function (v) {
+        var body = Math.abs(v).toFixed(dec);
+        var whole = dec ? body.slice(0, body.length - dec - 1) : body;
+        var frac = dec ? body.slice(body.length - dec) : '';
+        if (groupSep) whole = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, groupSep);
+        return prefix + (v < 0 ? '-' : '') + whole + (dec ? decSep + frac : '') + suffix;
+      },
+    };
+  }
+
+  /* A card is identified by its heading, so the same figure is recognised across a re-render. */
+  function valueKey(el) {
+    if (!el.closest) return null;
+    var box = el.closest('.card');
+    var label = box ? box.querySelector('.label') : null;
+    var text = label ? label.textContent.trim() : '';
+    if (!text) return null;
+    var sect = el.closest('section');
+    return (sect ? sect.id : '-') + '|' + text;
+  }
+
+  function rollValue(el, from, to, write) {
+    rollCount++;
+    var t0 = 0;
+    function frame(now) {
+      if (!t0) t0 = now;
+      var p = Math.min(1, (now - t0) / 520);
+      // Fast at first and settling at the end, so the final figure is legible well before it stops.
+      el.textContent = write(from + (to - from) * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(frame); else rollCount--;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function countUp(scope) {
+    var nodes = (scope || document).querySelectorAll('.value');
+    Array.prototype.forEach.call(nodes, function (el) {
+      // Only a plain number: a .value holding markup, or an error message, is left alone.
+      if (el.children.length) return;
+      var key = valueKey(el);
+      if (!key) return;
+      var read = numberIn(el.textContent);
+      if (!read) { delete seenValues[key]; return; }
+      var before = seenValues[key];
+      seenValues[key] = read.value;
+      // The first sighting is recorded, never animated — a page that counts up on arrival says
+      // "everything changed", which is the opposite of what this is for.
+      if (motionOff || before === undefined || before === read.value) return;
+      rollValue(el, before, read.value, read.write);
+    });
+  }
+
+  /*
+   * One hook rather than a call at the end of every render: each view replaces its own innerHTML,
+   * and there are a dozen places that do it. The observer fires on those replacements, not per
+   * frame, and stands down entirely while a figure is mid-roll — otherwise the roll would observe
+   * itself sixty times a second.
+   */
+  function watchValues() {
+    var root = document.querySelector('main');
+    if (!root || !window.MutationObserver) return;
+    new MutationObserver(function () {
+      if (rollCount) return;
+      clearTimeout(valueTimer);
+      valueTimer = setTimeout(function () { countUp(root); }, 30);
+    }).observe(root, { childList: true, subtree: true });
   }
 
   /**
@@ -764,9 +1137,11 @@ var GRAPH = ${GRAPH_JSON};
     var pts = values.map(function (v, i) {
       return (i * step).toFixed(2) + ',' + (30 - (n(v) / max) * 28).toFixed(2);
     });
+    // pathLength="100" so the draw-in animation can work in percent: without it the dash arithmetic
+    // would depend on the real length of the line, which differs with every series.
     return '<svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">' +
       '<path class="area" d="M0,32 L' + pts.join(' L') + ' L100,32 Z"></path>' +
-      '<path class="line" d="M' + pts.join(' L') + '"></path>' +
+      '<path class="line" pathLength="100" d="M' + pts.join(' L') + '"></path>' +
       '<circle cx="100" cy="' + (30 - (n(values[values.length - 1]) / max) * 28).toFixed(2) + '" r="1.9"></circle></svg>';
   }
 
@@ -808,31 +1183,121 @@ var GRAPH = ${GRAPH_JSON};
     // omits sales is worse than one that says how many it omitted.
     if (s.withoutRate) extra.push(s.withoutRate + ' noch ohne Umrechnungskurs');
 
+    // Der Erlös kommt später als die Zahlung — bis dahin stünde hier sonst „0,00 €" für einen Kauf,
+    // der längst bezahlt ist. Die Schätzung steht deshalb daneben, nie in der Zahl darüber.
+    var pending = s.unreportedOrders
+      ? '<br>+ ca. ' + money(s.revenueEstimatedHome, cur) + ' aus ' + s.unreportedOrders +
+        ' Kauf/Käufen, die Google noch nicht abgerechnet hat'
+      : '';
+
     var html = card('Einnahmen',
       'Was nach Googles Anteil und Steuern bei dir ankommt — von Google je Bestellung gemeldet, nicht gerechnet. ' +
       'Fremdwährungen sind mit dem EZB-Kurs des Kauftags umgerechnet und zählen mit; der Kurs steht fest auf der ' +
       'Buchung, ändert sich also nachträglich nicht mehr. Testkäufe sind ausgenommen: die kosten nichts und ' +
-      'bringen nichts ein.',
+      'bringen nichts ein. Den Entwickleranteil meldet Google erst, wenn die Zahlung abgerechnet ist — was noch ' +
+      'aussteht, steht als Schätzung darunter (Brutto − Steuer − Googles Anteil) und zählt in keiner Summe mit.',
       money(s.revenueHome, cur),
-      s.orders + ' Kauf/Käufe · Kundschaft zahlte ' + money(s.paidHome, cur) + others +
+      s.orders + ' Kauf/Käufe · Kundschaft zahlte ' + money(s.paidHome, cur) + others + pending +
       (extra.length ? '<br>' + extra.join(' · ') : ''));
 
-    html += card('OpenAI-Kosten',
-      s.openaiConnected
-        ? 'Von OpenAI abgerechnet, nur das Projekt dieses Dienstes' + (s.serviceProject ? ' („' + s.serviceProject.name + '")' : '') + '. Abgefragt, nicht geschätzt.'
-        : 'Kein Admin-Schlüssel hinterlegt — hier stünde sonst, was OpenAI tatsächlich abgerechnet hat.',
-      s.costUsd === null ? '—' : fmtUsd(s.costUsd),
-      s.costHome === null ? esc(s.openaiReason || 'kein Projekt zugeordnet')
-                          : '≈ ' + money(s.costHome, cur) + ' · ' + rateNote);
+    // Was auf der Rechnung landet, nicht der Listenpreis. Der Unterschied ist bei diesem Umfang
+    // nicht klein, sondern fast alles: Ein Tag unter dem Freikontingent kostet **null**, egal was
+    // sein Listenpreis sagt. Stünde hier die Liste, wäre der Gewinn jeden Tag um das ganze
+    // Kontingent zu niedrig — ein Fehler, der mit der Zeit wächst und immer in dieselbe Richtung.
+    var listNote = s.listUsd > s.costUsd
+      ? '<br><span class="muted">Listenpreis ' + fmtUsd4(s.listUsd) + ' · die Differenz deckt das Freikontingent</span>'
+      : '';
+    html += card('Einkaufskosten',
+      'Was Cloudflare tatsächlich berechnet: der Neuronenverbrauch aus dem eigenen Hauptbuch, **je Tag abzüglich des Freikontingents**. Tagweise gerechnet, weil das Kontingent ein Tageswert ist und nicht überträgt — ein Monat ist die Summe der Tagesergebnisse und nie eine Rechnung auf den Monatsneuronen. Die Neuronen meldet jedes Modell in seiner eigenen Antwort, es ist also gemessen und nicht geschätzt. Eigene Testanfragen zählen mit: Das Kontingent gehört dem Konto, nicht der Kundschaft. Geprüft wird die Zahl einmal im Monat gegen die echte Cloudflare-Rechnung, von Hand.',
+      fmtUsd(s.costUsd),
+      '≈ ' + money(s.costHome, cur) + ' · ' + rateNote + listNote);
 
-    var profitCls = s.profitHome === null ? '' : (s.profitHome < 0 ? 'crit' : '');
+    var profitCls = s.profitHome < 0 ? 'crit' : '';
     html += card('Gewinn',
-      'Einnahmen minus OpenAI-Kosten, beides in ' + cur + '. Der Dollarkurs kommt von der EZB, ist aber trotzdem ' +
+      'Einnahmen minus dem, was Cloudflare wirklich berechnet — nicht minus dem Listenpreis. Beides in ' + cur + '. Der Dollarkurs kommt von der EZB, ist aber trotzdem ' +
       'nicht Googles Kurs — Play zahlt zu eigenen Kursen aus, die Zahl bleibt also eine gute Näherung. ' +
-      'Cloudflare, Domain und deine Zeit stehen nirgends darin.',
-      s.profitHome === null ? '—'
-        : '<span' + (profitCls ? ' style="color:var(--crit)"' : '') + '>' + money(s.profitHome, cur) + '</span>',
-      s.profitHome === null ? 'OpenAI nicht verbunden' : 'nach Play-Gebühr und Steuer');
+      'Cloudflare-Grundgebühr, Domain und deine Zeit stehen nirgends darin.',
+      '<span' + (profitCls ? ' style="color:var(--crit)"' : '') + '>' + money(s.profitHome, cur) + '</span>',
+      'nach Play-Gebühr und Steuer' +
+          // Ein Minus, das nur an einer ausstehenden Meldung hängt, soll nicht wie ein Verlust
+          // dastehen. Beide Zahlen nebeneinander, keine davon in der anderen.
+          (s.unreportedOrders && s.profitWithEstimateHome !== null && s.profitWithEstimateHome !== undefined
+            ? '<br>mit den noch nicht abgerechneten Käufen: ' + money(s.profitWithEstimateHome, cur)
+            : ''));
+    return html;
+  }
+
+  /*
+   * Das Freikontingent und die Kosten des Tages.
+   *
+   * Beide Karten erscheinen erst, wenn es Neuronen gibt — vor der Umstellung wäre ein Balken auf
+   * null keine Information, sondern eine Zeile, die man wegzulesen lernt.
+   *
+   * Der Balken darf über 100 % laufen. Mehr als 214 Audiominuten am Tag sind kein Fehler, sondern
+   * ein guter Tag; nur ist ab dort eben etwas zu bezahlen, und genau das steht dann darunter.
+   */
+  function untilReset(ms) {
+    var left = Math.max(0, ms - Date.now());
+    var h = Math.floor(left / 3600000);
+    var m = Math.floor((left % 3600000) / 60000);
+    return h ? h + ' h ' + m + ' min' : m + ' min';
+  }
+
+  function neuronCards(o) {
+    var ne = o.neurons || {};
+    // Der Balken erscheint erst, wenn es Neuronen gibt. Vor der Umstellung wäre er dauerhaft auf
+    // null — eine Zeile, die man wegzulesen lernt, bevor sie etwas zu sagen hat.
+    var html = ne.freePerDay && (ne.total || ne.today) ? freeQuotaCard(ne) : '';
+
+    // Die Karte zeigt, was Cloudflare berechnet, und nicht den Listenpreis. Das ist der Unterschied
+    // zwischen einer Zahl, die man ablesen kann, und einer, die man erst umrechnen muss: Solange der
+    // Tag unter dem Freikontingent bleibt — und das sind die meisten —, ist der Einkauf **null**,
+    // und eine Karte, die dann 0,0008 $ anzeigt, behauptet eine Ausgabe, die es nicht gibt.
+    //
+    // Der Listenpreis steht darunter, weil er nicht wertlos ist: Er ist die Größe, gegen die die
+    // Marge gerechnet wird, und er sagt, wie nah der Tag am Kontingent war.
+    var free = ne.freePerDay && ne.today < ne.freePerDay;
+    var sub = free
+      ? '<span class="ok-text">im Freikontingent</span> · Listenpreis ' + fmtUsd4(o.cost.todayUsd)
+      : 'Listenpreis ' + fmtUsd4(o.cost.todayUsd);
+    var perMonth = 'Monat <strong>' + fmtUsd4(o.cost.billedMonthUsd) + '</strong>' +
+      ' <span class="muted">(Liste ' + fmtUsd4(o.cost.monthUsd) + ')</span>';
+    var perTotal = 'gesamt <strong>' + fmtUsd4(o.cost.billedTotalUsd) + '</strong>' +
+      ' <span class="muted">(Liste ' + fmtUsd4(o.cost.totalUsd) + ')</span>';
+    var trend = ne.total
+      ? '<br><span class="muted">gestern ' + ne.yesterday.toLocaleString('de-DE') +
+        ' · Schnitt 7 T ' + ne.avg7.toLocaleString('de-DE') + ' Neuronen</span>'
+      : '';
+
+    // Woher die Zahl kommt — aber nur dann, wenn sie nicht gemessen ist. „Alles gemessen" ist der
+    // Normalfall und stand trotzdem jeden Tag als grüne Zeile unter der Karte; eine Meldung, die
+    // immer kommt, liest nach einer Woche niemand mehr und nimmt nur Platz. Der Ausnahmefall
+    // bleibt stehen, denn der ändert, was die Zahl darüber wert ist.
+    var est = o.cost.estimatedRequests || 0;
+    var meas = o.cost.measuredRequests || 0;
+    var origin = est === 0 ? ''
+      : '<br><span class="warn-text">' + est + ' von ' + (meas + est) +
+        ' Anfragen geschätzt — die Antwort nannte keine Neuronen</span>';
+
+    html += card('Einkauf heute',
+      'Was Cloudflare für heute wirklich berechnet: der Neuronenverbrauch, **abzüglich des Freikontingents**. An den meisten Tagen ist das null, und dann springt es — das ist kein Fehler, sondern ein Tag, der über dem Kontingent lag. Der Listenpreis darunter ist die Zahl ohne den Abzug; gegen ihn wird die Marge gerechnet. Beide stammen aus den Neuronen, die die Modelle selbst je Antwort melden, nicht aus einer Schätzung.',
+      fmtUsd4(o.cost.billedTodayUsd), sub + '<br>' + perMonth + '<br>' + perTotal + trend + origin);
+    return html;
+  }
+
+  function freeQuotaCard(ne) {
+    var pct = ne.freeUsedPercent;
+    var cls = pct >= 100 ? 'crit' : pct >= 80 ? 'warn' : '';
+    var over = Math.max(0, ne.today - ne.freePerDay);
+    var html = '<div class="card"><div class="label">Freikontingent' +
+      hint('Workers Paid enthält ' + ne.freePerDay.toLocaleString('de-DE') + ' Neuronen je Tag — das entspricht etwa ' +
+        ne.freeAudioMinutes + ' Audiominuten, wenn nur diktiert wird. Rücksetzung um 00:00 UTC, also 02:00 unserer Sommerzeit. Nichts wird übertragen: Was heute übrig bleibt, ist morgen weg. Höchstwert ' +
+        fmtUsd4(ne.freeValueUsd) + ' am Tag.') +
+      '</div><div class="value">' + pct + ' %</div><div class="sub">' +
+      ne.today.toLocaleString('de-DE') + ' von ' + ne.freePerDay.toLocaleString('de-DE') + ' Neuronen' +
+      (over ? ' · <strong>' + over.toLocaleString('de-DE') + ' darüber</strong>' : '') +
+      '<br>Rücksetzung in ' + untilReset(ne.resetAtMs) +
+      '</div><div class="bar-track"><i class="' + cls + '" style="width:' + Math.min(100, pct) + '%"></i></div></div>';
     return html;
   }
 
@@ -840,9 +1305,24 @@ var GRAPH = ${GRAPH_JSON};
     current = o;
     var bcls = o.budget.usedPercent >= 90 ? 'crit' : o.budget.usedPercent >= 60 ? 'warn' : '';
     var html = '';
-    html += card('Offenes Guthaben', 'Bezahlte, aber noch nicht verbrauchte Minuten. Eine Verbindlichkeit, kein Umsatz — Arbeit, die du noch schuldest. Die Zahl, die ein Prepaid-Modell am leichtesten unterschlägt.', fmtMinutes(o.liability.seconds), 'Über alle aktiven Konten', 'lead');
+    // Wie alt das offene Guthaben ist, gehört neben die Summe und nicht in eine eigene Ansicht:
+    // Guthaben auf einem Konto, das sich seit einem Monat nicht gemeldet hat, ist etwas anderes als
+    // Guthaben auf einem, das gestern diktiert hat — einmal eine Verbindlichkeit, die kommt, einmal
+    // eine, die vermutlich liegen bleibt. Und die zweite Zahl ist zugleich das deutlichste
+    // Produktsignal, das dieser Dienst hat.
+    var liaSub = 'Über alle aktiven Konten';
+    if (o.liability.staleSeconds > 0) {
+      liaSub += '<br><span class="muted">' + fmtMinutes(o.liability.freshSeconds) + ' auf Konten der letzten 30 Tage · ' +
+        fmtMinutes(o.liability.staleSeconds) + ' länger unberührt</span>';
+    }
+    if (o.liability.dormantWallets > 0) {
+      liaSub += '<br><span class="warn-text">' + o.liability.dormantWallets +
+        ' Konto/Konten mit Guthaben seit über 90 Tagen still</span>';
+    }
+    html += card('Offenes Guthaben', 'Bezahlte, aber noch nicht verbrauchte Minuten. Eine Verbindlichkeit, kein Umsatz — Arbeit, die du noch schuldest. Die Zahl, die ein Prepaid-Modell am leichtesten unterschlägt. Darunter, wie alt sie ist: Guthaben auf einem Konto, das sich seit Monaten nicht gemeldet hat, wird vermutlich nie eingelöst — und sagt zugleich, dass jemand gekauft und aufgehört hat.', fmtMinutes(o.liability.seconds), liaSub, 'lead');
     html += moneyCards(sum);
     html += '<div class="card"><div class="label">Tagesbudget' + hint('Obergrenze für die Einkaufskosten eines Tages. Ist sie erreicht, antwortet der Dienst mit 503 und die App meldet „vorübergehend nicht verfügbar".') + '</div><div class="value">' + o.budget.usedPercent + ' %</div><div class="sub">' + fmtUsd4(o.budget.spentUsd) + ' von ' + fmtUsd(o.budget.limitUsd) + '</div><div class="bar-track"><i class="' + bcls + '" style="width:' + Math.min(100, o.budget.usedPercent) + '%"></i></div></div>';
+    html += neuronCards(o);
     html += card('Konten', '„Aktiv" heißt: hat im Zeitraum mindestens eine Anfrage gestellt. Testkonten sind nicht mitgezählt.', o.wallets.total, o.wallets.active7 + ' aktiv (7 T) · ' + o.wallets.active30 + ' (30 T)<br>' + o.wallets.new30 + ' neu (30 T) · ' + o.wallets.blocked + ' gesperrt' + (o.wallets.test ? ' · ' + o.wallets.test + ' Testkonten' : ''));
 
     var trend = o.days.slice().reverse().map(function (d) { return d.requests; });
@@ -982,24 +1462,61 @@ var GRAPH = ${GRAPH_JSON};
     return '<span class="pill ' + cls + '">' + status + '</span>';
   }
 
+  /**
+   * Eine einzelne Zeile, gemessen an „Kurze Diktate langsam ab" aus dem Betrieb.
+   *
+   * Markiert wird nach genau derselben Definition wie in der Regel, nicht nach einer ähnlichen:
+   * nur Diktate, nur Aufnahmen bis 30 s Audio, nur beantwortete. Eine Markierung, die etwas anderes
+   * zählt als die Einstellung, die sie benennt, ist schlimmer als gar keine — dann sucht man später
+   * den Unterschied zwischen zwei Zahlen, die nie dasselbe gemeint haben. Lange Aufnahmen schwanken
+   * bei Workers AI von Haus aus zu stark, um eine Schwelle zu tragen; sie bleiben deshalb hier
+   * genauso außen vor wie dort.
+   *
+   * Die Regel selbst feuert auf dem p95 einer Stunde, also erst bei einer Häufung. Diese Markierung
+   * ist die Gegenrichtung: Sie zeigt die einzelnen Anfragen, aus denen so eine Häufung entsteht —
+   * und sie zeigt sie auch dann, wenn es für eine Warnung noch nicht reicht.
+   */
+  function isSlowShort(x, threshold) {
+    return threshold > 0 && x.kind === 'transcribe' && x.status === 200 &&
+      x.ms > threshold && x.seconds > 0 && x.seconds <= 30;
+  }
+
+  function msCell(x, threshold) {
+    if (!x.ms) return '—';
+    if (!isSlowShort(x, threshold)) return x.ms;
+    return '<span class="pill warn" title="' +
+      esc('Über der Schwelle von ' + threshold + ' ms für kurze Diktate (bis 30 s Audio). ' +
+        'Die Schwelle steht im Betrieb unter „Kurze Diktate langsam ab“; gewarnt wird erst, wenn ' +
+        'das p95 einer Stunde darüber liegt.') +
+      '">' + x.ms + '</span>';
+  }
+
   function loadTraffic() {
     var p = '?limit=' + PAGE + '&offset=' + trafficOffset;
     if ($('tKind').value) p += '&kind=' + $('tKind').value;
     if ($('tFail').checked) p += '&failures=1';
     if (!$('tTest').checked) p += '&test=0';
     get('/admin/api/requests' + p).then(function (r) {
-      $('traffic').innerHTML = r.requests.length ? '<table><thead><tr><th>Zeit</th><th>Konto</th><th>Gerät</th><th>Art</th><th class="num">Sek.</th><th class="num">Tokens</th><th class="num">Kosten</th><th class="num">HTTP</th><th class="num">ms</th></tr></thead><tbody>' +
+      var slowMs = n(r.slowShortMs);
+      $('traffic').innerHTML = r.requests.length ? '<table><thead><tr><th>Zeit</th><th>Konto</th><th>Gerät</th><th>Art</th><th>Modell</th><th class="num">Sek.</th><th class="num">Tokens</th><th class="num">Kosten</th><th class="num">HTTP</th><th class="num">ms</th></tr></thead><tbody>' +
         r.requests.map(function (x) {
-          return '<tr' + (x.isTest ? ' class="is-test"' : '') + '><td>' + fmtDate(x.ts) + '</td><td class="mono">' + esc(String(x.walletId).slice(0, 8)) + '…' +
+          // Die Kante links, damit die Zeile auch dann auffällt, wenn die ms-Spalte rechts aus dem
+          // Fenster gescrollt ist — auf einem schmalen Fenster ist sie das immer.
+          var cls = [x.isTest ? 'is-test' : '', isSlowShort(x, slowMs) ? 'is-slow' : ''].join(' ').trim();
+          return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + fmtDate(x.ts) + '</td><td class="mono">' + esc(String(x.walletId).slice(0, 8)) + '…' +
             (x.isTest ? ' <span class="pill test">Test</span>' : '') + '</td><td class="muted">' + esc(x.device || '—') +
             // A rewording has no audio, so its second count is not zero — it does not exist. Printing
             // 0 invites the reading "this dictation was empty", which is a different thing entirely.
-            '</td><td>' + (x.kind === 'transcribe' ? 'Diktat' : 'Umformulierung') + '</td><td class="num">' + (x.kind === 'transcribe' ? (x.seconds || 0) : '—') +
+            '</td><td>' + (x.kind === 'transcribe' ? 'Diktat' : 'Umformulierung') +
+            // Das Modell, gekürzt; Anbieter und Neuronen im Tooltip. Ein Strich heißt, dass die
+            // Zeile aus einer Zeit ohne diese Spalte stammt — nach dem Umzug gibt es davon keine.
+            '</td><td>' + modelCell(x) + '</td><td class="num">' + (x.kind === 'transcribe' ? (x.seconds || 0) : '—') +
             '</td><td class="num">' + ((x.tokensIn || 0) + (x.tokensOut || 0) || '—') + '</td><td class="num">' + fmtUsd4((x.costNano || 0) / 1e9) +
             // A refusal is not a fault, and colouring it like one turns every out-of-credit
             // customer into a red line in a list meant to show breakage. Amber says "we said no",
             // red says "we broke".
-            '</td><td class="num">' + statusPill(x.status) + '</td><td class="num">' + (x.ms || '—') + '</td></tr>';
+            // Die Dauer, und ob sie über der Schwelle für kurze Diktate liegt — siehe msCell.
+            '</td><td class="num">' + statusPill(x.status) + '</td><td class="num">' + msCell(x, slowMs) + '</td></tr>';
         }).join('') + '</tbody></table>' : '<div class="empty">Keine Anfragen für diese Auswahl.</div>';
       pager($('trafficPager'), r, function (n) { trafficOffset = n; loadTraffic(); });
     });
@@ -1035,9 +1552,12 @@ var GRAPH = ${GRAPH_JSON};
         hint('Ein Alarm, den man nie ausgelöst hat, ist eine Annahme. Diese beiden Knöpfe stoßen genau das an, was sonst der Cron macht — so merkst du eine falsch eingetragene Absenderadresse jetzt und nicht in der Nacht, in der es darauf ankommt.') +
       '</h2><p class="sub">Der Wachhund läuft alle 15 Minuten von selbst, der Tagesbericht einmal täglich. Hier lässt sich beides sofort auslösen. Der Versand geht über Cloudflare Email Routing — dafür muss die Absenderdomain dort zum Versand freigegeben sein.</p>' +
       '<div class="row" style="margin-top:12px"><button class="btn ghost" id="runRules">Regeln jetzt prüfen</button><button class="btn ghost" id="runDigest">Testbericht senden</button></div></div>' +
-      '<div class="panel"><h2>Grenzwerte</h2><p class="sub">Tagesbudget, Gerätegrenze und die Schwellenwerte der Warnungen stehen oben und gelten sofort, ohne Ausrollen. Rate-Limits, Modelle und Paketpreise nicht: die stehen in <code>wrangler.jsonc</code>. So bleibt der veröffentlichte Quelltext frei von den Zahlen, gegen die jemand austarieren würde. Was in der Datenbank vom Ausgelieferten abweicht, ist oben mit <span class="pill info chg">geändert</span> markiert.</p><div class="kv" style="margin-top:10px"><dt>Tagesbudget</dt><dd>' + fmtUsd(o.budget.limitUsd) + '</dd><dt>Heute verbraucht</dt><dd>' + fmtUsd4(o.budget.spentUsd) + '</dd><dt>Zustand</dt><dd>' + (o.budget.killed ? 'gestoppt' : 'läuft') + '</dd></div></div>';
+      '<div class="panel"><h2>Grenzwerte</h2><p class="sub">Tagesbudget, Gerätegrenze und die Schwellenwerte der Warnungen stehen oben und gelten sofort, ohne Ausrollen. Rate-Limits, Modelle und Paketpreise nicht: die stehen in <code>wrangler.jsonc</code>. So bleibt der veröffentlichte Quelltext frei von den Zahlen, gegen die jemand austarieren würde. Was in der Datenbank vom Ausgelieferten abweicht, ist oben mit <span class="pill info chg">geändert</span> markiert.</p><div class="kv" style="margin-top:10px"><dt>Tagesbudget</dt><dd>' + fmtUsd(o.budget.limitUsd) + '</dd><dt>Heute verbraucht</dt><dd>' + fmtUsd4(o.budget.spentUsd) + '</dd><dt>Zustand</dt><dd>' + (o.budget.killed ? 'gestoppt' : 'läuft') + '</dd></div></div>' +
+      // Zuletzt, weil es als Einziges hier nichts am Dienst ändert, sondern an dieser Seite.
+      '<div class="panel" id="autoRefresh"></div>';
 
     loadSettings();
+    renderAutoRefresh();
 
     $('runRules').onclick = function () {
       $('runRules').disabled = true;
@@ -1075,15 +1595,130 @@ var GRAPH = ${GRAPH_JSON};
     };
   }
 
+  /* ------------------------------------------------ Von selbst aktualisieren */
+
+  /*
+   * Der Reiter, den man offen liegen lässt.
+   *
+   * Ein Dashboard wird gelesen, indem man es offen lässt — und eine zwanzig Minuten alte Zahl sieht
+   * genau aus wie eine aktuelle. Das ist der Fehler, den diese Uhr verhindert. Sie drückt in
+   * Abständen denselben Knopf wie die Hand: loadAll, kein zweiter Weg, damit es auch nichts
+   * Zweites zu prüfen gibt.
+   *
+   * Drei Dinge tut sie mit Absicht nicht. Sie läuft nicht, während der Reiter im Hintergrund liegt:
+   * Die Geldansicht fragt bei Google nach, das ist die einzige Anfrage mit einem Limit am anderen
+   * Ende, und gelesen wird dabei ohnehin nichts — der erste Takt nach dem Zurückkommen holt es
+   * nach. Sie läuft nicht, während ein Dialog offen ist oder in einem Feld getippt wird, denn ein
+   * Neuaufbau ersetzt die Bedienfelder und verschluckte sonst einen halb eingetippten
+   * Schwellenwert. Und sie ist keine Servereinstellung: Sie ändert nichts am Dienst, sie ist am
+   * Schreibtisch sinnvollerweise anders als auf dem Handy, und im Prüfprotokoll hätte sie nichts
+   * verloren. Deshalb localStorage, je Browser.
+   */
+  var AUTO_ON_KEY = 'dictate.auto.on', AUTO_MIN_KEY = 'dictate.auto.min';
+  var AUTO_DEFAULT_MIN = 10, AUTO_MAX_MIN = 240;
+  var lastLoadAt = Date.now();
+
+  function autoSetting() {
+    var on = true, min = AUTO_DEFAULT_MIN;
+    // Ein privates Fenster wirft hier, statt null zu liefern. Das darf die Seite nicht mitnehmen:
+    // Ohne Gedächtnis gilt eben die Voreinstellung.
+    try {
+      var stored = localStorage.getItem(AUTO_ON_KEY);
+      if (stored !== null) on = stored === '1';
+      var m = Number(localStorage.getItem(AUTO_MIN_KEY));
+      if (isFinite(m) && m >= 1) min = Math.min(AUTO_MAX_MIN, Math.round(m));
+    } catch (e) {}
+    return { on: on, min: min };
+  }
+
+  function autoStore(on, min) {
+    try {
+      localStorage.setItem(AUTO_ON_KEY, on ? '1' : '0');
+      localStorage.setItem(AUTO_MIN_KEY, String(min));
+    } catch (e) {}
+  }
+
+  /*
+   * Arbeit, die ein Neuaufbau wegwischen würde: ein offener Dialog oder ein Eingabefeld, in dem
+   * gerade etwas steht.
+   *
+   * Nicht jedes Element mit dem Fokus zählt, und das ist der Punkt: Ein Haken und eine Auswahlliste
+   * behalten ihren Fokus, nachdem sie benutzt wurden, und sind dabei längst gespeichert oder werden
+   * beim Neuaufbau wieder ausgelesen. Hinge die Uhr daran, bliebe sie nach dem ersten Klick auf
+   * einen Haken für immer stehen — eine Pause, die niemand angeordnet hat und niemand sieht.
+   * Getippter, noch nicht abgeschickter Text ist der einzige Fall, der wirklich verloren ginge.
+   */
+  var KEEP_FOCUS = { checkbox: 1, radio: 1, button: 1, submit: 1, reset: 1 };
+  function autoBusy() {
+    if ($('explain').open || $('detail').open || $('modal').open) return true;
+    var el = document.activeElement;
+    if (!el) return false;
+    var tag = (el.tagName || '').toLowerCase();
+    if (tag === 'textarea') return true;
+    return tag === 'input' && !KEEP_FOCUS[(el.type || 'text').toLowerCase()];
+  }
+
+  /*
+   * Ein kurzer Takt, der nachsieht, statt eines langen, der feuert.
+   *
+   * Der Unterschied ist nicht akademisch: Ein Timer über zehn Minuten überlebt einen zugeklappten
+   * Deckel nicht verlässlich, und nach dem Aufwachen wäre die Seite alt und der Wecker trotzdem
+   * zufrieden. Hier entscheidet die Uhr, nicht der Timer — und weil die Uhr entscheidet, setzt
+   * jeder Druck auf „Aktualisieren“ den Abstand von selbst mit zurück.
+   */
+  function autoTick() {
+    var st = autoSetting();
+    if (!st.on || document.hidden) return;
+    if (Date.now() - lastLoadAt < st.min * 60000) return;
+    if (autoBusy()) return;
+    loadAll();
+  }
+  setInterval(autoTick, 20000);
+  // Zurück auf dem Reiter: sofort nachsehen, statt bis zu zwanzig Sekunden alte Zahlen anzuschauen.
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) autoTick(); });
+
+  function renderAutoRefresh() {
+    var st = autoSetting();
+    $('autoRefresh').innerHTML = '<h2>Von selbst aktualisieren' +
+      hint('Gilt nur für diesen Browser und steht nicht auf dem Server: Am Schreibtisch soll die Seite mitlaufen, auf dem Handy eher nicht. Pausiert, solange der Reiter im Hintergrund liegt, ein Dialog offen ist oder in einem Feld getippt wird — der nächste Takt holt es nach.') +
+      '</h2>' +
+      '<p class="sub" style="margin:0 0 12px">Dasselbe, was der Knopf oben rechts tut, nur von allein. ' +
+      'Zuletzt geladen: ' + esc(fmtDate(lastLoadAt)) + '.</p>' +
+      '<div class="row">' +
+        '<label class="row" style="gap:8px"><input type="checkbox" id="autoOn"' + (st.on ? ' checked' : '') +
+          ' style="width:auto"><span>eingeschaltet</span></label>' +
+        '<span class="muted">alle</span>' +
+        '<input id="autoMin" type="number" min="1" max="' + AUTO_MAX_MIN + '" step="1" value="' +
+          st.min + '" style="width:auto">' +
+        '<span class="muted">Minuten</span>' +
+      '</div>';
+
+    var apply = function () {
+      var min = Math.round(Number($('autoMin').value));
+      if (!isFinite(min) || min < 1) min = AUTO_DEFAULT_MIN;
+      min = Math.min(AUTO_MAX_MIN, min);
+      // Zurückgeschrieben, damit im Feld steht, was auch gilt — eine 0 oder eine 9000 wird sonst
+      // stillschweigend zu etwas anderem und niemand erfährt davon.
+      $('autoMin').value = min;
+      autoStore($('autoOn').checked, min);
+    };
+    $('autoOn').onchange = apply;
+    $('autoMin').onchange = apply;
+  }
+
   /* ------------------------------------------------- Einstellungen Warnungen */
 
   var RULE_TEXT = {
     fast_burn: ['Guthaben rasant verbraucht', 'Der Vorlauf zur Rückbuchung — kaufen, verbrauchen, Geld zurückholen.'],
     budget_hog: ['Ein Konto frisst das Tagesbudget', 'Kein Verlust, aber alle anderen bekommen dann 503.'],
     shared_token: ['Zugang weitergegeben', 'Viele Geräte an einem Guthaben.'],
-    cost_drift: ['OpenAI rechnet anders ab', 'Die stille Regel: Preiserhöhung, die sonst niemand bemerkt.'],
     overall_loss: ['Insgesamt im Minus', 'Alles jemals eingenommen gegen alles jemals ausgegeben.'],
-    error_rate: ['Viele Fehler', 'Meist eine Störung bei OpenAI.'],
+    error_rate: ['Viele Fehler', 'Meist eine Störung bei Workers AI.'],
+    revenue_unreported: ['Erlös nicht gemeldet', 'Ein bezahlter Kauf steht seit einer Woche ohne Erlös in den Büchern.'],
+    neuron_spike: ['Neuronen-Ausschlag', 'Ein Tag, der nicht zur Woche davor passt — die Zahl, die direkt zur Rechnung wird.'],
+    reasoning_leak: ['Das Modell denkt wieder', 'Denk-Token gehen vom Guthaben des Käufers ab, ohne dass er etwas davon bekommt.'],
+    invoice_missing: ['Cloudflare-Rechnung fehlt', 'Ein abgeschlossener Monat ohne erfasste Rechnung — die einzige Prüfung gegen echtes Geld bleibt sonst aus.'],
+    slow_upstream: ['Kurze Diktate werden langsam', 'Gemessen nur an Aufnahmen bis 30 s — die schwanken nicht, lange schon. Das ist die Zahl, die Nutzende spüren.'],
   };
 
   var NUMBERS = [
@@ -1092,8 +1727,9 @@ var GRAPH = ${GRAPH_JSON};
     ['refundUsedPercent', 'Erstattung meldet ab', '%', 'Wie viel verbraucht sein muss, damit eine Erstattung als Verlust gilt.'],
     ['walletBudgetSharePercent', 'Konto-Anteil am Budget', '%', 'Ab welchem Anteil des Tagesbudgets ein einzelnes Konto auffällt.'],
     ['devicesPerWallet', 'Geräte je Konto', 'Stk.', 'Mehr als so viele an einem Tag deuten auf Weitergabe.'],
-    ['costDriftPercent', 'Abweichung OpenAI', '%', 'Unterschied zwischen unserer Rechnung und OpenAIs Abrechnung.'],
     ['errorRatePercent', 'Fehlerquote', '%', 'Anteil fehlgeschlagener Anfragen je Stunde.'],
+    ['neuronSpikeFactor', 'Neuronen-Ausschlag ab', '×', 'Wie oft der Wochenschnitt an einem Tag überschritten sein muss.'],
+    ['slowShortMs', 'Kurze Diktate langsam ab', 'ms', 'p95 der Aufnahmen bis 30 s Audio, über eine Stunde. Normal sind 2 000 bis 4 000 ms; lange Aufnahmen zählen bewusst nicht mit.'],
     ['minLossHome', 'Minus meldet ab', '€', 'Darunter ist es Rundung oder Anlaufphase.'],
   ];
 
@@ -1115,7 +1751,7 @@ var GRAPH = ${GRAPH_JSON};
     // moving it is an informed act rather than a number typed into a blank box.
     var spent = current && current.budget ? current.budget.spentUsd : null;
     var html = '<h2>Betriebsgrenze' +
-      hint('Die Sicherung des Dienstes: Sobald die geschätzten OpenAI-Kosten eines Tages diesen Betrag erreichen, antwortet der Dienst mit 503, statt weiter einzukaufen. Ein Tag kann dich also nie mehr kosten als das — egal, was sonst schiefgeht. Höher setzen heißt mehr Umsatz möglich und mehr Schaden möglich; niedriger heißt früher Feierabend für alle. Wirkt binnen einer Minute, ohne Deployment.') +
+      hint('Die Sicherung des Dienstes: Sobald die geschätzten Einkaufskosten eines Tages diesen Betrag erreichen, antwortet der Dienst mit 503, statt weiter einzukaufen. Ein Tag kann dich also nie mehr kosten als das — egal, was sonst schiefgeht. Höher setzen heißt mehr Umsatz möglich und mehr Schaden möglich; niedriger heißt früher Feierabend für alle. Wirkt binnen einer Minute, ohne Deployment.') +
       '</h2>' +
       '<div class="acts" style="margin-bottom:20px"><div class="act">' +
         '<div class="label">Tagesbudget' + mark('dailyBudgetUsd') + '</div>' +
@@ -1221,7 +1857,7 @@ var GRAPH = ${GRAPH_JSON};
       modal({
         title: 'Tagesbudget anheben?',
         text: 'Von <strong>' + esc(fmtUsd(now)) + '</strong> auf <strong>' + esc(fmtUsd(next)) +
-          '</strong> je Tag. Das ist die Obergrenze dessen, was ein einzelner Tag dich bei OpenAI ' +
+          '</strong> je Tag. Das ist die Obergrenze dessen, was ein einzelner Tag dich an Rechenzeit ' +
           'kosten kann — und damit auch die Obergrenze des Schadens, wenn etwas schiefgeht.',
         okLabel: 'Anheben und speichern',
         danger: next > now * 3,
@@ -1326,20 +1962,38 @@ var GRAPH = ${GRAPH_JSON};
       var homeCur = sum ? sum.homeCurrency : 'EUR';
       html += sect('Käufe', d.purchases.length ? '<table><thead><tr><th>Datum</th><th>Paket</th><th>Bestellnummer</th><th class="num">Minuten</th>' +
         '<th class="num">Gezahlt' + hint('Was die Kundschaft tatsächlich gezahlt hat, in ihrer Währung und inklusive der Steuer ihres Landes — von Google gemeldet. Wo Google keine Bestellung herausgab, steht ersatzweise der Listenpreis.') + '</th>' +
-        '<th class="num">Dein Erlös</th><th>Region</th><th>Zustand</th></tr></thead><tbody>' +
+        '<th class="num">Dein Erlös' + hint('Von Google gemeldet, nicht gerechnet — und erst, wenn die Zahlung abgerechnet ist. Bis dahin steht hier „noch nicht gemeldet" samt Schätzung: Brutto minus Steuer minus Googles Anteil. Die Schätzung zählt in keiner Summe mit.') + '</th>' +
+        '<th>Region</th><th>Zustand</th><th></th></tr></thead><tbody>' +
         d.purchases.map(function (p) {
           var paid = p.paidMicros != null && p.currency
             ? money(p.paidMicros / 1e6, p.currency)
             : '<span class="muted">' + money(p.priceEur, 'EUR') + ' (Liste)</span>';
-          var rev = p.revenueHomeMicros != null ? money(p.revenueHomeMicros / 1e6, homeCur)
-            : p.revenueMicros != null && p.currency ? money(p.revenueMicros / 1e6, p.currency)
-            : '—';
+          // Drei verschiedene Aussagen, die früher alle wie „0,00" aussahen: gemeldet, noch nicht
+          // gemeldet (mit Schätzung), und gar keine Bestellung.
+          var rev;
+          if (p.revenueHomeMicros != null) rev = money(p.revenueHomeMicros / 1e6, homeCur);
+          else if (p.revenueMicros != null && p.currency) rev = money(p.revenueMicros / 1e6, p.currency);
+          else if (p.orderId) {
+            rev = '<span class="muted">noch nicht gemeldet</span>' +
+              (p.estimatedHomeMicros != null
+                ? '<br><span class="muted">≈ ' + money(p.estimatedHomeMicros / 1e6, homeCur) + '</span>' : '');
+          } else rev = '—';
+
+          var asked = p.orderSyncedAt
+            ? 'Zuletzt gefragt: ' + fmtDate(p.orderSyncedAt) +
+              (p.orderState ? ' · Bestellzustand ' + esc(p.orderState) : '') +
+              ' · ' + (p.orderAttempts || 0) + ' Versuch(e)'
+            : 'Noch nie nachgefragt.';
+
           return '<tr><td>' + fmtDate(p.purchasedAt) + '</td><td class="mono">' + esc(p.productId) +
             (p.purchaseType === 0 ? ' <span class="pill test">Lizenztester</span>' : '') +
             '</td><td class="mono">' + esc(p.orderId || '—') +
             '</td><td class="num">' + Math.round(p.seconds / 60) + '</td><td class="num">' + paid +
-            '</td><td class="num">' + rev + '</td><td>' + esc(p.regionCode || '—') +
-            '</td><td>' + (p.state === 'voided' ? '<span class="pill crit">erstattet</span>' : '<span class="pill ok">gutgeschrieben</span>') + '</td></tr>';
+            '</td><td class="num" title="' + esc(asked) + '">' + rev + '</td><td>' + esc(p.regionCode || '—') +
+            '</td><td>' + (p.state === 'voided' ? '<span class="pill crit">erstattet</span>' : '<span class="pill ok">gutgeschrieben</span>') +
+            '</td><td>' + (p.orderId
+              ? '<button class="btn ghost" data-refetch="' + esc(p.purchaseToken) + '" style="padding:4px 8px;font-size:12px">neu abfragen</button>'
+              : '') + '</td></tr>';
         }).join('') + '</tbody></table>' : null, 'Noch keine Käufe.');
 
       html += sect('Geräte', d.devices.length ? '<table><thead><tr><th>Gerät</th><th>Hinzugefügt</th><th>Zuletzt gesehen</th><th></th></tr></thead><tbody>' +
@@ -1437,6 +2091,20 @@ var GRAPH = ${GRAPH_JSON};
         if (y) run({ action: marking ? 'mark_test' : 'unmark_test', walletId: w.id, note: note() });
       });
     };
+    // Kein Grund, keine Rückfrage: hier wird nichts entschieden, sondern eine fremde Zahl geholt.
+    // Und „Google meldet weiterhin nichts" ist eine Auskunft, kein Fehlschlag — deshalb nicht über
+    // run(), das jede Antwort mit ok:false als „Nicht ausgeführt" überschreiben würde.
+    Array.prototype.forEach.call($('dBody').querySelectorAll('[data-refetch]'), function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        act({ action: 'refetch_order', walletId: w.id, purchaseToken: b.getAttribute('data-refetch') })
+          .then(function (r) {
+            b.disabled = false;
+            tell(r.ok ? 'Nachgetragen' : 'Googles Antwort', r.message)
+              .then(function () { openDetail(w.id); loadAll(); });
+          }, function () { b.disabled = false; });
+      };
+    });
     Array.prototype.forEach.call($('dBody').querySelectorAll('[data-revoke]'), function (b) {
       b.onclick = function () {
         if (!need()) return;
@@ -1465,9 +2133,12 @@ var GRAPH = ${GRAPH_JSON};
         '</tr></thead><tbody>' +
         p.byCurrency.map(function (c) {
           return '<tr><td class="mono">' + esc(c.currency) + '</td><td class="num">' + c.orders +
+            (c.unreported ? '<br><span class="muted" style="font-size:12px">' + c.unreported + ' offen</span>' : '') +
             '</td><td class="num">' + money(c.paid, c.currency) + '</td><td class="num muted">' + money(c.tax, c.currency) +
             '</td><td class="num">' + money(c.revenue, c.currency) +
-            '</td><td class="num"><strong>' + money(c.revenueHome, cur) + '</strong></td></tr>';
+            '</td><td class="num"><strong>' + money(c.revenueHome, cur) + '</strong>' +
+            (c.unreported ? '<br><span class="muted" style="font-size:12px">≈ + ' + money(c.estimatedHome, cur) + '</span>' : '') +
+            '</td></tr>';
         }).join('') +
         '<tr><td colspan="5"><strong>Summe</strong></td><td class="num"><strong>' + money(p.revenueHomeTotal, cur) + '</strong></td></tr>' +
         '</tbody></table></div>';
@@ -1475,40 +2146,18 @@ var GRAPH = ${GRAPH_JSON};
         html += '<p class="sub">' + p.withoutFigures + ' Kauf/Käufe ohne echte Beträge — entweder vor dieser Auswertung getätigt oder die Bestellung war nicht abrufbar. Die fehlen in dieser Tabelle.</p>';
       }
       if (p.withoutRate) {
-        html += '<p class="sub">' + p.withoutRate + ' Kauf/Käufe warten noch auf einen Umrechnungskurs — die Summe ist um diese Beträge zu niedrig. Der nächtliche Lauf trägt sie nach.</p>';
+        html += '<p class="sub">' + p.withoutRate + ' Kauf/Käufe warten noch auf einen Umrechnungskurs — die Summe ist um diese Beträge zu niedrig. Der stündliche Lauf trägt sie nach, sobald der Kurs des Kauftags vorliegt.</p>';
+      }
+      if (p.unreportedOrders) {
+        html += '<p class="sub">' + p.unreportedOrders + ' Kauf/Käufe sind bezahlt, aber Google hat den Entwickleranteil ' +
+          'noch nicht gemeldet — das passiert erst, wenn die Zahlung abgerechnet ist. Die Summe oben ist deshalb um ' +
+          'geschätzte ' + money(p.revenueEstimatedHome, cur) + ' zu niedrig. Es wird stündlich erneut nachgefragt; ' +
+          'im Konto lässt sich eine einzelne Bestellung sofort neu abfragen.</p>';
       }
     } else {
       html += '<div class="empty">Noch keine Käufe mit abgerufenen Beträgen.</div>';
     }
 
-    html += '<h3 style="margin-top:18px">OpenAI-Ausgaben</h3>';
-    if (f.openai.connected) {
-      var byProj = f.openai.byProject || [];
-      // The project that carries this service — matched by name, because its id says nothing.
-      var mine = byProj.filter(function (p) { return /dictate/i.test(p.name); })[0];
-      html += '<div class="grid">' +
-        (mine ? card('Dictate Cloud', 'Nur das OpenAI-Projekt dieses Dienstes. Diese Zahl ist mit dem Projektfilter auf OpenAIs eigener Usage-Seite vergleichbar.', fmtUsd4(mine.usd), 'Letzte 30 Tage', 'lead') : '') +
-        card('Gesamtes Konto', 'Alle Projekte deiner OpenAI-Organisation zusammen — also auch alles, was nichts mit Dictate Cloud zu tun hat.', fmtUsd(f.openai.totalUsd), 'Letzte 30 Tage · ' + byProj.length + ' Projekt(e)') +
-        '</div>';
-
-      if (byProj.length > 1) {
-        html += '<div class="scroll" style="margin-top:12px"><table><thead><tr><th>Projekt</th><th class="num">Kosten (30 T)</th></tr></thead><tbody>' +
-          byProj.map(function (p) {
-            return '<tr><td>' + esc(p.name) + (mine && p.id === mine.id ? ' <span class="pill info">dieser Dienst</span>' : '') +
-              '</td><td class="num">' + fmtUsd4(p.usd) + '</td></tr>';
-          }).join('') + '</tbody></table></div>';
-      }
-
-      var recent = f.openai.days.slice(-10).reverse();
-      html += recent.length ? '<div class="scroll" style="margin-top:12px"><table><thead><tr><th>Tag</th>' +
-        '<th class="num">Kosten (alle Projekte)</th></tr></thead><tbody>' +
-        recent.map(function (d) { return '<tr><td>' + esc(d.day) + '</td><td class="num">' + fmtUsd4(d.usd) + '</td></tr>'; }).join('') +
-        '</tbody></table></div>' : '';
-    } else {
-      html += '<p class="sub">Nicht verbunden — ' + esc(f.openai.reason) + '.<br>' +
-        'Mit einem <strong>Admin-Schlüssel</strong> (nicht dem Projektschlüssel) zeigt diese Seite, was OpenAI tatsächlich abgerechnet hat, statt nur unserer eigenen Summe:<br>' +
-        '<code>npx wrangler secret put OPENAI_ADMIN_KEY</code></p>';
-    }
     $('finance').innerHTML = html;
   }
 
@@ -1533,42 +2182,41 @@ var GRAPH = ${GRAPH_JSON};
       card('Diktiert', 'Summe der abgerechneten Audiosekunden.', fmtMinutes(sum('seconds')), '') +
       card('Verkauft', 'Minuten, die im Zeitraum gekauft wurden — nicht dieselben, die verbraucht wurden.', fmtMinutes(sum('secondsSold')), sum('orders') + ' Käufe') +
       card('Erlös', 'Nach Googles Anteil, wie von Google gemeldet.', money(sum('revenue'), cur), '') +
-      card('Einkauf', 'Was die durchgereichten Anfragen bei OpenAI gekostet haben.', fmtUsd(sum('costUsd')), '') +
+      card('Einkauf', 'Was Cloudflare für den Zeitraum berechnet — je Tag abzüglich des Freikontingents, dann summiert. Ein Tag unter dem Kontingent kostet nichts. Der Listenpreis daneben ist dieselbe Rechenzeit ohne den Abzug.',
+        fmtUsd(sum('costUsd')),
+        sum('listUsd') > sum('costUsd') ? 'Listenpreis ' + fmtUsd4(sum('listUsd')) : '') +
       card('Neue Konten', 'Erstmals angelegte Guthabenkonten.', sum('newWallets'), '');
 
     $('sDays').innerHTML = rows.length ? '<table><thead><tr><th>Tag</th><th class="num">Anfragen</th><th class="num">Diktiert</th>' +
-      '<th class="num">Fehler</th><th class="num">Käufe</th><th class="num">Erlös</th><th class="num">Einkauf</th><th class="num">Neue Konten</th></tr></thead><tbody>' +
+      '<th class="num">Fehler</th><th class="num">Käufe</th><th class="num">Erlös</th><th class="num">Einkauf</th>' +
+      '<th class="num">Liste</th><th class="num">Neue Konten</th></tr></thead><tbody>' +
       rows.slice().reverse().map(function (r) {
         return '<tr><td>' + esc(r.day) + '</td><td class="num">' + r.requests + '</td><td class="num">' + fmtMinutes(r.seconds) +
           '</td><td class="num">' + (r.errors || '—') + '</td><td class="num">' + (r.orders || '—') +
           '</td><td class="num">' + (r.revenue ? money(r.revenue, cur) : '—') + '</td><td class="num">' + fmtUsd4(r.costUsd) +
+          '</td><td class="num muted">' + fmtUsd4(r.listUsd) +
           '</td><td class="num">' + (r.newWallets || '—') + '</td></tr>';
       }).join('') + '</tbody></table>' : '<div class="empty">Noch keine Tage erfasst.</div>';
 
     $('sMonths').innerHTML = histMonths.length ? '<table><thead><tr><th>Monat</th><th class="num">Anfragen</th>' +
-      '<th class="num">Diktiert</th><th class="num">Verkauft</th><th class="num">Käufe</th><th class="num">Erlös</th><th class="num">Einkauf</th></tr></thead><tbody>' +
+      '<th class="num">Diktiert</th><th class="num">Verkauft</th><th class="num">Käufe</th><th class="num">Erlös</th>' +
+      '<th class="num">Einkauf</th><th class="num">Liste</th></tr></thead><tbody>' +
       histMonths.map(function (m) {
         return '<tr><td>' + esc(m.month) + '</td><td class="num">' + m.requests + '</td><td class="num">' + fmtMinutes(m.seconds) +
           '</td><td class="num">' + fmtMinutes(m.secondsSold) + '</td><td class="num">' + (m.orders || '—') +
-          '</td><td class="num">' + (m.revenue ? money(m.revenue, cur) : '—') + '</td><td class="num">' + fmtUsd4(m.costUsd) + '</td></tr>';
+          '</td><td class="num">' + (m.revenue ? money(m.revenue, cur) : '—') + '</td><td class="num">' + fmtUsd4(m.costUsd) +
+          '</td><td class="num muted">' + fmtUsd4(m.listUsd) + '</td></tr>';
       }).join('') + '</tbody></table>' : '<div class="empty">Noch keine Monate erfasst.</div>';
   }
 
   /**
-   * The money, in one request.
-   *
-   * There used to be two — /summary and /finance — and each of them separately paged through
-   * OpenAI's billing endpoint. Two dozen sequential fetches to answer one screen, on every single
-   * page load. Now it is one call, served from a ten-minute cache, refreshed behind the response
-   * when it is stale.
-   */
-  /**
    * The money view, which is the one call that leaves the house.
    *
-   * It asks Google for payouts and OpenAI for costs, so it is the slowest thing on the page and the
-   * only one with a rate limit at the far end. Now that every tab visit reloads, it keeps a minute
-   * of cache: switching between tabs must not fire this again and again, and figures that count in
-   * whole days do not change in the meantime. The refresh button clears it outright.
+   * It asks Google for the payouts — the spend needs nothing from outside any more, it is our own
+   * ledger — so it is still the slowest thing on the page and the only one with a rate limit at the
+   * far end. Since every tab visit reloads, it keeps a minute of cache: switching between tabs must
+   * not fire this again and again, and figures that count in whole days do not change in the
+   * meantime. The refresh button clears it outright.
    */
   var moneyAt = 0;
   var MONEY_TTL = 60000;
@@ -1595,8 +2243,43 @@ var GRAPH = ${GRAPH_JSON};
 
   var taxData = null;
   var KIND_LABEL = {
-    openai_topup: 'OpenAI-Aufladung', cloudflare: 'Cloudflare', domain: 'Domain', other: 'Sonstiges',
+    cloudflare: 'Cloudflare (inkl. Workers AI)', domain: 'Domain', other: 'Sonstiges',
   };
+
+  function renderReconcile(r) {
+    var cur = r.homeCurrency;
+    var rows = r.months || [];
+    if (!rows.length) { $('reconcile').innerHTML = '<div class="empty">Noch kein Monat mit Verkehr.</div>'; return; }
+    $('reconcile').innerHTML = '<table><thead><tr><th>Monat</th><th class="num">unsere Rechnung</th>' +
+      '<th class="num">Cloudflares Rechnung</th><th class="num">Differenz</th><th>Stand</th></tr></thead><tbody>' +
+      rows.map(function (m) {
+        // Drei Zustände, und nur einer davon ist ein Ergebnis: läuft noch, fehlt, oder verglichen.
+        var state, delta = '—';
+        if (m.open) {
+          state = '<span class="pill">läuft noch</span>';
+        } else if (m.invoiceHome === null) {
+          state = '<span class="pill warn">Rechnung fehlt</span>';
+        } else {
+          var d = n(m.deltaHome);
+          // Ein Cent auf eine Monatsrechnung ist Rundung, kein Befund. Alles darüber gehört gesehen.
+          var off = Math.abs(d) > 0.01;
+          delta = '<span class="' + (off ? 'warn-text' : 'ok-text') + '">' +
+            (d >= 0 ? '+' : '−') + money(Math.abs(d), cur) + '</span>';
+          state = off
+            ? '<span class="pill warn">weicht ab</span>'
+            : '<span class="pill ok">stimmt</span>';
+          // Warum hier null steht, gehört an die Null. Ein erfasster Nullbetrag und eine nicht
+          // erfasste Rechnung sehen in der Spalte sonst fast gleich aus, bedeuten aber das
+          // Gegenteil voneinander: geprüft gegen ungeprüft.
+          if (m.invoiceHome === 0) state += ' <span class="muted">im Freikontingent</span>';
+          else if (m.invoiceReference) state += ' <span class="mono muted">' + esc(m.invoiceReference) + '</span>';
+        }
+        return '<tr><td class="mono">' + esc(m.month) + ' <span class="muted">' + m.days + ' T</span></td>' +
+          '<td class="num">' + money(m.ownHome, cur) + ' <span class="muted">(' + fmtUsd4(m.ownUsd) + ')</span></td>' +
+          '<td class="num">' + (m.invoiceHome === null ? '—' : money(m.invoiceHome, cur)) + '</td>' +
+          '<td class="num">' + delta + '</td><td>' + state + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
 
   function renderTax(t) {
     taxData = t;
@@ -1605,8 +2288,15 @@ var GRAPH = ${GRAPH_JSON};
     $('taxYears').innerHTML = t.years.length ? t.years.map(function (y) {
       // The order of a profit-and-loss, so it can be read straight down: what came in, what was
       // never yours, what went back out, what you actually paid, what is left.
+      // Brutto und Steuer stehen in der Währung des Käufers in der Datenbank und werden mit dem
+      // Kurs des Kauftags umgerechnet. Das muss an der Zahl stehen, nicht in der Dokumentation:
+      // eine umgerechnete Zahl, die sich als gemessene ausgibt, ist genau der Fehler, den diese
+      // Ansicht hatte.
+      var fxHint = y.foreignOrders
+        ? '<span class="hint" tabindex="0" data-tip="Beträge in Fremdwährung sind mit dem EZB-Kurs des jeweiligen Kauftags umgerechnet und fest auf die Buchung geschrieben. Googles Auszahlung rechnet mit Googles eigenem Kurs — eine gute Näherung, nicht der Kontoauszug."></span>'
+        : '';
       var lines = [
-        ['Kundschaft zahlte brutto', money(y.paidGross, cur), 'nur zur Einordnung — nie deine Einnahme'],
+        ['Kundschaft zahlte brutto' + fxHint, money(y.paidGross, cur), 'nur zur Einordnung — nie deine Einnahme'],
         ['davon Steuer', '− ' + money(y.taxCollected, cur), 'von Google eingezogen und abgeführt'],
         ['<strong>Erlös von Google</strong>', '<strong>' + money(y.revenue, cur) + '</strong>', 'nach Googles Anteil — das ist die Einnahme'],
       ];
@@ -1618,9 +2308,18 @@ var GRAPH = ${GRAPH_JSON};
       lines.push(['<strong>Bleibt</strong>', '<strong>' + money(y.profit, cur) + '</strong>', 'vor Steuern und ohne deine Zeit']);
 
       var warn = [];
-      if (y.unconverted) warn.push(y.unconverted + ' Kauf/Käufe noch ohne Umrechnungskurs — die Summe ist zu niedrig.');
+      // Ein Jahr, dem eine Einnahme fehlt, darf nicht vollständig aussehen — das ist die eine
+      // Ansicht, in der eine stille Lücke später teuer wird.
+      if (y.unreported) {
+        warn.push(y.unreported + ' Kauf/Käufe sind bezahlt, aber Google hat den Erlös noch nicht ' +
+          'gemeldet — sie fehlen in dieser Rechnung.');
+      }
+      if (y.unconverted) warn.push(y.unconverted + ' Kauf/Käufe noch ohne Umrechnungskurs — Brutto, Steuer und Erlös sind um diese Beträge zu niedrig.');
       if (y.spendUnconverted) warn.push(y.spendUnconverted + ' Ausgabe(n) ohne belasteten Betrag.');
-      if (!y.spend) warn.push('Für dieses Jahr ist noch keine Ausgabe erfasst — ohne die ist „Bleibt" kein Gewinn, sondern nur die Einnahme.');
+      // Gezählt wird, ob etwas erfasst wurde, nicht ob dabei eine Summe herauskam: Ein Jahr, das
+      // ganz im Freikontingent lag, hat lauter Nullen erfasst und ist geprüft — es sieht nur aus
+      // wie ein Jahr, in das nie jemand geschaut hat.
+      if (!y.spendEntries) warn.push('Für dieses Jahr ist noch keine Ausgabe erfasst — ohne die ist „Bleibt" kein Gewinn, sondern nur die Einnahme.');
 
       return '<div class="card"><div class="row" style="align-items:flex-start">' +
         '<div style="flex:1;min-width:min(100%,190px)"><div class="label">Jahr ' + esc(y.year) + '</div>' +
@@ -1637,13 +2336,6 @@ var GRAPH = ${GRAPH_JSON};
       '</div></div>';
     }).join('') : '<div class="empty">Noch keine Käufe und keine Ausgaben erfasst.</div>';
 
-    // OpenAI's own usage figure, next to the payments rather than instead of them.
-    if (t.openaiConnected && t.openaiUsageUsd !== null) {
-      $('taxYears').innerHTML += '<p class="sub">Zum Abgleich: OpenAI weist für die letzten 180 Tage ' +
-        fmtUsd(t.openaiUsageUsd) + ' <strong>Verbrauch</strong> aus. Das ist nicht dieselbe Zahl wie deine Aufladungen — ' +
-        'verbraucht wird nach und nach, bezahlt hast du im Voraus. Für die Steuer zählt die Aufladung.</p>';
-    }
-
     $('taxExpenses').innerHTML = t.expenses.length
       ? '<table><thead><tr><th>Datum</th><th>Art</th><th class="num">Rechnung</th><th class="num">Belastet</th><th>Beleg</th><th></th></tr></thead><tbody>' +
         t.expenses.map(function (e) {
@@ -1654,7 +2346,7 @@ var GRAPH = ${GRAPH_JSON};
             '<td class="mono muted">' + esc(e.reference || '—') + '</td>' +
             '<td class="num"><button class="btn ghost" data-del="' + e.id + '">Löschen</button></td></tr>';
         }).join('') + '</tbody></table>'
-      : '<div class="empty">Noch nichts erfasst. Die erste OpenAI-Aufladung gehört hier hinein.</div>';
+      : '<div class="empty">Noch nichts erfasst. Die erste Cloudflare-Rechnung gehört hier hinein.</div>';
 
     Array.prototype.forEach.call($('taxExpenses').querySelectorAll('[data-del]'), function (b) {
       b.onclick = function () {
@@ -1664,7 +2356,9 @@ var GRAPH = ${GRAPH_JSON};
     });
 
     $('taxMonths').innerHTML = t.months.length
-      ? '<table><thead><tr><th>Monat</th><th class="num">Käufe</th><th class="num">Brutto</th><th class="num">Steuer</th><th class="num">Dein Erlös</th></tr></thead><tbody>' +
+      ? '<table><thead><tr><th>Monat</th><th class="num">Käufe</th>' +
+        '<th class="num">Brutto<span class="hint" tabindex="0" data-tip="Alles in ' + esc(cur) + ', mit dem EZB-Kurs des jeweiligen Kauftags umgerechnet — Käufe in Fremdwährung inbegriffen."></span></th>' +
+        '<th class="num">Steuer</th><th class="num">Dein Erlös</th></tr></thead><tbody>' +
         t.months.map(function (m) {
           return '<tr><td>' + esc(m.month) + '</td><td class="num">' + m.orders + '</td><td class="num">' +
             money(m.paidGross, cur) + '</td><td class="num muted">' + money(m.taxCollected, cur) +
@@ -1675,6 +2369,11 @@ var GRAPH = ${GRAPH_JSON};
 
   function loadTax() {
     $('taxYears').innerHTML = skeleton('card', 2);
+    // Zwei Anfragen, aber ein Fehlschlag der einen darf die andere nicht mitnehmen: Der Abgleich
+    // ist die Ansicht, wegen der man diesen Reiter im Zweifel öffnet.
+    get('/admin/api/reconcile').then(renderReconcile).catch(function (e) {
+      $('reconcile').innerHTML = '<div class="empty">Konnte nicht geladen werden: ' + esc(e.message) + '</div>';
+    });
     return get('/admin/api/tax').then(renderTax).catch(function (e) {
       $('taxYears').innerHTML = '<div class="empty">Konnte nicht geladen werden: ' + esc(e.message) + '</div>';
     });
@@ -1698,32 +2397,71 @@ var GRAPH = ${GRAPH_JSON};
       var cls = pct >= 45 ? 'ok' : pct >= 35 ? 'warn' : 'crit';
 
       // Every line of the sum, in the order it happens: the customer pays, tax and Google come
-      // off, OpenAI is bought, what is left is yours.
+      // off, the compute is bought, what is left is yours.
       // The first four lines are the buyer's own currency, because that is what happened at the
       // till. From "Dein Erlös" on it is the payout currency — mixing the two in one sum is how a
       // margin quietly comes out wrong.
-      var steps = a
+      // Das gilt nur, solange ein Paket in genau einer Währung verkauft wurde. In mehreren ist ein
+      // Durchschnitt darüber kein Preis, den jemand bezahlt hat — dann steht die ganze Leiter in
+      // der Auszahlungswährung, und die Karte sagt, dass sie es tut.
+      var oneCurrency = !!a && a.currencies === 1;
+      // Die Leiter rechnet mit dem **Regelfall** — dem Paket, das verdiktiert wird, so wie Pakete
+      // verbraucht werden (94,3 % der Guthabensekunden, gemessen). Das ist die Zahl, die zählt.
+      //
+      // Darunter der Boden: dasselbe Paket vollständig umformuliert, also am teureren der beiden
+      // Dienste verbraucht. Er ist erreichbar und deshalb erwähnenswert — anders als die bauliche
+      // Obergrenze (die Sekunden zu ihrem Verkaufswert), die niemand erreichen kann und die als
+      // Schlagzeile aus 96 % magere 66 % machte.
+      var maxRow = ['Einkauf (' + k.minutes + ' Min. verdiktiert)', '− ' + fmtUsd4(k.cost.typicalUsd)];
+      var typicalRow = k.cost.worstUsd > k.cost.typicalUsd
+        ? ['ganz verformuliert wären es', '− ' + fmtUsd4(k.cost.worstUsd)]
+        : null;
+      var steps = a && oneCurrency
         ? [['Kundschaft zahlt', money(a.paid, k.currency)],
            ['davon Steuer', '− ' + money(a.tax, k.currency)],
            ['Google-Anteil', '− ' + money(a.paid - a.tax - a.revenue, k.currency)],
            ['<strong>Dein Erlös</strong>', '<strong>' + money(a.revenue, k.currency) + '</strong>'],
            (k.currency !== cur ? ['umgerechnet', money(a.revenueHome, cur)] : null),
-           ['OpenAI, h\u00f6chstens (' + k.minutes + ' Min. gekauft)', '− ' + fmtUsd4(k.cost.totalUsd)],
-           ['<strong>Bleibt mindestens</strong>', '<strong>' + money(a.margin, cur) + '</strong>']].filter(Boolean)
+           maxRow, typicalRow,
+           ['<strong>Bleibt</strong>', '<strong>' + money(a.margin, cur) + '</strong>'],
+           (a.marginWorst !== undefined && a.marginWorst !== a.margin
+             ? ['<span class="muted">im schlechtesten Fall</span>', '<span class="muted">' + money(a.marginWorst, cur) + '</span>'] : null)].filter(Boolean)
+        : a
+        ? [['Kundschaft zahlt', money(a.paidHome, cur)],
+           ['davon Steuer', '− ' + money(a.taxHome, cur)],
+           ['Google-Anteil', '− ' + money(a.paidHome - a.taxHome - a.revenueHome, cur)],
+           ['<strong>Dein Erlös</strong>', '<strong>' + money(a.revenueHome, cur) + '</strong>'],
+           maxRow, typicalRow,
+           ['<strong>Bleibt</strong>', '<strong>' + money(a.margin, cur) + '</strong>'],
+           (a.marginWorst !== undefined && a.marginWorst !== a.margin
+             ? ['<span class="muted">im schlechtesten Fall</span>', '<span class="muted">' + money(a.marginWorst, cur) + '</span>'] : null)].filter(Boolean)
         : [['Listenpreis (netto)', money(k.listPrice, cur)],
            ['Google-Anteil (' + Math.round(fee * 100) + ' % angenommen)', '− ' + money(k.listPrice * fee, cur)],
            ['<strong>Erlös laut Modell</strong>', '<strong>' + money(k.model.revenue, cur) + '</strong>'],
-           ['OpenAI, h\u00f6chstens (' + k.minutes + ' Min. gekauft)', '− ' + fmtUsd4(k.cost.totalUsd)],
-           ['<strong>Bleibt mindestens</strong>', '<strong>' + money(k.model.margin, cur) + '</strong>']];
+           maxRow, typicalRow,
+           ['<strong>Bleibt</strong>', '<strong>' + money(k.model.margin, cur) + '</strong>'],
+           (k.model.marginWorst !== undefined && k.model.marginWorst !== k.model.margin
+             ? ['<span class="muted">im schlechtesten Fall</span>', '<span class="muted">' + money(k.model.marginWorst, cur) + '</span>'] : null)].filter(Boolean);
 
-      // Vom Ziel zurück auf den Preis: der Erlös muss Einkauf / (1 − Marge) sein, und der
-      // Listenpreis ist dieser Erlös vor Googles Anteil. Steht hier, damit die nächste Preisrunde
-      // eine Ablesung ist und keine Rechnung auf einem Zettel — besonders dann, wenn OpenAI seine
-      // Preisliste bewegt und der Einkauf unter jedem Paket ein anderer wird.
-      var targets = [45, 50, 55, 60].map(function (m) {
-        var price = k.cost.totalHome / ((1 - m / 100) * (1 - fee));
-        return '<tr><td class="muted" style="border:0;padding:2px 0">' + m + ' % Marge</td>' +
-          '<td class="num" style="border:0;padding:2px 0">' + money(price, cur) + '</td></tr>';
+      // Die Frage hat sich mit dem Einkaufspreis gedreht.
+      //
+      // Früher stand hier der Preis für eine Zielmarge — sinnvoll, solange der Einkauf so groß war,
+      // dass er den Preis bestimmte. Bei $0,0005 die Minute kommt dabei „14 Cent für 45 % Marge"
+      // heraus: arithmetisch richtig und als Antwort wertlos, weil kein Paket zu diesem Preis
+      // verkauft würde.
+      //
+      // Umgekehrt ist es jetzt die Frage, die man wirklich hat: **Zum heutigen Preis — wie viele
+      // Minuten könnten drin sein?** Das ist die Rechnung hinter einem Angebot, und sie geht so:
+      // Vom Erlös darf (1 − Marge) für den Einkauf draufgehen, und das geteilt durch den Preis je
+      // Minute sind die Minuten.
+      var revHome = a ? a.revenueHome : k.model.revenue;
+      var targets = [90, 92, 94, 96].map(function (m) {
+        var allowedUsd = (revHome * (1 - m / 100)) / n(p.rate);
+        var minutes = k.cost.perMinuteUsd > 0 ? allowedUsd / k.cost.perMinuteUsd : 0;
+        var here = Math.abs(m - pct) < 1;
+        return '<tr><td class="' + (here ? '' : 'muted') + '">' + m + ' % Marge' +
+          (here ? ' <span class="muted">(heute)</span>' : '') + '</td>' +
+          '<td class="num' + (here ? '' : ' muted') + '">' + Math.round(minutes).toLocaleString('de-DE') + ' Min.</td></tr>';
       }).join('');
 
       return '<div class="card"><div class="row" style="align-items:flex-start">' +
@@ -1732,25 +2470,35 @@ var GRAPH = ${GRAPH_JSON};
           '<div class="value">' + money(shown.margin, cur) + '</div>' +
           '<div class="sub">' + k.minutes.toLocaleString('de-DE') + ' Minuten <span class="muted">oder ~' + k.rewords.toLocaleString('de-DE') + ' Umformulierungen</span><br>' +
             k.pricePerMinuteCents.toFixed(2) + ' ct/Min. Preis · ' + k.marginPerMinuteCents.toFixed(2) + ' ct/Min. Marge</div>' +
-          '<div style="margin-top:8px"><span class="pill ' + cls + '">' + pct + ' % Marge</span> ' +
+          '<div class="pillcol"><span class="pill ' + cls + '">' + pct + ' % Marge</span> ' +
+            // Der Boden gehört daneben und nicht in die Fußnote: Er ist die Zahl, die zählt, wenn
+            // jemand sein ganzes Paket in Umformulierungen steckt.
+            (typeof shown.marginPercentWorst === 'number' && Math.round(shown.marginPercentWorst) !== pct
+              ? '<span class="pill">min. ' + Math.round(shown.marginPercentWorst) + ' %</span> ' : '') +
             (k.savingsPercent === null || k.savingsPercent === undefined ? ''
               : '<span class="pill info">' + k.savingsPercent + ' % günstiger je Min.</span> ') +
             (a ? '<span class="pill info">' + a.orders + ' Verkauf/Verkäufe</span>'
-               : '<span class="pill">nur Modell</span>') + '</div>' +
+               : '<span class="pill">nur Modell</span>') +
+            // Ein Paket, dessen einziger Verkauf noch nicht abgerechnet ist, hat nichts Gemessenes —
+            // es steht deshalb auf „nur Modell" und sagt hier, warum.
+            (k.unreportedOrders ? ' <span class="pill">' + k.unreportedOrders + ' noch nicht abgerechnet</span>' : '') +
+            // Warum die Leiter rechts in Euro steht statt an der Kasse: mehrere Währungen lassen
+            // sich nicht mitteln, also ist jede Zeile umgerechnet.
+            (a && a.currencies > 1 ? ' <span class="pill">in ' + a.currencies + ' Währungen verkauft</span>' : '') + '</div>' +
         '</div>' +
-        '<div style="flex:1.4;min-width:min(100%,250px)"><table style="font-size:13px">' +
+        '<div style="flex:1.4;min-width:min(100%,250px)"><table class="ladder">' +
           steps.map(function (s) {
-            return '<tr><td style="border:0;padding:3px 0">' + s[0] + '</td>' +
-              '<td class="num" style="border:0;padding:3px 0">' + s[1] + '</td></tr>';
+            return '<tr><td>' + s[0] + '</td><td class="num">' + s[1] + '</td></tr>';
           }).join('') + '</table>' +
-          '<div class="sub" style="margin-top:10px">Listenpreis für eine Zielmarge</div>' +
-          '<table style="font-size:13px">' + targets + '</table></div>' +
+          '<div class="sub" style="margin-top:10px">Zum heutigen Preis wären drin' +
+            hint('Wie groß das Paket bei einer bestimmten Marge sein dürfte, ohne den Preis zu ändern — die Rechnung hinter einem Angebot. Vom Erlös darf (1 − Marge) für den Einkauf draufgehen; geteilt durch den Preis je Minute sind das die Minuten. Die Zeile ohne Graustufe ist der heutige Stand.') + '</div>' +
+          '<table class="ladder">' + targets + '</table></div>' +
       '</div></div>';
     }).join('');
 
     $('planTable').innerHTML = '<table><thead><tr><th>Paket</th><th class="num">Preis</th>' +
       '<th class="num">Minuten</th><th class="num">ct/Min.</th><th class="num">günstiger</th>' +
-      '<th class="num">OpenAI</th>' +
+      '<th class="num">Einkauf</th>' +
       '<th class="num">Erlös</th><th class="num">Marge</th><th class="num">%</th><th>Quelle</th></tr></thead><tbody>' +
       p.packs.map(function (k) {
         var s = k.actual || k.model;
@@ -1777,7 +2525,7 @@ var GRAPH = ${GRAPH_JSON};
       '<dt>„günstiger"</dt><dd>Preis je Minute gegenüber dem kleinsten Paket, abgerundet. Die App ' +
         'blendet alles unter 10 % aus, zeigt also nicht zwingend jede Zahl, die hier steht.</dd>' +
       '</div>' +
-      '<p class="sub" style="margin-top:10px">Die OpenAI-Zeile ist eine <strong>Obergrenze</strong>, keine Schätzung: ' +
+      '<p class="sub" style="margin-top:10px">Die Einkaufsspalte ist eine <strong>Obergrenze</strong>, keine Schätzung: ' +
       'jede Leistung wird in dieselben Sekunden eingepreist, also sind die verkauften Sekunden zugleich der ' +
       'gesamte Einkauf. Wie die Kundschaft sie aufteilt, ändert daran nichts — die Marge kann nur nach oben ' +
       'abweichen. Fixkosten stehen nirgends darin: Cloudflare, Domain und deine Zeit fehlen.</p>';
@@ -1786,7 +2534,7 @@ var GRAPH = ${GRAPH_JSON};
 
   /* --------------------------------------------------------------- Netzwerk */
 
-  var TONE = { client: 'var(--z-client)', cloudflare: 'var(--z-cf)', google: 'var(--z-google)', openai: 'var(--z-openai)', ext: 'var(--z-ext)' };
+  var TONE = { client: 'var(--z-client)', cloudflare: 'var(--z-cf)', google: 'var(--z-google)', ext: 'var(--z-ext)' };
   var EKIND = { data: 'var(--accent)', auth: 'var(--z-google)', store: 'var(--muted)', notify: 'var(--z-cf)' };
   var cam = { s: 1, x: 0, y: 0 }, filter = 'all', selected = null, graphMode = 'map';
   var byId = {};
@@ -1812,7 +2560,13 @@ var GRAPH = ${GRAPH_JSON};
 
   function drawGraph() {
     var parts = [], labels = [];
-    parts.push('<defs><marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>');
+    // One gradient for all twenty-six boxes: light from above over a translucent ground, which is
+    // the same thing the cards do with an inset highlight. Defined once and referenced, so the cost
+    // is a single paint server rather than a filter per node.
+    parts.push('<defs><marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>' +
+      '<linearGradient id="gglass" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="rgba(34,45,60,.88)"/>' +
+      '<stop offset="1" stop-color="rgba(13,18,26,.88)"/></linearGradient></defs>');
 
     GRAPH.zones.forEach(function (z) {
       parts.push('<rect class="zone-bg" x="' + z.x + '" y="' + z.y + '" width="' + z.w + '" height="' + z.h +
@@ -1827,8 +2581,13 @@ var GRAPH = ${GRAPH_JSON};
       var dim = (filter === 'token' && !e.token) || (filter === 'guard' && !e.guard);
       var on = selected && selected.type === 'edge' && selected.i === i;
       var label = filter === 'guard' && e.guard ? e.guard : (filter === 'token' && e.token ? e.token : e.label);
+      // A second copy of the same d, carrying the dots. Its speed is nudged per route so the whole
+      // diagram does not pulse in unison — different pipes, different flow — and it takes no arrow
+      // marker: the line underneath already says which way this goes.
+      var flowSecs = (2.2 + (i % 7) * 0.31).toFixed(2);
       parts.push('<g class="gedge' + (dim ? ' dim' : '') + (on ? ' sel' : '') + '" data-e="' + i + '">' +
-        '<path d="' + e.d + '" stroke="' + EKIND[e.kind] + '" marker-end="url(#arw)"/></g>');
+        '<path d="' + e.d + '" stroke="' + EKIND[e.kind] + '" marker-end="url(#arw)"/>' +
+        '<path class="flow" d="' + e.d + '" stroke="' + EKIND[e.kind] + '" style="animation-duration:' + flowSecs + 's"/></g>');
       labels.push('<g class="glabel' + (dim ? ' dim' : '') + (on ? ' sel' : '') + '" data-e="' + i + '">' +
         '<rect class="lbl"/><text text-anchor="middle">' + esc(label) + '</text></g>');
     });
@@ -2253,7 +3012,7 @@ var GRAPH = ${GRAPH_JSON};
       var money = loadMoney();
       return get('/admin/api/overview').then(function (o) {
         // Wait for the money only if it is not in yet, so the first paint is not held up by
-        // Google and OpenAI — but never render the cards twice for nothing.
+        // Google and the models — but never render the cards twice for nothing.
         return money.then(function () { renderOverview(o); });
       }).catch(function (e) {
         $('stats').innerHTML = '<div class="card"><div class="label">Fehler</div><div class="value" style="font-size:18px">' + esc(e.message) + '</div></div>';
@@ -2290,6 +3049,9 @@ var GRAPH = ${GRAPH_JSON};
 
   /** Reloads everything already on screen. The refresh button and anything that changed state. */
   function loadAll() {
+    // Der Abstand der selbsttätigen Aktualisierung zählt ab hier, egal wer geladen hat. Wer gerade
+    // von Hand aktualisiert hat, soll nicht zehn Sekunden später noch einmal alles neu bekommen.
+    lastLoadAt = Date.now();
     sum = null; moneyAt = 0;
     Object.keys(loaded).forEach(function (v) { if (LOADERS[v]) LOADERS[v](); });
     get('/admin/api/me').then(function (r) { $('who').textContent = r.email; });
@@ -2347,12 +3109,19 @@ var GRAPH = ${GRAPH_JSON};
   $('sMetric').onchange = renderHistory;
   $('exAdd').onclick = function () {
     if (!$('exDate').value) { tell('Datum fehlt', 'Bitte den Tag angeben, an dem das Geld abgegangen ist.'); return; }
-    if (!Number($('exAmount').value)) { tell('Betrag fehlt', 'Bitte den Rechnungsbetrag angeben.'); return; }
+    // Ein leeres Feld und eine eingetippte Null sind zwei verschiedene Dinge, und Number('')
+    // macht aus beiden dieselbe 0. Deshalb wird hier auf die leere Eingabe geprüft und nicht auf
+    // den Wahrheitswert der Zahl: Null ist ein Betrag — der Monat lag im Freikontingent.
+    var amount = $('exAmount').value.trim() === '' ? NaN : Number($('exAmount').value);
+    if (!isFinite(amount) || amount < 0) {
+      tell('Betrag fehlt', 'Bitte den Rechnungsbetrag angeben. 0 ist erlaubt und heißt: Der Monat lag ganz im Freikontingent, es gibt keine Rechnung.');
+      return;
+    }
     act({
       action: 'add_expense',
       paidAt: $('exDate').value,
       kind: $('exKind').value,
-      amount: Number($('exAmount').value),
+      amount: amount,
       currency: $('exCurrency').value,
       amountHome: $('exHome').value,
       reference: $('exRef').value,
@@ -2387,6 +3156,146 @@ var GRAPH = ${GRAPH_JSON};
     URL.revokeObjectURL(a.href);
   };
   window.addEventListener('resize', function () { if (!$('view-network').hidden) fit(); });
+
+  /* ------------------------------------------------------------------ Himmel */
+
+  /*
+   * The fog behind the page.
+   *
+   * Five soft banks of colour, each drifting on its own small orbit and each fading slowly between
+   * the accent blue and a violet, so the two run into one another instead of sitting side by side.
+   * Nothing has an edge, which is the point: the earlier flow field was drawn with one-pixel
+   * strokes, and a one-pixel stroke is the one thing that cannot survive being stretched twelvefold.
+   *
+   * Same arithmetic as every version of this: it is drawn at 200 by about 125 and stretched over
+   * the window, so the work is proportional to twenty-five thousand pixels rather than to the
+   * several million a full-screen layer would cost. Two attempts at that in CSS pegged a GPU.
+   *
+   * Each bank keeps its own quarter of the canvas and only orbits inside it. Letting them all
+   * circle the centre — which is what the first draft did — leaves half the window empty and piles
+   * the rest into one bright lump.
+   *
+   * Rendered offline before shipping, at the size it is actually seen: blue and violet legible,
+   * whole surface covered, nothing saturating.
+   */
+  function startSky() {
+    var canvas = $('sky');
+    var bar = $('skyBar');
+    if (!canvas || !canvas.getContext) return;
+    // #nosky leaves the background blank, so the cost of this can be measured against its absence
+    // rather than argued about. Two versions of this feature were defended with reasoning that
+    // turned out to be wrong; a switch settles it in one reload.
+    if ((location.hash || '').indexOf('nosky') >= 0) return;
+    var ctx = canvas.getContext('2d');
+    var barCtx = bar && bar.getContext ? bar.getContext('2d') : null;
+    var still = motionOff;
+
+    var BLUE = [48, 183, 230];      // --accent
+    var VIOLET = [169, 154, 240];   // --z-violet
+    /*
+     * home x/y, orbit x/y, the two periods that carry it, and the period on which its colour
+     * crosses from one to the other. All of them awkward numbers with no common factor, so the
+     * arrangement does not come back round: the shortest pair here repeats after about six hours.
+     */
+    var BANKS = [
+      { from: BLUE,   to: VIOLET, a: .24, r: .58, hx: .20, hy: .24, ox: .19, oy: .21, px: 23, py: 31, pc: 37 },
+      { from: VIOLET, to: BLUE,   a: .21, r: .54, hx: .80, hy: .28, ox: .18, oy: .23, px: 29, py: 19, pc: 43 },
+      { from: BLUE,   to: VIOLET, a: .19, r: .52, hx: .50, hy: .86, ox: .23, oy: .17, px: 17, py: 37, pc: 29 },
+      { from: VIOLET, to: BLUE,   a: .16, r: .46, hx: .90, hy: .80, ox: .17, oy: .21, px: 41, py: 23, pc: 53 },
+      { from: BLUE,   to: VIOLET, a: .15, r: .48, hx: .08, hy: .82, ox: .21, oy: .19, px: 19, py: 43, pc: 31 },
+    ];
+
+    var w = 0, h = 0, last = -1e9, frame = 0, shownAt = 11;
+
+    // The backing store follows the window's proportions so the banks stay round rather than
+    // stretched, but never grows past a few hundred pixels on a side. That ceiling is the reason
+    // this is cheap and it must not quietly rise.
+    function skyMeasure() {
+      var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+      w = 200;
+      h = Math.max(100, Math.min(320, Math.round(200 * vh / vw)));
+      canvas.width = w; canvas.height = h;
+      if (bar) { bar.width = w; bar.height = h; }
+      // Setting width wipes the canvas, so it has to be repainted at once rather than left blank
+      // until the next frame — and under reduced motion there is no next frame at all.
+      skyPaint(shownAt);
+    }
+
+    function ink(from, to, t, alpha) {
+      var m = 0.5 + 0.5 * Math.sin(t);
+      return 'rgba(' + Math.round(from[0] + (to[0] - from[0]) * m) + ',' +
+        Math.round(from[1] + (to[1] - from[1]) * m) + ',' +
+        Math.round(from[2] + (to[2] - from[2]) * m) + ',' + alpha + ')';
+    }
+
+    function skyPaint(t) {
+      shownAt = t;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#0B0F14';
+      ctx.fillRect(0, 0, w, h);
+      // Added rather than painted over, so where two banks meet the colours mix into a third
+      // instead of one hiding the other. Safe here in a way it was not for the flow field: these
+      // are wide and faint, and five of them at these alphas cannot reach white.
+      ctx.globalCompositeOperation = 'lighter';
+      var reach = Math.max(w, h);
+      for (var i = 0; i < BANKS.length; i++) {
+        var b = BANKS[i];
+        var x = (b.hx + b.ox * Math.sin(t / b.px)) * w;
+        var y = (b.hy + b.oy * Math.cos(t / b.py)) * h;
+        var r = b.r * reach * (1 + 0.15 * Math.sin(t / (b.px * 1.6)));
+        var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        // The middle stop is what makes it a fog rather than a lamp: a plain two-stop gradient
+        // falls off in a straight line and reads as a disc with a soft edge.
+        g.addColorStop(0, ink(b.from, b.to, t / b.pc, b.a));
+        g.addColorStop(0.45, ink(b.from, b.to, t / b.pc, b.a * 0.34));
+        g.addColorStop(1, ink(b.from, b.to, t / b.pc, 0));
+        ctx.fillStyle = g;
+        // Only the square the bank actually reaches, not the whole canvas: five full-canvas fills
+        // a frame would be five times the pixels for no visible difference.
+        ctx.fillRect(Math.max(0, x - r), Math.max(0, y - r), Math.min(w, 2 * r), Math.min(h, 2 * r));
+      }
+      // The header shows the same image, not a second rendering of it: one copy of twenty-five
+      // thousand pixels, which is also what keeps the two exactly in step.
+      if (barCtx) barCtx.drawImage(canvas, 0, 0);
+    }
+
+    // Sixteen pictures a second. A fog has no edge to judge a frame rate by — what moves between
+    // one picture and the next is a soft gradient shifting a fraction of a canvas pixel — so the
+    // rate buys nothing above this, and every frame not drawn is twenty-five thousand pixels saved.
+    function skyTick(ms) {
+      frame = requestAnimationFrame(skyTick);
+      if (ms - last < 62) return;
+      last = ms;
+      skyPaint(ms / 1000);
+    }
+
+    function skyRun() {
+      if (frame || still) return;
+      last = -1e9;
+      frame = requestAnimationFrame(skyTick);
+    }
+    function skyHalt() {
+      if (frame) { cancelAnimationFrame(frame); frame = 0; }
+    }
+
+    skyMeasure();
+    // One picture either way; where motion is unwelcome that is the end of it. Unlike a field of
+    // trails, a fog needs no warming up — any single moment of it is the whole thing.
+    skyRun();
+    // Nothing is drawn for a tab nobody is looking at. A dashboard is left open all day, and this
+    // is the difference between a background that costs nothing and one that costs nothing visible.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) skyHalt(); else skyRun();
+    });
+    var resizeTimer = 0;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(skyMeasure, 200);
+    });
+  }
+
+  startSky();
+  watchValues();
 
   initGraph();
   get('/admin/api/me').then(function (r) { $('who').textContent = r.email; });

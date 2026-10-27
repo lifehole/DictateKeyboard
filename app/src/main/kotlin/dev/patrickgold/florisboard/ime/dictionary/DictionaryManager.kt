@@ -17,12 +17,16 @@
 package dev.patrickgold.florisboard.ime.dictionary
 
 import android.content.Context
+import android.database.ContentObserver
+import android.provider.UserDictionary
+import androidx.room.InvalidationTracker
 import androidx.room.Room
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.ime.nlp.SuggestionCandidate
 import dev.patrickgold.florisboard.ime.nlp.WordSuggestionCandidate
 import dev.patrickgold.florisboard.lib.FlorisLocale
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * TODO: document
@@ -33,6 +37,34 @@ class DictionaryManager private constructor(context: Context) {
 
     private var florisUserDictionaryDatabase: FlorisUserDictionaryDatabase? = null
     private var systemUserDictionaryDatabase: SystemUserDictionaryDatabase? = null
+
+    /**
+     * Bumped whenever the words either user dictionary holds may have changed (issue #381).
+     *
+     * The keyboard keeps its own copy of the personal vocabulary, because asking these databases on every
+     * keystroke — a `LIKE '%word%'` scan here, a content-provider call into another process for the system
+     * dictionary — cost 25–70 ms per key press on a Galaxy A55, several times over. A copy is only as good
+     * as its invalidation, so this counts every write, not just the keyboard's own: Room's invalidation
+     * tracker sees the settings screens and imports, and the content observer sees the system settings and
+     * other apps writing to the system dictionary.
+     */
+    private val vocabularyVersion = AtomicInteger(0)
+
+    /** Changes whenever the words either user dictionary holds may have changed; see [vocabularyVersion]. */
+    val userVocabularyVersion: Int
+        get() = vocabularyVersion.get()
+
+    private val florisDictionaryObserver = object : InvalidationTracker.Observer(WORDS_TABLE) {
+        override fun onInvalidated(tables: Set<String>) {
+            vocabularyVersion.incrementAndGet()
+        }
+    }
+
+    private val systemDictionaryObserver = object : ContentObserver(null) {
+        override fun onChange(selfChange: Boolean) {
+            vocabularyVersion.incrementAndGet()
+        }
+    }
 
     companion object {
         private var defaultInstance: DictionaryManager? = null
@@ -115,6 +147,33 @@ class DictionaryManager private constructor(context: Context) {
         }
     }
 
+    /**
+     * What the user has stored behind the typed [shortcut] — the expansions, not the shortcut itself.
+     *
+     * Its own method rather than part of [queryUserDictionary] because the two answer different
+     * questions and the caller has to treat them differently. A word match is a *prefix completion* and
+     * is filtered as one; a shortcut match is an *expansion*, which by its nature looks nothing like what
+     * was typed. Folding both into one list is why shortcuts never appeared in the suggestion strip: the
+     * prefix filter added for contact names (issue #264) threw every expansion away, since
+     * `jannis@example.com` does not start with `mail`.
+     *
+     * Case is ignored, because a shortcut typed at the start of a sentence arrives capitalised.
+     */
+    fun queryUserShortcuts(shortcut: String, locale: FlorisLocale): List<String> {
+        if (shortcut.isBlank()) return emptyList()
+        val florisDao = florisUserDictionaryDao()
+        val systemDao = systemUserDictionaryDao()
+        if (florisDao == null && systemDao == null) return emptyList()
+        return buildList {
+            if (prefs.dictionary.enableFlorisUserDictionary.get()) {
+                florisDao?.queryShortcutIgnoringCase(shortcut, locale)?.forEach { add(it.word) }
+            }
+            if (prefs.dictionary.enableSystemUserDictionary.get()) {
+                systemDao?.queryShortcutIgnoringCase(shortcut, locale)?.forEach { add(it.word) }
+            }
+        }.filter { it.isNotBlank() }.distinct()
+    }
+
     fun spell(word: String, locale: FlorisLocale): Boolean {
         val florisDao = florisUserDictionaryDao()
         val systemDao = systemUserDictionaryDao()
@@ -178,21 +237,34 @@ class DictionaryManager private constructor(context: Context) {
                 context,
                 FlorisUserDictionaryDatabase::class.java,
                 FlorisUserDictionaryDatabase.DB_FILE_NAME
-            ).allowMainThreadQueries().build()
+            ).allowMainThreadQueries().build().also {
+                it.invalidationTracker.addObserver(florisDictionaryObserver)
+            }
+            vocabularyVersion.incrementAndGet()
         }
         if (systemUserDictionaryDatabase == null && prefs.dictionary.enableSystemUserDictionary.get()) {
             systemUserDictionaryDatabase = SystemUserDictionaryDatabase(context)
+            runCatching {
+                context.contentResolver.registerContentObserver(
+                    UserDictionary.Words.CONTENT_URI, true, systemDictionaryObserver,
+                )
+            }
+            vocabularyVersion.incrementAndGet()
         }
     }
 
     @Synchronized
     fun unloadUserDictionariesIfNecessary() {
         if (florisUserDictionaryDatabase != null) {
+            florisUserDictionaryDatabase?.invalidationTracker?.removeObserver(florisDictionaryObserver)
             florisUserDictionaryDatabase?.close()
             florisUserDictionaryDatabase = null
+            vocabularyVersion.incrementAndGet()
         }
         if (systemUserDictionaryDatabase != null) {
+            runCatching { applicationContext.get()?.contentResolver?.unregisterContentObserver(systemDictionaryObserver) }
             systemUserDictionaryDatabase = null
+            vocabularyVersion.incrementAndGet()
         }
     }
 }

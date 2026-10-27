@@ -14,13 +14,15 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
@@ -45,6 +47,8 @@ import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.editorInstance
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
+import dev.patrickgold.florisboard.ime.keyboard.PanelHeaderButton
+import dev.patrickgold.florisboard.ime.keyboard.PrivateSession
 import dev.patrickgold.florisboard.ime.smartbar.KeyboardSearchBar
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.florisboard.keyboardManager
@@ -56,21 +60,22 @@ import kotlinx.coroutines.withContext
 import org.florisboard.lib.compose.stringRes
 import org.florisboard.lib.snygg.ui.SnyggColumn
 import org.florisboard.lib.snygg.ui.SnyggIcon
-import org.florisboard.lib.snygg.ui.SnyggIconButton
 import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
 
-/** Two rows of results, the same shape GBoard shows above its emoji search field. */
+/** How many rows of results stand above the search bar (issue #394). */
 private const val ResultRows = 2
 
 /**
- * The in-keyboard emoji search panel (issues #110, #274). Shown in place of the Smartbar while a search
+ * The in-keyboard emoji search panel (issues #110, #274). Shown above the Smartbar while a search
  * is active (see [dev.patrickgold.florisboard.ime.keyboard.KeyboardManager.emojiSearchQuery]); the
  * user's own keyboard layout below it types the query, which is intercepted in the input pipeline.
  *
- * Results appear in a scrollable two-row grid *above* the search bar, sharing [EmojiKey] with the emoji
- * palette — so a result can be long-pressed for its skin tones, which the previous single-row strip
- * could not do. Tapping inserts straight into the editor (bypassing the query interception) and leaves
- * the search open.
+ * Results appear *above* the search bar, scrolled sideways, in two rows — Gboard's shape (issue #394).
+ * One row showed eight faces for "love" where there are two dozen worth choosing from; a third row would
+ * start taking the screen from the app being typed into. The two rows are there even while they hold
+ * less, so the keyboard does not change height under the user between one letter and the next. Results
+ * share [EmojiKey] with the palette, so one can still be long-pressed for its skin tones. Tapping inserts
+ * straight into the editor (bypassing the query interception) and leaves the search open.
  */
 @Composable
 fun EmojiSearchPanel(modifier: Modifier = Modifier) {
@@ -166,9 +171,10 @@ fun EmojiSearchPanel(modifier: Modifier = Modifier) {
                         textAlign = TextAlign.Center,
                     )
                 }
-                else -> LazyVerticalGrid(
+                // Filled column by column, so the best matches stand at the front, top and bottom.
+                else -> LazyHorizontalGrid(
+                    rows = GridCells.Fixed(ResultRows),
                     state = gridState,
-                    columns = GridCells.Adaptive(EmojiBaseWidth),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 4.dp),
                 ) {
@@ -180,12 +186,23 @@ fun EmojiSearchPanel(modifier: Modifier = Modifier) {
                             isPinned = false,
                             isRecent = false,
                             onEmojiInput = { emoji ->
-                                // Commit straight to the editor: routing through the dispatcher would
-                                // be swallowed by the active search-query interception.
-                                editorInstance.commitText(emoji.value)
-                                scope.launch { EmojiHistoryHelper.markEmojiUsed(prefs, emoji) }
+                                // No feedback call here: [EmojiKey] already ticks on the confirmed
+                                // tap before it hands the emoji over, and adding one here played the
+                                // sound twice for a single tap.
+                                // Straight to the editor: routing through the dispatcher would be
+                                // swallowed by the search's own key handling. Through the keyboard
+                                // manager, so the cursor this moves is not taken for a tap in the app.
+                                keyboardManager.commitFromSearch(emoji.value)
+                                scope.launch {
+                                    EmojiHistoryHelper.markEmojiUsed(prefs, PrivateSession.isActive(context), emoji)
+                                }
                             },
                             onHistoryAction = { },
+                            // A sideways grid hands its items an unbounded width, so the cell names its
+                            // own — the palette's — and takes its row's full height to aim at.
+                            modifier = Modifier
+                                .width(EmojiBaseWidth)
+                                .fillMaxHeight(),
                         )
                     }
                 }
@@ -198,15 +215,14 @@ fun EmojiSearchPanel(modifier: Modifier = Modifier) {
             leading = {
                 // Back, not a second ✕: the ✕ in the field empties the query, and two crosses next to
                 // each other look like the same button drawn twice.
-                SnyggIconButton(
-                    elementName = FlorisImeUi.MediaBottomRowButton.elementName,
+                PanelHeaderButton(
                     onClick = { keyboardManager.closeEmojiSearch() },
                     modifier = Modifier.size(FlorisImeSizing.smartbarHeight),
                 ) {
                     SnyggIcon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringRes(R.string.action__back),
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(FlorisImeSizing.mediaHeaderIconSize),
                     )
                 }
             },

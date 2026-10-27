@@ -1,11 +1,12 @@
 import { DurableObject } from 'cloudflare:workers';
+import { recordAttempt } from './attempts';
 import type { Env } from './config';
 
 /**
  * The lid over everything.
  *
  * Each individual wallet is bounded by what it bought — that is the real protection. This
- * object catches the rest: a bug in our own code, a price jump at OpenAI, anything nobody saw
+ * object catches the rest: a bug in our own code, a price jump at Cloudflare, anything nobody saw
  * coming. Once the daily budget is reached the service answers 503 and the app falls back to
  * "temporarily unavailable".
  *
@@ -149,31 +150,17 @@ export class GlobalGuard extends DurableObject<Env> {
     key: string,
     limit: number,
     windowMs: number,
-  ): Promise<{ allowed: boolean; recent: number; failures: number }> {
-    const now = Date.now();
+  ): Promise<{ allowed: boolean; recent: number }> {
     const stored = (await this.ctx.storage.get<Record<string, number[]>>('codeAttempts')) ?? {};
-    const cutoff = now - windowMs;
-
-    const recent = (stored[key] ?? []).filter((t) => t > cutoff);
-    // The attempt counts even when it is refused: somebody hammering the endpoint keeps their own
-    // window full and gains nothing by carrying on.
-    recent.push(now);
-
-    // Addresses nobody has used inside the window are dropped, so a burst from many addresses
-    // cannot grow this object without bound.
-    const next: Record<string, number[]> = { [key]: recent };
-    for (const [address, times] of Object.entries(stored)) {
-      if (address === key) continue;
-      const kept = times.filter((t) => t > cutoff);
-      if (kept.length > 0) next[address] = kept;
-    }
-
+    // Bounded since #383; see recordAttempt for why the bound is what keeps this control working.
+    const { next, recent } = recordAttempt(stored, key, Date.now(), windowMs, limit);
     await this.ctx.storage.put('codeAttempts', next);
-    return {
-      allowed: recent.length <= limit,
-      recent: recent.length,
-      failures: await this.recentCodeFailures(windowMs),
-    };
+    return { allowed: recent <= limit, recent };
+  }
+
+  /** How many codes did not match within [windowMs], across every address. */
+  async codeFailureCount(windowMs: number): Promise<number> {
+    return this.recentCodeFailures(windowMs);
   }
 
   /**

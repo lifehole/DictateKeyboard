@@ -72,6 +72,7 @@ import dev.patrickgold.florisboard.ime.core.SubtypePreset
 import dev.patrickgold.florisboard.ime.keyboard.LayoutArrangementComponent
 import dev.patrickgold.florisboard.ime.keyboard.LayoutType
 import dev.patrickgold.florisboard.ime.keyboard.extCorePopupMapping
+import dev.patrickgold.florisboard.ime.nlp.LanguageDataDownload
 import dev.patrickgold.florisboard.ime.nlp.han.HanShapeBasedLanguageProvider
 import dev.patrickgold.florisboard.ime.nlp.han.PinyinPackManager
 import dev.patrickgold.florisboard.ime.nlp.latin.GlideDictionaryCatalog
@@ -112,9 +113,11 @@ private val SelectLayoutMap = SubtypeLayoutMap(
 private val SelectLocale = FlorisLocale.from("00", "00")
 private val SelectListKeys = listOf(SelectComponentName)
 
-private class SubtypeEditorState(init: Subtype?) {
+internal class SubtypeEditorState(init: Subtype?) {
     companion object {
-        val Saver = Saver<SubtypeEditorState, String>(
+        // The editor is saved and rebuilt every time the language picker opens on top of it, so what it
+        // filled in itself ([lastFill]) has to travel too, or every pick would look like the user's.
+        val Saver = Saver<SubtypeEditorState, ArrayList<String>>(
             save = { editor ->
                 val subtype = Subtype(
                     id = editor.id.value,
@@ -126,12 +129,19 @@ private class SubtypeEditorState(init: Subtype?) {
                     punctuationRule = editor.punctuationRule.value,
                     popupMapping = editor.popupMapping.value,
                     layoutMap = editor.layoutMap.value,
+                    numberRow = editor.numberRow.value,
                 )
-                SubtypeJsonConfig.encodeToString(subtype)
+                arrayListOf(
+                    SubtypeJsonConfig.encodeToString(subtype),
+                    editor.lastFill?.let { SubtypeJsonConfig.encodeToString(it) }.orEmpty(),
+                )
             },
-            restore = { str ->
-                val subtype = SubtypeJsonConfig.decodeFromString<Subtype>(str)
-                SubtypeEditorState(subtype)
+            restore = { saved ->
+                val subtype = SubtypeJsonConfig.decodeFromString<Subtype>(saved[0])
+                SubtypeEditorState(subtype).also { editor ->
+                    editor.lastFill = saved.getOrNull(1)?.takeIf { it.isNotEmpty() }
+                        ?.let { SubtypeJsonConfig.decodeFromString<Subtype>(it) }
+                }
             },
         )
     }
@@ -145,6 +155,7 @@ private class SubtypeEditorState(init: Subtype?) {
     val punctuationRule: MutableState<ExtensionComponentName> = mutableStateOf(init?.punctuationRule ?: Subtype.DEFAULT.punctuationRule)
     val popupMapping: MutableState<ExtensionComponentName> = mutableStateOf(init?.popupMapping ?: SelectComponentName)
     val layoutMap: MutableState<SubtypeLayoutMap> = mutableStateOf(init?.layoutMap ?: SelectLayoutMap)
+    val numberRow: MutableState<Boolean?> = mutableStateOf(init?.numberRow)
 
     fun applySubtype(subtype: Subtype) {
         id.value = subtype.id
@@ -156,6 +167,58 @@ private class SubtypeEditorState(init: Subtype?) {
         punctuationRule.value = subtype.punctuationRule
         popupMapping.value = subtype.popupMapping
         layoutMap.value = subtype.layoutMap
+        numberRow.value = subtype.numberRow
+        lastFill = subtype
+    }
+
+    /** What the editor itself last put into the fields — a preset or [fillUnsetFrom] — as opposed to the user. */
+    private var lastFill: Subtype? = null
+
+    /**
+     * Fills every field the user has not chosen from [base]: the language's preset, or the defaults every
+     * Latin keyboard starts from when it has none.
+     *
+     * Picking a language used to set its popups and nothing else, so a language without a preset —
+     * Dutch, Estonian, Afrikaans before it had one — left a dozen fields at "Select" (characters, two
+     * symbol pages, composer, currency, three number layouts, two phone pads), and saving was refused
+     * until each had been opened and answered. A user asked by e-mail how to add a language "without
+     * having to select 15 mysterious drop-down boxes". Each of those answers is the same for nearly every
+     * Latin-script language, so picking the language is now enough, and the fields stay there to change.
+     *
+     * A field is the user's once it holds neither where a new subtype starts ("Select" for most, the
+     * default provider and punctuation rule for the two that start filled) nor what the editor put there
+     * last. So a preset's own provider (the Han one for Chinese) still arrives, picking Dutch and then
+     * Afrikaans ends with the rand rather than Dutch's dollar, and nothing the user set is overwritten.
+     */
+    fun fillUnsetFrom(base: Subtype) {
+        val previous = lastFill
+        fun <T> unchosen(current: T, start: T, filled: (Subtype) -> T) =
+            current == start || (previous != null && current == filled(previous))
+        fun pick(current: ExtensionComponentName, fallback: ExtensionComponentName, filled: (Subtype) -> ExtensionComponentName) =
+            if (unchosen(current, SelectComponentName, filled)) fallback else current
+        if (unchosen(nlpProviders.value, Subtype.DEFAULT.nlpProviders) { it.nlpProviders }) {
+            nlpProviders.value = base.nlpProviders
+        }
+        composer.value = pick(composer.value, base.composer) { it.composer }
+        currencySet.value = pick(currencySet.value, base.currencySet) { it.currencySet }
+        if (unchosen(punctuationRule.value, Subtype.DEFAULT.punctuationRule) { it.punctuationRule }) {
+            punctuationRule.value = base.punctuationRule
+        }
+        popupMapping.value = pick(popupMapping.value, base.popupMapping) { it.popupMapping }
+        val current = layoutMap.value
+        val fallback = base.layoutMap
+        layoutMap.value = SubtypeLayoutMap(
+            characters = pick(current.characters, fallback.characters) { it.layoutMap.characters },
+            symbols = pick(current.symbols, fallback.symbols) { it.layoutMap.symbols },
+            symbols2 = pick(current.symbols2, fallback.symbols2) { it.layoutMap.symbols2 },
+            numeric = pick(current.numeric, fallback.numeric) { it.layoutMap.numeric },
+            numericAdvanced = pick(current.numericAdvanced, fallback.numericAdvanced) { it.layoutMap.numericAdvanced },
+            numericRow = pick(current.numericRow, fallback.numericRow) { it.layoutMap.numericRow },
+            phone = pick(current.phone, fallback.phone) { it.layoutMap.phone },
+            phone2 = pick(current.phone2, fallback.phone2) { it.layoutMap.phone2 },
+        )
+        if (unchosen(numberRow.value, null) { it.numberRow }) numberRow.value = base.numberRow
+        lastFill = base
     }
 
     fun toSubtype() = runCatching {
@@ -176,7 +239,7 @@ private class SubtypeEditorState(init: Subtype?) {
         check(layoutMap.value.phone2 != SelectComponentName)
         Subtype(
             id.value, primaryLocale.value, secondaryLocales.value, nlpProviders.value, composer.value,
-            currencySet.value, punctuationRule.value, popupMapping.value, layoutMap.value,
+            currencySet.value, punctuationRule.value, popupMapping.value, layoutMap.value, numberRow.value,
         )
     }
 }
@@ -223,10 +286,16 @@ fun SubtypeEditorScreen(id: Long?) = FlorisScreen {
     var popupMapping by subtypeEditor.popupMapping
     var layoutMap by subtypeEditor.layoutMap
     var nlpProviders by subtypeEditor.nlpProviders
+    var numberRow by subtypeEditor.numberRow
 
     var showSubtypePresetsDialog by rememberSaveable { mutableStateOf(id == null) }
     var showSelectAsError by rememberSaveable { mutableStateOf(false) }
     var errorDialogStrId by rememberSaveable { mutableStateOf<Int?>(null) }
+    // The subtype waiting behind the download question, and what that download costs. Both are needed
+    // at once: the dialog names the size, and confirming has to add exactly the subtype it was asked
+    // about rather than re-deriving it from fields that may have been edited behind the dialog.
+    var pendingSubtype: Subtype? by rememberSaveable(saver = SubtypeSaver) { mutableStateOf(null) }
+    var pendingBytes by rememberSaveable { mutableStateOf(0L) }
 
     val selectLocaleScreenResult = navController.currentBackStackEntry
         ?.savedStateHandle
@@ -237,6 +306,7 @@ fun SubtypeEditorScreen(id: Long?) = FlorisScreen {
             primaryLocale = locale
             val preset = subtypeManager.getSubtypePresetForLocale(locale)
             popupMapping = preset?.popupMapping ?: extCorePopupMapping("default")
+            subtypeEditor.fillUnsetFrom(preset?.toSubtype() ?: Subtype.DEFAULT)
         }
         selectLocaleScreenResult?.observe(lifecycleOwner, observer)
         onDispose { selectLocaleScreenResult?.removeObserver(observer) }
@@ -286,6 +356,16 @@ fun SubtypeEditorScreen(id: Long?) = FlorisScreen {
             ButtonBarButton(text = stringRes(R.string.action__save)) {
                 subtypeEditor.toSubtype().onSuccess { subtype ->
                     if (id == null) {
+                        // Adding a language fetches its word list and context tables, which run from
+                        // four to fourteen megabytes depending on the script (issue #334). The app
+                        // cannot see whether the connection is metered — that needs a permission it
+                        // does not ask for — so it says the number and waits instead of deciding.
+                        val bytes = LanguageDataDownload.pendingBytes(context, subtype.primaryLocale)
+                        if (bytes > 0) {
+                            pendingSubtype = subtype
+                            pendingBytes = bytes
+                            return@ButtonBarButton
+                        }
                         if (!subtypeManager.addSubtype(subtype)) {
                             errorDialogStrId = R.string.settings__localization__subtype_error_already_exists
                             return@ButtonBarButton
@@ -588,6 +668,34 @@ fun SubtypeEditorScreen(id: Long?) = FlorisScreen {
 
             SubtypePropertyDropdown(stringRes(R.string.settings__localization__subtype_numeric_advanced_layout), LayoutType.NUMERIC_ADVANCED)
 
+            // Whether this language shows the digit row, overruling the global switch (issue #315).
+            // "Default" means: keep following that switch.
+            SubtypeProperty(stringRes(R.string.pref__keyboard__number_row__label)) {
+                val numberRowOptions = listOf(
+                    stringRes(R.string.settings__default),
+                    stringRes(R.string.state__enabled),
+                    stringRes(R.string.state__disabled),
+                )
+                val expanded = remember { mutableStateOf(false) }
+                JetPrefDropdown(
+                    options = numberRowOptions,
+                    expanded = expanded,
+                    selectedOptionIndex = when (numberRow) {
+                        null -> 0
+                        true -> 1
+                        false -> 2
+                    },
+                    onSelectOption = {
+                        numberRow = when (it) {
+                            1 -> true
+                            2 -> false
+                            else -> null
+                        }
+                    },
+                    appearance = JetPrefDropdownMenuDefaults.outlined(shape = ShapeDefaults.Small),
+                )
+            }
+
             SubtypePropertyDropdown(stringRes(R.string.settings__localization__subtype_numeric_row_layout), LayoutType.NUMERIC_ROW)
 
             SubtypeGroupSpacer()
@@ -648,6 +756,36 @@ fun SubtypeEditorScreen(id: Long?) = FlorisScreen {
                 },
             ) {
                 Text(text = stringRes(strId))
+            }
+        }
+
+        // What the language costs, before it starts costing it (issue #334). Dismissing leaves the
+        // editor open with everything still filled in, so "not now" is not "start over".
+        pendingSubtype?.let { subtype ->
+            JetPrefAlertDialog(
+                scrollModifier = florisDialogScroll(),
+                title = stringRes(R.string.settings__localization__subtype_download_title),
+                confirmLabel = stringRes(R.string.action__add),
+                dismissLabel = stringRes(R.string.action__cancel),
+                onConfirm = {
+                    pendingSubtype = null
+                    if (!subtypeManager.addSubtype(subtype)) {
+                        errorDialogStrId = R.string.settings__localization__subtype_error_already_exists
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onDismiss = {
+                    pendingSubtype = null
+                },
+            ) {
+                Text(
+                    text = stringRes(
+                        R.string.settings__localization__subtype_download_message,
+                        "language_name" to subtype.primaryLocale.displayName(),
+                        "size" to LanguageDataDownload.formatMegabytes(pendingBytes),
+                    ),
+                )
             }
         }
     }

@@ -52,6 +52,11 @@ import dev.patrickgold.florisboard.dictate.data.history.DictateHistoryEntry
 import dev.patrickgold.florisboard.dictate.data.history.DictateHistoryStore
 import dev.patrickgold.florisboard.dictate.data.prompts.PromptModel
 import dev.patrickgold.florisboard.dictate.data.prompts.PromptsDatabaseHelper
+import dev.patrickgold.florisboard.dictate.provider.ProviderAccounts
+import dev.patrickgold.florisboard.dictate.provider.hasNoSecrets
+import dev.patrickgold.florisboard.dictate.symbols.CustomSymbols
+import dev.patrickgold.florisboard.dictate.symbols.CustomSymbolsJson
+import dev.patrickgold.florisboard.dictate.symbols.CustomSymbolsStore
 import dev.patrickgold.florisboard.ime.clipboard.provider.ClipboardFileStorage
 import dev.patrickgold.florisboard.ime.clipboard.provider.ClipboardItem
 import dev.patrickgold.florisboard.ime.clipboard.provider.ItemType
@@ -60,6 +65,7 @@ import dev.patrickgold.florisboard.lib.compose.FlorisScreen
 import dev.patrickgold.florisboard.lib.ext.ExtensionManager
 import dev.patrickgold.florisboard.lib.io.ZipUtils
 import dev.patrickgold.jetpref.datastore.runtime.AndroidAppDataStorage
+import dev.patrickgold.jetpref.datastore.runtime.DataStoreReader
 import dev.patrickgold.jetpref.datastore.runtime.FileBasedStorage
 import dev.patrickgold.jetpref.datastore.runtime.ImportStrategy
 import dev.patrickgold.jetpref.datastore.ui.Preference
@@ -82,6 +88,12 @@ import org.florisboard.lib.kotlin.io.deleteContentsRecursively
 import org.florisboard.lib.kotlin.io.readJson
 import org.florisboard.lib.kotlin.io.subDir
 import org.florisboard.lib.kotlin.io.subFile
+import dev.patrickgold.florisboard.ime.dictionary.DictionaryManager
+import dev.patrickgold.florisboard.ime.dictionary.LearnedBigramEntry
+import dev.patrickgold.florisboard.ime.dictionary.LearnedWordEntry
+import dev.patrickgold.florisboard.ime.dictionary.LearnedWordsStore
+import dev.patrickgold.florisboard.ime.dictionary.UserDictionaryEntry
+import dev.patrickgold.florisboard.lib.FlorisLocale
 
 object Restore {
     const val MIN_VERSION_CODE = 64
@@ -92,11 +104,26 @@ object Restore {
     const val BACKUP_ARCHIVE_FILE_NAME = "backup.zip"
 }
 
+/**
+ * The preference import with the device's own credentials filled into whatever gaps the archive leaves
+ * (issue #367).
+ *
+ * JetPref hands the whole document over in one `read`, so one pass is the whole job — and doing it here
+ * rather than by rewriting the unpacked file leaves the archive in the cache exactly as it arrived.
+ */
+private class SecretPreservingReader(
+    private val delegate: DataStoreReader,
+    private val local: ProviderAccounts,
+) : DataStoreReader {
+    override suspend fun read() = BackupRedaction.restoreSecrets(delegate.read(), local)
+}
+
 @Composable
 fun RestoreScreen() = FlorisScreen {
     title = stringRes(R.string.backup_and_restore__restore__title)
     previewFieldVisible = false
 
+    val prefs by FlorisPreferenceStore
     val navController = LocalNavController.current
     val context = LocalContext.current
     val cacheManager by context.cacheManager()
@@ -141,6 +168,16 @@ fun RestoreScreen() = FlorisScreen {
                     }
                     else -> null
                 }
+                // Say up front that no keys will come back from this one (issue #367). Found by looking at
+                // the keyring the archive carries rather than at a flag, so it is equally true of an archive
+                // written by any version — and of one whose owner simply never set a key up.
+                workspace.restoreCredentialsMissing = runCatching {
+                    val prefsFile = workspace.outputDir
+                        .subDir(AndroidAppDataStorage.JETPREF_DIR_NAME)
+                        .subFile("${FlorisPreferenceModel.NAME}.${AndroidAppDataStorage.JETPREF_FILE_EXT}")
+                    prefsFile.exists() &&
+                        BackupRedaction.accountsFrom(prefsFile.readText())?.hasNoSecrets == true
+                }.getOrDefault(false)
                 restoreWorkspace = workspace
             }.onFailure { error ->
                 context.showLongToastSync(
@@ -160,7 +197,23 @@ fun RestoreScreen() = FlorisScreen {
                 .subFile("${FlorisPreferenceModel.NAME}.${AndroidAppDataStorage.JETPREF_FILE_EXT}")
             if (file.exists()) {
                 val fileBasedStorage = FileBasedStorage(file.path)
-                FlorisPreferenceStore.import(importStrategy, fileBasedStorage).getOrThrow()
+                // The keyring is a single preference, so merging an archive whose keys were left out would
+                // replace real keys with nothing (issue #367). Fill its gaps from what is already here on
+                // the way in. Erase is left alone: wiping is what that mode was chosen for.
+                val reader = if (importStrategy == ImportStrategy.Merge) {
+                    SecretPreservingReader(fileBasedStorage, prefs.dictate.providerAccounts.get())
+                } else {
+                    fileBasedStorage
+                }
+                FlorisPreferenceStore.import(importStrategy, reader).getOrThrow()
+            }
+            // The symbol pages are one setting (issue #342): restored whole, never merged key by key. An
+            // archive without them had every key at its default, which only Erase takes literally.
+            val symbolsFile = workspace.outputDir.subDir("dictate").subFile(Backup.CUSTOM_SYMBOLS_JSON_NAME)
+            val restoredSymbols = symbolsFile.takeIf { it.exists() }?.readText()?.let(CustomSymbolsJson::decode)
+            when {
+                restoredSymbols != null -> CustomSymbolsStore.set(context, restoredSymbols)
+                shouldReset -> CustomSymbolsStore.set(context, CustomSymbols())
             }
         }
         if (restoreFilesSelector.dictatePrompts) {
@@ -187,6 +240,39 @@ fun RestoreScreen() = FlorisScreen {
                 val audioDir = dictateDir.subDir(Backup.DICTATE_HISTORY_AUDIO_DIR)
                 DictateHistoryStore.importEntries(
                     context, entries, audioDir.takeIf { it.exists() }, replace = shouldReset,
+                )
+            }
+        }
+        if (restoreFilesSelector.personalDictionary) {
+            // Older backups have no such directory → skipped, same as every other component here.
+            val dictionaryDir = workspace.outputDir.subDir(Backup.DICTIONARY_DIR)
+            val personalFile = dictionaryDir.subFile(Backup.PERSONAL_DICTIONARY_JSON_NAME)
+            if (personalFile.exists()) {
+                val dm = DictionaryManager.default().also { it.loadUserDictionariesIfNecessary() }
+                val dao = dm.florisUserDictionaryDao()
+                if (dao != null) {
+                    if (shouldReset) dao.deleteAll()
+                    for (entry in personalFile.readJson<List<UserDictionaryEntry>>()) {
+                        val locale = entry.locale?.let { runCatching { FlorisLocale.fromTag(it) }.getOrNull() }
+                        // Merge mode must not create a second row for a word that is already there;
+                        // a restore is usually adding one device's vocabulary to another's, not
+                        // replacing it.
+                        if (dao.queryExact(entry.word, locale).isEmpty()) {
+                            dao.insert(entry.copy(id = 0))
+                        }
+                    }
+                }
+            }
+            val learnedFile = dictionaryDir.subFile(Backup.LEARNED_WORDS_JSON_NAME)
+            val pairsFile = dictionaryDir.subFile(Backup.LEARNED_BIGRAMS_JSON_NAME)
+            if (learnedFile.exists() || pairsFile.exists()) {
+                // [wipeAll], not [forgetAll]: a reset restore replaces the vocabulary wholesale, and
+                // sparing promoted rows here would leave two vocabularies merged into one (issue #375).
+                if (shouldReset) LearnedWordsStore.wipeAll(context)
+                LearnedWordsStore.importAll(
+                    context = context,
+                    words = if (learnedFile.exists()) learnedFile.readJson<List<LearnedWordEntry>>() else emptyList(),
+                    bigrams = if (pairsFile.exists()) pairsFile.readJson<List<LearnedBigramEntry>>() else emptyList(),
                 )
             }
         }
@@ -400,11 +486,22 @@ fun RestoreScreen() = FlorisScreen {
                         )
                     }
                 }
+                // A plain statement of fact, not a warning: an archive can legitimately carry no keys, and
+                // the point is only that the user learns it here rather than after the device change.
+                if (workspace.restoreErrorId == null && workspace.restoreCredentialsMissing) {
+                    Text(
+                        modifier = Modifier.padding(FlorisCardDefaults.ContentPadding),
+                        text = stringRes(R.string.backup_and_restore__restore__metadata_note_no_credentials),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontStyle = FontStyle.Italic,
+                    )
+                }
             }
             if (workspace.restoreErrorId == null) {
                 BackupFilesSelector(
                     filesSelector = restoreFilesSelector,
                     title = stringRes(R.string.backup_and_restore__restore__files),
+                    showCredentials = false,
                 )
             }
         }

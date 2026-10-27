@@ -16,12 +16,14 @@
 
 package dev.patrickgold.florisboard.ime.nlp.latin
 
+import java.text.Normalizer
+
 /**
  * How a typed word is reduced to the key it is looked up under (issue #265).
  *
- * For most languages this is what it has always been — lowercasing — and [foldKey] returns exactly what
- * `word.lowercase()` used to return, so nothing about English, German or the other 33 dictionaries
- * changes.
+ * For most languages this is what it has always been — lowercasing. French additionally removes
+ * diacritics and expands its common ligatures, so an unaccented prefix still reaches its dictionary
+ * spelling: `ho` finds `hôte`, and `oeu` finds `œuvre`.
  *
  * Arabic script needs more. A reader sees مدرسة and مَدْرَسَة as one word, and writers use أ إ آ and ا
  * interchangeably because only ا sits on the base keyboard — the others hide behind a long press. Left
@@ -64,20 +66,64 @@ package dev.patrickgold.florisboard.ime.nlp.latin
 object DictFold {
     /** Languages written in the Arabic script, using [foldArabic] instead of a plain lowercase. */
     private val ARABIC_SCRIPT = setOf("ar", "fa", "ur", "ckb")
+    /**
+     * Languages whose accents sit behind long presses and get left off, so lookup folds them away and the
+     * restoration in [LatinLanguageProvider] puts them back: French (`hote` → hôte), Afrikaans
+     * (`wereld` → wêreld, `reen` → reën, `more` → môre — its diacritics are ê ë ô û î ï on keys that
+     * carry the bare letter) and Polish (`bedzie` → będzie, `wlasnie` → właśnie, issue #451 — writing
+     * Polish without its letters is how a great many people type it). A spelling that is itself a word
+     * is never touched, so Afrikaans `se` and `die` stay as typed beside `sê` and `dié`, and Polish `ze`
+     * beside `że` unless the sentence settles it.
+     */
+    private val ACCENT_FOLDED = setOf("fr", "af", "pl")
+
+    /** Whether [lang] is one of [ACCENT_FOLDED] — the languages whose spellings differ by accents alone. */
+    fun foldsAccents(lang: String): Boolean = lang in ACCENT_FOLDED
 
     /**
-     * Whether [lang] folds to something other than its lowercase form. Callers use this to skip building
-     * the extra fold→surface indices for the languages that don't need them, so the memory and the code
-     * path for English and the rest stay exactly as they were.
+     * Bumped whenever any language's key changes — a language added to a set above, a letter added to a
+     * fold — so the keys stored with learned words are rebuilt once (`LearnedWordsStore.ensureFolded`).
+     * Without that, a word learned before the change is filed under a key nothing asks for any more.
+     *
+     * 1: Polish starts folding its accents (issue #451).
      */
-    fun hasNonTrivialFold(lang: String): Boolean = lang in ARABIC_SCRIPT
+    const val REVISION = 1
+
+    /**
+     * Whether [lang] folds to something other than its lowercase form. Callers use this to skip folded
+     * lookup/index work for the languages that don't need it, so English and the rest stay on their
+     * original code path.
+     */
+    fun hasNonTrivialFold(lang: String): Boolean = lang in ARABIC_SCRIPT || lang in ACCENT_FOLDED
 
     /**
      * The dictionary key for [word] in [lang]. Both the stored words and the typed word go through this,
      * so the two always meet.
      */
-    fun foldKey(lang: String, word: String): String =
-        if (lang in ARABIC_SCRIPT) foldArabic(word) else word.lowercase()
+    fun foldKey(lang: String, word: String): String = when {
+        lang in ARABIC_SCRIPT -> foldArabic(word)
+        lang in ACCENT_FOLDED -> foldAccents(word)
+        else -> word.lowercase()
+    }
+
+    /**
+     * Reduces accented letters to their base letters for dictionary lookup. NFD covers acute, grave,
+     * circumflex, diaeresis, cedilla, ogonek and the dot above whether the input arrived precomposed or
+     * as a combining mark; `œ` and `æ` need their conventional two-letter expansions and Polish `ł` its
+     * base letter, because Unicode decomposes none of the three. No French or Afrikaans word contains
+     * `ł`, so their keys are what they were.
+     *
+     * `tools/glide-dict/generate.py` (`fold_accents`) applies the same rule when it decides which
+     * spellings of a Polish word belong in the dictionary; the two must agree.
+     */
+    fun foldAccents(word: String): String = Normalizer.normalize(word, Normalizer.Form.NFD)
+        .asSequence()
+        .filter { it.category != CharCategory.NON_SPACING_MARK }
+        .joinToString("")
+        .lowercase()
+        .replace("œ", "oe")
+        .replace("æ", "ae")
+        .replace("ł", "l")
 
     /**
      * Reduce an Arabic-script word to its lookup key. Also lowercases, because Arabic text is full of

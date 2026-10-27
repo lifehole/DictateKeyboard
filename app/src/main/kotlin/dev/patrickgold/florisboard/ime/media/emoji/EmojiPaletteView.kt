@@ -21,9 +21,12 @@ import android.graphics.Typeface
 import android.util.TypedValue
 import android.widget.TextView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,18 +41,19 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +68,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -86,6 +91,7 @@ import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.editorInstance
 import dev.patrickgold.florisboard.ime.input.LocalInputFeedbackController
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
+import dev.patrickgold.florisboard.ime.keyboard.PrivateSession
 import dev.patrickgold.florisboard.ime.text.keyboard.TextKeyData
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.florisboard.keyboardManager
@@ -95,6 +101,7 @@ import org.florisboard.lib.android.AndroidKeyguardManager
 import org.florisboard.lib.android.showShortToast
 import org.florisboard.lib.android.systemService
 import org.florisboard.lib.compose.florisScrollbar
+import org.florisboard.lib.compose.panelScrollbar
 import org.florisboard.lib.compose.header
 import org.florisboard.lib.compose.stringRes
 import org.florisboard.lib.snygg.SnyggSelector
@@ -103,6 +110,7 @@ import org.florisboard.lib.snygg.ui.SnyggIcon
 import org.florisboard.lib.snygg.ui.SnyggRow
 import org.florisboard.lib.snygg.ui.SnyggText
 import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
+import kotlin.math.abs
 import kotlin.math.ceil
 
 private val EmojiCategoryValues = EmojiCategory.entries
@@ -128,6 +136,44 @@ data class EmojiMappingForView(
     val simple: List<EmojiSet>,
 )
 
+/**
+ * The palette's emojis minus those this device cannot draw, kept for as long as what decides it stays
+ * the same (issue #433).
+ *
+ * Deciding it asks EmojiCompat, and the system font for whatever EmojiCompat does not know, about each of
+ * the palette's emojis — on the main thread, while the panel is being built. The panel is taken down
+ * whenever the keyboard goes back to letters, so every switch to the emojis paid for all of it again,
+ * although the answer only changes with the EmojiCompat instance, the emoji data or the app's metadata
+ * version. Compared by identity: the data is one instance per load, and comparing it by value would walk
+ * the whole palette to save walking the whole palette.
+ */
+private object DrawableEmojiCache {
+    private var compat: EmojiCompat? = null
+    private var data: EmojiData? = null
+    private var metadataVersion = 0
+    private var value: Map<EmojiCategory, List<EmojiSet>>? = null
+
+    fun get(
+        compat: EmojiCompat?,
+        data: EmojiData,
+        metadataVersion: Int,
+        compute: () -> Map<EmojiCategory, List<EmojiSet>>,
+    ): Map<EmojiCategory, List<EmojiSet>> {
+        // The empty set the panel shows for the moment the real data takes to arrive costs nothing to
+        // filter. Kept, it would push the real one out on every opening, and the cache would never hit.
+        if (data === EmojiData.Fallback) return compute()
+        value?.let { cached ->
+            if (compat === this.compat && data === this.data && metadataVersion == this.metadataVersion) return cached
+        }
+        return compute().also {
+            this.compat = compat
+            this.data = data
+            this.metadataVersion = metadataVersion
+            value = it
+        }
+    }
+}
+
 @Composable
 fun EmojiPaletteView(
     fullEmojiMappings: EmojiData,
@@ -148,12 +194,14 @@ fun EmojiPaletteView(
     val replaceAll = activeEditorInfo.emojiCompatReplaceAll
     val emojiCompatInstance by FlorisEmojiCompat.getAsFlow(replaceAll).collectAsState()
     val emojiMappings = remember(emojiCompatInstance, fullEmojiMappings, metadataVersion, systemFontPaint) {
-        fullEmojiMappings.byCategory.mapValues { (_, emojiSetList) ->
-            emojiSetList.mapNotNull { emojiSet ->
-                emojiSet.emojis.filter { emoji ->
-                    emojiCompatInstance?.getEmojiMatch(emoji.value, metadataVersion) == EmojiCompat.EMOJI_SUPPORTED ||
-                        systemFontPaint.hasGlyph(emoji.value)
-                }.let { if (it.isEmpty()) null else EmojiSet(it) }
+        DrawableEmojiCache.get(emojiCompatInstance, fullEmojiMappings, metadataVersion) {
+            fullEmojiMappings.byCategory.mapValues { (_, emojiSetList) ->
+                emojiSetList.mapNotNull { emojiSet ->
+                    emojiSet.emojis.filter { emoji ->
+                        emojiCompatInstance?.getEmojiMatch(emoji.value, metadataVersion) == EmojiCompat.EMOJI_SUPPORTED ||
+                            systemFontPaint.hasGlyph(emoji.value)
+                    }.let { if (it.isEmpty()) null else EmojiSet(it) }
+                }
             }
         }
     }
@@ -163,6 +211,7 @@ fun EmojiPaletteView(
 
     val preferredSkinTone by prefs.emoji.preferredSkinTone.collectAsState()
     val emojiHistoryEnabled by prefs.emoji.historyEnabled.collectAsState()
+    val accentColor by prefs.theme.accentColor.collectAsState()
 
     var activeCategory by remember(emojiHistoryEnabled) {
         if (emojiHistoryEnabled) {
@@ -179,6 +228,10 @@ fun EmojiPaletteView(
         SnyggText(
             elementName = FlorisImeUi.MediaEmojiSubheader.elementName,
             text = text,
+            // Indented to sit under the search pill above rather than against the panel's edge. Bare
+            // text at the same x as a filled shape reads as further left than the shape does, so
+            // matching the pill's edge exactly is not what looks aligned (#317).
+            modifier = Modifier.padding(start = 8.dp),
         )
     }
 
@@ -197,7 +250,7 @@ fun EmojiPaletteView(
             onEmojiInput = { emoji ->
                 keyboardManager.inputEventDispatcher.sendDownUp(emoji)
                 scope.launch {
-                    EmojiHistoryHelper.markEmojiUsed(prefs, emoji)
+                    EmojiHistoryHelper.markEmojiUsed(prefs, PrivateSession.isActive(context), emoji)
                 }
             },
             onHistoryAction = {
@@ -229,49 +282,101 @@ fun EmojiPaletteView(
     }
 
 
+    /**
+     * The row above the emoji grid: search first, then the categories, scrolled sideways (issue #317).
+     *
+     * It used to be a [PrimaryTabRow], which divides the width evenly between every category and
+     * underlines the current one — so nine icons each got a ninth of the screen whether or not they
+     * needed it, and there was nowhere to put anything else. A scrolling row gives each tab the space
+     * an icon actually takes and leaves room at the front for the search pill, which is where a
+     * keyboard user looks for search.
+     *
+     * The selected category is marked by a filled circle in the accent colour rather than an
+     * underline — the same thing the sticker panel's tab pill says, in the same language.
+     */
     @Composable
     fun EmojiCategoriesTabRow(
         activeCategory: EmojiCategory,
         onCategoryChange: (EmojiCategory) -> Unit,
     ) {
         val inputFeedbackController = LocalInputFeedbackController.current
-        val selectedTabIndex = categoryToPageNumber(activeCategory)
-        val style = rememberSnyggThemeQuery(FlorisImeUi.MediaEmojiTab.elementName)
-        PrimaryTabRow(
+        val accent by prefs.theme.accentColor.collectAsState()
+        val shownCategories = remember(emojiHistoryEnabled) {
+            EmojiCategoryValues.filter { it != EmojiCategory.RECENTLY_USED || emojiHistoryEnabled }
+        }
+        val tabRowState = rememberLazyListState()
+        // Keep the current category on screen when the pager is swiped rather than tapped — otherwise
+        // the row silently disagrees with the grid below it. Only when it has actually gone out of
+        // view: scrolling to a tab that is already visible would shove the search pill off the front
+        // the moment the panel opens. The +1 is the pill, which is the row's first item.
+        LaunchedEffect(activeCategory) {
+            val target = shownCategories.indexOf(activeCategory) + 1
+            if (target > 0 && tabRowState.layoutInfo.visibleItemsInfo.none { it.index == target }) {
+                tabRowState.animateScrollToItem(target)
+            }
+        }
+        LazyRow(
+            state = tabRowState,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(FlorisImeSizing.smartbarHeight),
-            selectedTabIndex = selectedTabIndex,
-            containerColor = Color.Transparent,
-            contentColor = style.foreground(),
-            indicator = {
-                val style = rememberSnyggThemeQuery(
-                    elementName = FlorisImeUi.MediaEmojiTab.elementName,
-                    selector = SnyggSelector.FOCUS,
-                )
-                TabRowDefaults.PrimaryIndicator(
-                    Modifier.tabIndicatorOffset(selectedTabIndex),
-                    height = 4.dp,
-                    color = style.foreground(),
-                )
-            },
+            // The fixed tab row used to give each tab a ninth of the width, which left the first icon
+            // looking inset. A scrolling row starts where it is told to, so the margin has to be said
+            // out loud or the pill and the last category sit flush against the panel's edges.
+            contentPadding = PaddingValues(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            for (category in EmojiCategoryValues) {
-                if (category == EmojiCategory.RECENTLY_USED && !emojiHistoryEnabled) {
-                    continue
-                }
-                Tab(
-                    onClick = {
-                        inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
-                        onCategoryChange(category)
-                    },
-                    selected = activeCategory == category,
-                    icon = { SnyggIcon(
+            item(key = "search") {
+                // A plain Row, like the sticker panel's tab pill: a Snygg element would paint its own
+                // background underneath this one and a user theme could put a square behind the pill.
+                Row(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0x22808080))
+                        .clickable {
+                            inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
+                            keyboardManager.activateEmojiSearch()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SnyggIcon(
                         elementName = FlorisImeUi.MediaEmojiTab.elementName,
-                        selector = if (activeCategory == category) SnyggSelector.FOCUS else SnyggSelector.NONE,
-                        modifier = Modifier.size(ButtonDefaults.IconSize),
-                        imageVector = category.icon(),
-                    ) },
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .size(FlorisImeSizing.mediaHeaderIconSize),
+                        imageVector = Icons.Default.Search,
+                    )
+                    SnyggText(
+                        elementName = FlorisImeUi.SmartbarCandidateWordText.elementName,
+                        text = stringRes(R.string.emoji__search__hint),
+                        maxLines = 1,
+                    )
+                }
+            }
+            // The count-based form on purpose: the list-based `items` would collide with the grid's
+            // import of the same name further down this file.
+            items(shownCategories.size, key = { shownCategories[it].name }) { position ->
+                val category = shownCategories[position]
+                val selected = activeCategory == category
+                SnyggIcon(
+                    elementName = FlorisImeUi.MediaEmojiTab.elementName,
+                    selector = if (selected) SnyggSelector.FOCUS else SnyggSelector.NONE,
+                    modifier = Modifier
+                        .padding(horizontal = 2.dp)
+                        .clip(CircleShape)
+                        .background(if (selected) accent.copy(alpha = 0.28f) else Color.Transparent)
+                        .clickable {
+                            inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
+                            onCategoryChange(category)
+                        }
+                        .padding(6.dp)
+                        // The same size every other panel header uses, rather than the button
+                        // default: this is a header row now, and it was one of the rows that looked
+                        // shrunken (#317).
+                        .size(FlorisImeSizing.mediaHeaderIconSize),
+                    imageVector = category.icon(),
                 )
             }
         }
@@ -289,23 +394,41 @@ fun EmojiPaletteView(
             pagerState.animateScrollToPage(0)
         }
 
+        // The tab row follows the pager — once, here. It used to be collected inside every composed page,
+        // so each page change set the category and re-read the history three times over (issue #394).
+        LaunchedEffect(pagerState) {
+            snapshotFlow { pagerState.currentPage }.collect { page ->
+                activeCategory = pageNumberToCategory(page)
+                recentlyUsedVersion++
+            }
+        }
+
         EmojiCategoriesTabRow(
             activeCategory = activeCategory,
             onCategoryChange = { category ->
                 activeCategory = category
-                scope.launch { pagerState.animateScrollToPage(categoryToPageNumber(activeCategory)) }
+                val target = categoryToPageNumber(category)
+                scope.launch {
+                    // A neighbour slides in; anything further is jumped to (issue #394). Animating to a
+                    // far tab scrolled through every page in between: each built its grid of emoji views
+                    // for a frame or two, and each passing page moved the tab highlight, so the row at
+                    // the top stuttered across the categories before landing on the one tapped.
+                    if (abs(target - pagerState.currentPage) <= 1) {
+                        pagerState.animateScrollToPage(target)
+                    } else {
+                        pagerState.scrollToPage(target)
+                    }
+                }
             },
         )
         HorizontalPager(pagerState, beyondViewportPageCount = 1) { page ->
             // Every page needs its own lazyGridState in order to scroll correctly
             val lazyGridState = rememberLazyGridState()
 
-            // Update the lazyGridState and active category on scroll
+            // A page comes back at its top, wherever it was left.
             LaunchedEffect(pagerState) {
-                snapshotFlow { pagerState.currentPage }.collect { page ->
+                snapshotFlow { pagerState.currentPage }.collect {
                     lazyGridState.scrollToItem(0)
-                    activeCategory = pageNumberToCategory(page)
-                    recentlyUsedVersion++
                 }
             }
 
@@ -362,9 +485,13 @@ fun EmojiPaletteView(
                     LazyVerticalGrid(
                         modifier = Modifier
                             .fillMaxSize()
-                            .florisScrollbar(lazyGridState),
+                            .panelScrollbar(lazyGridState, accentColor),
                         columns = GridCells.Adaptive(minSize = EmojiBaseWidth),
                         state = lazyGridState,
+                        // The clipboard's grid gets its breathing room from the items themselves —
+                        // `clipboard-item` carries a margin. `media-emoji-key` carries none, so
+                        // without this the emojis sit flush against the panel's edges (#317).
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                     ) {
                         if (emojiMapping.pinned.isNotEmpty()) {
                             header("header_pinned") {
@@ -394,6 +521,12 @@ fun EmojiPaletteView(
     }
 }
 
+/**
+ * One emoji cell. [modifier] is its shape — square, as the palette's grid wants it, unless the caller
+ * sizes the cell itself (the recent-emoji row: full row height, narrower than tall). [fontSize] is the
+ * glyph's; the row draws smaller glyphs than the palette (issue #394). [showPopupIndicator] draws the
+ * corner mark that says a long-press has more to offer.
+ */
 @Composable
 internal fun EmojiKey(
     emojiSet: EmojiSet,
@@ -403,6 +536,9 @@ internal fun EmojiKey(
     isRecent: Boolean,
     onEmojiInput: (Emoji) -> Unit,
     onHistoryAction: () -> Unit,
+    modifier: Modifier = Modifier.aspectRatio(1f),
+    fontSize: TextUnit = EmojiDefaultFontSize,
+    showPopupIndicator: Boolean = true,
 ) {
     val inputFeedbackController = LocalInputFeedbackController.current
     val base = emojiSet.base(withSkinTone = preferredSkinTone)
@@ -410,8 +546,7 @@ internal fun EmojiKey(
     var showVariantsBox by remember { mutableStateOf(false) }
 
     SnyggBox(FlorisImeUi.MediaEmojiKey.elementName,
-        modifier = Modifier
-            .aspectRatio(1f)
+        modifier = modifier
             .pointerInput(Unit) {
                 detectTapGestures(
                     // Fire the key-press haptic on the confirmed tap, not on the initial press:
@@ -434,8 +569,9 @@ internal fun EmojiKey(
             modifier = Modifier.align(Alignment.Center),
             text = base.value,
             emojiCompatInstance = emojiCompatInstance,
+            fontSize = fontSize,
         )
-        if (variations.isNotEmpty() || isPinned || isRecent) {
+        if (showPopupIndicator && (variations.isNotEmpty() || isPinned || isRecent)) {
             val style = rememberSnyggThemeQuery(FlorisImeUi.MediaEmojiKeyPopupExtendedIndicator.elementName)
             val shape = when (LocalLayoutDirection.current) {
                 LayoutDirection.Ltr -> VariantsTriangleShapeLtr
@@ -637,29 +773,28 @@ fun EmojiText(
     color: Color = Color.Black,
     fontSize: TextUnit = EmojiDefaultFontSize,
 ) {
+    // `onReset` lets a scrolling grid hand a cell's view on to the next emoji instead of inflating a new
+    // one for every cell that scrolls into view (issue #394) — a view per emoji is what these grids are
+    // made of. Size and colour are set on every update, since a reused view may come from another cell.
     if (emojiCompatInstance != null) {
         AndroidView(
             modifier = modifier,
-            factory = { context ->
-                EmojiTextView(context).also {
-                    it.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize.value)
-                    it.setTextColor(color.toArgb())
-                }
-            },
+            factory = { context -> EmojiTextView(context) },
+            onReset = { },
             update = { view ->
+                view.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize.value)
+                view.setTextColor(color.toArgb())
                 view.text = text
             },
         )
     } else {
         AndroidView(
             modifier = modifier,
-            factory = { context ->
-                TextView(context).also {
-                    it.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize.value)
-                    it.setTextColor(color.toArgb())
-                }
-            },
+            factory = { context -> TextView(context) },
+            onReset = { },
             update = { view ->
+                view.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSize.value)
+                view.setTextColor(color.toArgb())
                 view.text = text
             },
         )

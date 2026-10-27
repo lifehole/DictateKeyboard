@@ -63,6 +63,8 @@ fun ModelPickerDialog(
     kind: ModelKind,
     preset: ProviderPreset,
     apiKey: String,
+    /** The account's own "Trust user certificates" (#383), as it stands in the editor. */
+    trustUserCerts: Boolean,
     current: String,
     cachedModels: List<String>,
     cachedAudioModels: List<String>,
@@ -94,7 +96,8 @@ fun ModelPickerDialog(
                 .from(
                     preset, apiKey,
                     baseUrlOverride = preset.baseUrl,
-                    trustUserCerts = prefs.dictate.trustUserCertificates.get(),
+                    trustUserCerts = trustUserCerts,
+                    timeoutSeconds = prefs.dictate.requestTimeout.get().toLong(),
                 )
                 .listModels()
             val ids = models.map { it.id }
@@ -134,15 +137,21 @@ fun ModelPickerDialog(
         ModelKind.CHAT -> preset.curatedChatModels
     }
     val candidates = remember(curated, fetched, audioModelIds, transcriptionModelIds, query, current) {
-        // Gemini transcribes via its multimodal chat models (no STT-tagged ids exist), so its live STT
-        // catalog is the chat catalog rather than the keyword-filtered subset.
+        // Gemini transcribes via its multimodal chat models, so its live STT catalog is the chat catalog
+        // rather than the keyword-filtered subset. Since #292 that is no longer the whole story: Google
+        // also ships dedicated STT models (gemini-3.5-transcribe), which the chat filter throws out by
+        // name. For Gemini's transcription list, accept either family.
         val liveKind = if (preset.id == "gemini") ModelKind.CHAT else kind
+        val geminiStt = preset.id == "gemini" && kind == ModelKind.TRANSCRIPTION
         // For transcription, also include models the catalog flagged by MODALITY — both audio-input chat
         // models (#132) and dedicated STT models (#157) — so they surface even when the id doesn't match
         // the name heuristic (e.g. OpenRouter's mai-transcribe / parakeet / chirp).
         val audioForTranscription =
             if (kind == ModelKind.TRANSCRIPTION) audioModelIds + transcriptionModelIds else emptyList()
-        (curated + audioForTranscription + fetched.filter { matchesKind(it, liveKind) } + current)
+        val live = fetched.filter {
+            matchesKind(it, liveKind) || (geminiStt && matchesKind(it, ModelKind.TRANSCRIPTION))
+        }
+        (curated + audioForTranscription + live + current)
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
@@ -205,8 +214,6 @@ fun ModelPickerDialog(
                     ModelRow(
                         label = model,
                         selected = model.equals(current, ignoreCase = true),
-                        // Mark models the catalog reports as accepting audio input (issue #130/#132).
-                        audio = audioModelIds.contains(model),
                         onClick = { onPick(model); onDismiss() },
                     )
                 }
@@ -216,7 +223,7 @@ fun ModelPickerDialog(
 }
 
 @Composable
-private fun ModelRow(label: String, selected: Boolean, audio: Boolean = false, onClick: () -> Unit) {
+private fun ModelRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -229,10 +236,10 @@ private fun ModelRow(label: String, selected: Boolean, audio: Boolean = false, o
             modifier = Modifier.weight(1f),
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         )
-        // Audio-input capable (usable for single-call multimodal); helps the user spot those models.
-        if (audio) {
-            Text("🎤", modifier = Modifier.padding(end = 8.dp))
-        }
+        // No capability badge here any more. A 🎤 used to mark what the catalog called audio-capable, and
+        // it was wrong often enough to send people away from models that work (#313). The modality data
+        // still decides which ids *appear* in the transcription list, where being wrong only ever adds an
+        // entry — claiming something about a particular model is the part that had to go.
         if (selected) {
             Icon(Icons.Default.Check, contentDescription = null)
         }
@@ -255,6 +262,15 @@ private fun matchesKind(id: String, kind: ModelKind): Boolean {
         ModelKind.TRANSCRIPTION -> isStt
         ModelKind.CHAT -> !isStt &&
             !l.contains("embedding") && !l.contains("tts") && !l.contains("dall-e") &&
-            !l.contains("image") && !l.contains("moderation") && !l.contains("rerank")
+            !l.contains("image") && !l.contains("moderation") && !l.contains("rerank") &&
+            // BAAI's embedding family, whose ids do not say "embedding" (Scaleway's bge-multilingual-gemma2).
+            !l.contains("bge-") &&
+            // An image generator and a safety classifier, both in OVHcloud's catalog: stable-diffusion-xl,
+            // and Qwen3Guard, which answers with a verdict on the text rather than the text.
+            !l.contains("diffusion") && !l.contains("guard") &&
+            // OpenAI's realtime models answer only on v1/realtime: the page for gpt-realtime-mini lists Chat
+            // Completions as "Not supported" (read 2026-09-30). Picked for rewording, every request is
+            // refused (#416).
+            !l.contains("realtime")
     }
 }

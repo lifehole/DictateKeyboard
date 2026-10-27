@@ -30,9 +30,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
+import dev.patrickgold.florisboard.dictate.translate.TranslateBar
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
 import dev.patrickgold.florisboard.dictate.gif.GifSearchPanel
+import dev.patrickgold.florisboard.dictate.sticker.StickerSearchPanel
+import dev.patrickgold.florisboard.ime.clipboard.ClipboardSearchPanel
+import dev.patrickgold.florisboard.ime.media.emoji.EmojiRow
 import dev.patrickgold.florisboard.ime.media.emoji.EmojiSearchPanel
+import dev.patrickgold.florisboard.ime.media.emoji.emojiRowVisible
 import dev.patrickgold.florisboard.ime.smartbar.IncognitoDisplayMode
 import dev.patrickgold.florisboard.ime.smartbar.InlineSuggestionsStyleCache
 import dev.patrickgold.florisboard.ime.smartbar.Smartbar
@@ -46,6 +51,11 @@ import org.florisboard.lib.snygg.ui.SnyggIcon
 @Composable
 fun TextInputLayout(
     modifier: Modifier = Modifier,
+    // Applied to the key area alone. The legacy SWIPE mode (#125) hangs its swipe-back gesture here
+    // rather than around the whole layout: it has to win over the keys, so it runs ahead of them on the
+    // Initial pass, and everything above the keys scrolls sideways — rewording prompts, candidates,
+    // autofill chips — and would never get a drag of its own if that reached up here (#290).
+    keyboardModifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val keyboardManager by context.keyboardManager()
@@ -56,6 +66,9 @@ fun TextInputLayout(
     val evaluator by keyboardManager.activeEvaluator.collectAsState()
     val emojiSearchActive by keyboardManager.emojiSearchQuery.collectAsState()
     val gifSearchActive by keyboardManager.gifSearchQuery.collectAsState()
+    val stickerSearchActive by keyboardManager.stickerSearchQuery.collectAsState()
+    val clipboardSearchActive by keyboardManager.clipboardSearchQuery.collectAsState()
+    val translateActive by keyboardManager.translateQuery.collectAsState()
 
     InlineSuggestionsStyleCache()
 
@@ -64,21 +77,36 @@ fun TextInputLayout(
             .fillMaxWidth()
             .wrapContentHeight(),
     ) {
-        // While a search is running (issues #110, #274), its panel takes the Smartbar's slot so the
-        // keyboard layout below stays available for typing the query. Both panels are taller than the
-        // Smartbar — results above the search bar for emoji, earlier terms for GIF — and size themselves,
-        // so the keyboard grows for the duration of the search the same way the GIF panel does.
-        if (emojiSearchActive != null) {
-            EmojiSearchPanel()
-        } else if (gifSearchActive != null) {
-            GifSearchPanel()
-        } else {
-            Smartbar()
+        // While one of the keyboard's own fields is open — a search (issues #110, #274, #317, #333) or the
+        // translate bar (#424) — it sits on top, where the rewording prompt row otherwise is, and the
+        // Smartbar stays below it, as in Gboard: its strip then suggests words for the field being typed
+        // in, and its mic dictates into it. The keys below type into the field. Each field sizes itself,
+        // so the keyboard grows for as long as it is open. Only one is ever open: every one of them, and
+        // every panel opener, closes the rest first.
+        val fieldOpen = translateActive != null || emojiSearchActive != null || gifSearchActive != null ||
+            stickerSearchActive != null || clipboardSearchActive != null
+        if (fieldOpen) {
+            when {
+                translateActive != null -> TranslateBar()
+                emojiSearchActive != null -> EmojiSearchPanel()
+                gifSearchActive != null -> GifSearchPanel()
+                stickerSearchActive != null -> StickerSearchPanel()
+                clipboardSearchActive != null -> ClipboardSearchPanel()
+            }
+        }
+        // Called in the same place whether a field is open or not, so opening one does not rebuild it.
+        Smartbar(showPromptRow = !fieldOpen)
+        // The recent-emoji row (#340) sits between the Smartbar and the keys, exactly where a number row
+        // would. Not while a field is open — its taps are character keys and would land in the field,
+        // and the field has already made the keyboard taller — and not over the actions overflow, which
+        // replaces the keys with a grid of its own.
+        if (!fieldOpen && !state.isActionsOverflowVisible && emojiRowVisible()) {
+            EmojiRow()
         }
         if (state.isActionsOverflowVisible) {
             QuickActionsOverflowPanel()
         } else {
-            Box {
+            Box(modifier = keyboardModifier) {
                 val incognitoDisplayMode by prefs.keyboard.incognitoDisplayMode.collectAsState()
                 val showIncognitoIcon = evaluator.state.isIncognitoMode &&
                     incognitoDisplayMode == IncognitoDisplayMode.DISPLAY_BEHIND_KEYBOARD

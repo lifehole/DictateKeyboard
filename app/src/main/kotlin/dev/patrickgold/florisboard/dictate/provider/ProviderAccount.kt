@@ -71,15 +71,25 @@ data class ProviderAccount(
      */
     val customRealtime: Boolean = false,
     /**
-     * Wake-on-demand support (issue #189): send a throwaway `/models` request as soon as a rewording is
-     * known to be coming, so a machine that only wakes on network traffic has the dictation's length as a
-     * head start instead of the user waiting out its boot.
+     * Wake-on-demand support (issue #189): send a throwaway `/models` request as soon as this endpoint is
+     * known to be needed — when a recording starts, if it transcribes, and when a rewording is known to be
+     * coming, if it rewords — so a machine that only wakes on network traffic has the dictation's length
+     * as a head start instead of the user waiting out its boot.
      *
      * A common self-hosting shape is a small always-on box in front of a GPU machine that sleeps between
      * jobs. Only ever useful for an endpoint of the user's own, and nothing about a server says whether it
      * sleeps, so this is theirs to state. Additive field, defaults off.
      */
     val customWarmUp: Boolean = false,
+    /**
+     * Trust CA certificates the user installed, for this endpoint only (issue #137, scoped in #383).
+     *
+     * It was one switch for the whole app. Turned on for a server behind a private CA, it also let anything
+     * holding a certificate from that CA — typically a company's TLS-inspecting proxy — read the traffic to
+     * every cloud provider, keys included. Additive field, defaults off; accounts that existed while the old
+     * switch was on were moved over with it on.
+     */
+    val trustUserCerts: Boolean = false,
     /**
      * Dictate Cloud only — the credit account this device talks to. The wallet's bearer token is not
      * stored here but in [apiKey]: it is what the server authenticates, so putting it anywhere else
@@ -143,6 +153,142 @@ data class ProviderAccount(
 }
 
 /**
+ * This account with every secret stripped out, the rest left exactly as it was (issue #367).
+ *
+ * What survives is configuration: which provider, which models, which endpoint. What goes is everything
+ * that authenticates — the key, and for Dictate Cloud the wallet it belongs to, because the token lives in
+ * [ProviderAccount.apiKey] and handing someone a wallet id without its token leaves a half-account that
+ * can only confuse. The balance cache goes back to never-fetched for the same reason: it describes credit
+ * that is no longer reachable from this record.
+ *
+ * An account that comes out of here reads as "provider chosen, not set up yet", which is a state the app
+ * has always had to handle — see [ProviderAccount.requiresCredential].
+ */
+fun ProviderAccount.withoutSecrets(): ProviderAccount = copy(
+    apiKey = "",
+    walletId = "",
+    walletRecoveryCode = "",
+    balanceSeconds = -1,
+    balanceRewords = -1,
+    balanceCheckedAt = 0L,
+)
+
+/** [withoutSecrets] across the whole keyring. */
+fun ProviderAccounts.withoutSecrets(): ProviderAccounts =
+    copy(accounts = accounts.mapValues { (_, account) -> account.withoutSecrets() })
+
+/**
+ * This keyring with the secrets of [local] filled back in wherever it has none (issue #367).
+ *
+ * The repair for restoring a credential-free backup in Merge mode: the whole keyring is a single
+ * preference, so an incoming blob with blanked keys would otherwise replace real keys with nothing.
+ *
+ * An account's credential is taken **whole or not at all**. The key, the wallet it belongs to and that
+ * wallet's recovery code are one thing — filling them in field by field could pair one device's wallet id
+ * with another's token, which is a state no part of the app expects — so an account that brings any of
+ * the three keeps all three and one that brings none takes all three, balance cache included, since that
+ * cache describes the credit the wallet reaches. An account the archive carries that [local] has never
+ * seen is left as it is; there is nothing to fill it from. And the archive always wins where it has
+ * something, so a restore can still bring a newer key.
+ */
+fun ProviderAccounts.withSecretsFrom(local: ProviderAccounts): ProviderAccounts = copy(
+    accounts = accounts.mapValues { (providerId, account) ->
+        if (account.hasAnySecret) return@mapValues account
+        val mine = local[providerId] ?: return@mapValues account
+        account.copy(
+            apiKey = mine.apiKey,
+            walletId = mine.walletId,
+            walletRecoveryCode = mine.walletRecoveryCode,
+            balanceSeconds = mine.balanceSeconds,
+            balanceRewords = mine.balanceRewords,
+            balanceCheckedAt = mine.balanceCheckedAt,
+        )
+    }
+)
+
+/** Whether this account carries any credential at all — the unit [withSecretsFrom] works in. */
+private val ProviderAccount.hasAnySecret: Boolean
+    get() = apiKey.isNotBlank() || walletId.isNotBlank() || walletRecoveryCode.isNotBlank()
+
+/**
+ * Whether this keyring has accounts but not one credential among them — i.e. it came out of
+ * [withoutSecrets] (issue #367).
+ *
+ * Asked by the restore screen, so it can say up front that no keys will come back from this archive
+ * instead of leaving the user to discover it after a device change. An empty keyring answers false: there
+ * is nothing to say about it.
+ */
+val ProviderAccounts.hasNoSecrets: Boolean
+    get() = accounts.isNotEmpty() && accounts.values.none { it.hasAnySecret }
+
+/**
+ * Whether a dictation can go out as a single `chat/completions` request with the audio in it (#130).
+ *
+ * A **routing** question, not a judgement about what a model is good at: the on-device engine has no
+ * chat endpoint at all, and Google's dedicated speech-to-text models answer on their own endpoint
+ * (#292), so neither can be posted to. Everything else is offered, and whether the model actually
+ * accepts audio is the user's business — see [sharedSingleCallModel].
+ *
+ * Read only by the dictation path. The settings dialog folds its fields on the switch alone, and the
+ * rewording model follows the field the user can see; having this decide those too is what left the
+ * switch looking broken (#313).
+ */
+fun singleCallApplies(transcriptionViaChat: Boolean, preset: ProviderPreset, model: String): Boolean =
+    transcriptionViaChat &&
+        preset.transcriptionApi != TranscriptionApi.LOCAL_ONDEVICE &&
+        !(preset.id == ProviderRegistry.GEMINI.id && ProviderRegistry.isGeminiTranscribeModel(model))
+
+/**
+ * The model to reword with for [account] — the one the settings dialog says will be used, which is not
+ * always the one [ProviderAccount.chatModel] holds (issue #313).
+ *
+ * With single-call on, the dialog folds the rewording field into the transcription one and labels it
+ * "Transcription & rewording model". Rewording used to go on reading `chatModel` regardless, which that
+ * fold leaves blank forever, so every rewording went to the preset default and no setting could change
+ * it. So the merged field wins when it holds something ([sharedSingleCallModel]); otherwise the rewording
+ * field's own value, and failing that the preset default — which is what an empty box has always meant.
+ * A preset without one (a server of the user's own) is asked for whatever OpenAI's default is: read from
+ * that preset rather than spelled out here, where a copy of `gpt-4o-mini` outlived its retirement notice.
+ */
+fun chatModelFor(
+    account: ProviderAccount,
+    preset: ProviderPreset,
+    fallback: String = ProviderRegistry.OPENAI.defaultChatModel.orEmpty(),
+): String {
+    sharedSingleCallModel(account)?.let { return it }
+    return account.chatModel.ifBlank { preset.defaultChatModel ?: fallback }
+}
+
+/**
+ * The transcription model when it is also the rewording model, else null.
+ *
+ * Two conditions, and neither of them is a guess about the model. The switch has to be on, because that
+ * is what folds the two fields into one on screen; and something has to actually stand in that field,
+ * because an empty box is not a choice — it is the preset default showing through, and each field then
+ * falls back to its own. Sharing a *default* would mean a fresh Gemini account rewording with
+ * `gemini-3.5-transcribe`, which fails, so nothing would work until the user typed something.
+ *
+ * What is emphatically not asked is whether the chosen model can do both. The app has no reliable way to
+ * know — the modality data it once used was wrong often enough to mislead — and a version that decided
+ * for the user refused to merge the fields and left the switch looking broken. Choosing a model that
+ * serves both is the user's job here, and when it does not, the error names the model they chose.
+ */
+private fun sharedSingleCallModel(account: ProviderAccount): String? =
+    account.transcriptionModel.takeIf { account.transcriptionViaChat && it.isNotBlank() }
+
+/**
+ * Whether [chatModelFor] answered with the built-in default rather than with anything the user chose.
+ *
+ * Worth asking when a rewording fails: a provider naming a model the user has never heard of reads as
+ * the app sending the wrong thing, which is exactly how #313 was reported. Knowing the model came from
+ * the preset turns that into one sentence about where it came from and where to change it.
+ */
+fun chatModelIsPresetDefault(account: ProviderAccount, preset: ProviderPreset): Boolean =
+    // A model handed over by the merged field is the user's choice like any other, so it needs no
+    // explanation of where it came from.
+    sharedSingleCallModel(account) == null && account.chatModel.isBlank()
+
+/**
  * The provider keyring: every configured [ProviderAccount] keyed by provider id. Persisted as a single
  * JetPref `custom` preference (see `AppPrefs.dictate.providerAccounts`) using [Serializer], mirroring
  * the `EmojiHistory` pattern. Switching the active transcription/rewording provider is just a change of
@@ -176,11 +322,23 @@ data class ProviderAccounts(
         override fun serialize(value: ProviderAccounts): String =
             json.encodeToString(value)
 
-        override fun deserialize(value: String): ProviderAccounts = try {
-            json.decodeFromString(value)
+        override fun deserialize(value: String): ProviderAccounts =
+            deserializeOrNull(value) ?: Empty
+
+        /**
+         * [deserialize] without the fallback: null when [value] is not a keyring at all.
+         *
+         * [deserialize] has to answer with *something*, and `Empty` is the only safe answer for a live
+         * preference read. But a caller that rewrites the keyring — the backup redaction in issue #367 —
+         * must be able to tell "no accounts" from "could not read this", because writing `Empty` back over
+         * an unreadable blob would destroy every key it failed to parse. Same parser, same config, so the
+         * two can never drift apart.
+         */
+        fun deserializeOrNull(value: String): ProviderAccounts? = try {
+            json.decodeFromString<ProviderAccounts>(value)
         } catch (e: Exception) {
             flogError { "Failed to deserialize ProviderAccounts: $e" }
-            Empty
+            null
         }
     }
 

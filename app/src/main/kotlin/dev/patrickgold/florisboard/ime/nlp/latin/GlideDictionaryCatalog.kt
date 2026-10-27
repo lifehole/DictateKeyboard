@@ -49,6 +49,7 @@ object GlideDictionaryCatalog {
      * (English is intentionally absent — it is bundled in the APK.)
      */
     val all: List<GlideDict> = listOf(
+        GlideDict("af", "Afrikaans", "$REL/af.json", 886123, "57f66cf01f21da65bac756c74dc10c9587215084a977a6927d9f1dc82d5dda20"),
         GlideDict("ar", "Arabic · العربية", "$REL/ar.json", 1448124, "35868e344825d1594559e1db05046b6f827e4295a1a02bba89735b1356584cea"),
         GlideDict("bg", "Bulgarian · Български", "$REL/bg.json", 1794600, "fa3b438e428427e2ff6597d3db50593e3e045415099b520d203ef5e934e7f623"),
         GlideDict("bn", "Bengali · বাংলা", "$REL/bn.json", 1397678, "63f543fb3827eaaf612b610851fd62fc4486e09a62f6665d9c8cb84e47a45e57"),
@@ -76,7 +77,10 @@ object GlideDictionaryCatalog {
         GlideDict("nb", "Norwegian Bokmål", "$REL/nb.json", 1078332, "75d658e8322966af0274c1926e1592a95a0b180ae728eed6ae1cb98174208d41"),
         GlideDict("nl", "Dutch · Nederlands", "$REL/nl.json", 1135562, "5b84ea6aeae907c1f11b255064c67f42c4f5cfe7b1e656b8b1e79a67423931ca"),
         GlideDict("nn", "Norwegian Nynorsk", "$REL/nn.json", 625614, "6c598984d37f6ad72508a39d5beec272e62e5782f18f00b1a8ce7009d936baca"),
-        GlideDict("pl", "Polish · Polski", "$REL/pl.json", 1401161, "64aa7f4e1ace255c57c3c79a6d282c3511cc4721f7d4b53fc7a9b53916334531"),
+        // Rebuilt for issue #451 under a new name, because released versions still check `pl.json`
+        // against their own SHA-256. A device holding the old file sees its size disagree here and fetches
+        // this one the next time a Polish subtype becomes active.
+        GlideDict("pl", "Polish · Polski", "$REL/pl.v2.json", 1403773, "75d9449a3719ab9d22d95db812d5614a9d12b61fbf925a4baa9e68b7a7a0be23"),
         GlideDict("pt", "Portuguese · Português", "$REL/pt.json", 1149100, "42310d6ea7d3f456baa8facda220060892bdbb7c32973a5478e21d05f4e6f991"),
         GlideDict("ro", "Romanian · Română", "$REL/ro.json", 880168, "d37c91834d5944fb6b98a6c2ad5617fe43d3144d165a2ba8d30f34420d9ecef1"),
         GlideDict("ru", "Russian · Русский", "$REL/ru.json", 1912571, "1fde7e3821f5b24a11dda8d57fe0eeabb4c2549812c7b431debe3c3a0563177b"),

@@ -22,7 +22,7 @@ export interface GraphZone {
   id: string;
   label: string;
   sub: string;
-  tone: 'client' | 'cloudflare' | 'google' | 'openai' | 'ext';
+  tone: 'client' | 'cloudflare' | 'google' | 'ext';
   /** The full account, shown by the button. HTML, paragraphs. */
   long: string;
 }
@@ -64,7 +64,7 @@ export const COLUMNS: GraphColumn[] = [
   { zone: 'client' },
   { zone: 'cf' },
   { zone: 'cf' },
-  { zone: 'openai' },
+  { zone: 'google' },
 ];
 
 export const ZONES: GraphZone[] = [
@@ -89,19 +89,11 @@ export const ZONES: GraphZone[] = [
       'in dem Rechenzentrum, das der anfragenden Person am nächsten liegt. Für einen Dienst, dessen ' +
       'Last aus einzelnen kurzen Anfragen besteht und dessen Betreiber nachts schlafen will, ist das ' +
       'die passende Bauform. Der Preis dafür steht in der Übertragungs-Dokumentation: Cloudflare, Inc. ' +
-      'sitzt in den USA, Datenbank und Kontostände sind deshalb ausdrücklich auf die EU festgelegt.</p>',
-  },
-  {
-    id: 'openai', label: 'OpenAI', sub: 'Modelle', tone: 'openai',
-    long:
-      '<p>Der einzige Ort, an dem Inhalte verarbeitet werden — Sprache wird zu Text, Text wird ' +
-      'umformuliert. Zwei getrennte Zugänge mit zwei getrennten Schlüsseln: der Projektschlüssel für ' +
-      'die Arbeit, ein reiner Leseschlüssel für die Abrechnung.</p>' +
-      '<p>Vertragspartner ist <strong>OpenAI Ireland Ltd.</strong>, also eine Gesellschaft im ' +
-      'Europäischen Wirtschaftsraum; der Auftragsverarbeitungsvertrag ist gezeichnet. Aufnahmen und ' +
-      'Texte werden dort bis zu 30 Tage zur Missbrauchserkennung vorgehalten — eine bewusste ' +
-      'Entscheidung, keine Vorgabe, und die einzige Stelle im ganzen Bild, an der Inhalte überhaupt ' +
-      'eine Zeit lang liegen.</p>',
+      'sitzt in den USA, Datenbank und Kontostände sind deshalb ausdrücklich auf die EU festgelegt.</p>' +
+      '<p><strong>Für die Modelle in dieser Spalte gilt das ausdrücklich nicht.</strong> Die ' +
+      'Festlegung auf Westeuropa greift für den Speicher, nicht für die Rechenzeit: Workers AI läuft, ' +
+      'wo gerade Kapazität ist, und lässt sich ohne Enterprise-Zusatz nicht festlegen. Wer aus „alles ' +
+      'bei Cloudflare" liest „alles in der EU", liest an dieser einen Stelle falsch.</p>',
   },
   {
     id: 'google', label: 'Google', sub: 'Play, Cloud, Identität', tone: 'google',
@@ -247,18 +239,66 @@ export const NODES: GraphNode[] = [
       'Unterschied zwischen "hinter einem Login" und "tatsächlich geschützt": Wer den Worker direkt ' +
       'anspricht und einen Header erfindet, kommt nicht weiter.</p>',
   },
+  {
+    id: 'backup', zone: 'client', label: 'Sicherung (dein Rechner)', sub: 'wrangler d1 export',
+    col: 0, row: 7,
+    guards: ['von Hand angestoßen', 'nur im verschlüsselten Ordner'],
+    detail: 'Kein laufender Dienst, sondern ein Handgriff: <code>npm run db:backup</code> zieht das komplette Hauptbuch als datierte SQL-Datei in den verschlüsselten Ordner, in dem auch die Konfiguration liegt. Der einzige Weg, auf dem die ganze Datenbank Cloudflare verlässt.',
+    long:
+      '<p>Cloudflare hält 30 Tage Zeitreise für D1 vor. Das deckt ein versehentliches DELETE ab — es ' +
+      'deckt <strong>nicht</strong> den Verlust des Kontos ab, und lesen lässt es sich nirgends außer ' +
+      'bei Cloudflare. Für ein Hauptbuch, an dem Kaufbelege und Kontostände hängen, ist das zu wenig; ' +
+      'es gab lange gar keine Sicherung und auch nichts Aufgeschriebenes darüber, wie man eine macht.</p>' +
+      '<p>Deshalb ein Befehl statt einer Anleitung, mit dem Datum im Dateinamen und mit dem Zielordner ' +
+      'fest eingetragen. Die Ausfuhr trägt Konto-IDs und die Prüfwerte der Geräte; sie hat außerhalb ' +
+      'des verschlüsselten Ordners nichts zu suchen, und ein Befehl, der den Pfad schon kennt, ist die ' +
+      'zuverlässigste Art, das durchzuhalten.</p>' +
+      '<p>Im Bild steht der Kasten, weil ein Netzbild, das jede Abfrage bei Google zeigt und den einen ' +
+      'Weg auslässt, auf dem die vollständige Datenbank das Rechenzentrum verlässt, an der heikelsten ' +
+      'Stelle unvollständig wäre.</p>',
+    source: 'package.json · db:backup',
+  },
 
+  {
+    id: 'workersai', zone: 'cf', label: 'Workers AI', sub: 'Whisper · Gemma',
+    col: 1, row: 2,
+    guards: ['kein Schlüssel — Bindung statt Netzweg', 'Denkmodus ausdrücklich aus', 'Modell ohne Deployment wechselbar'],
+    detail: 'Diktat und Umformulierung, beides hier. Rechnet über <em>dieses</em> Konto ab, es gibt also kein Geheimnis, das leaken könnte. Meldet je Antwort die verbrauchten Neuronen zurück; genau die stehen im Hauptbuch. Welches Modell, sagt <code>TRANSCRIBE_MODEL</code> bzw. <code>CHAT_MODEL</code> — eine Konfigurationszeile, kein Deployment.',
+    long:
+      '<p>Seit dem Umzug der einzige Ort, an dem Inhalte verarbeitet werden. Die Modelle laufen bei ' +
+      'Cloudflare selbst, erreichbar über eine Bindung statt über HTTPS: ' +
+      '<strong>kein API-Schlüssel, kein Netzweg nach draußen.</strong> Was der Worker schickt, verlässt ' +
+      'das Haus nicht — es war nie draußen.</p>' +
+      '<p><strong>Und genau hier endet die gute Nachricht.</strong> „Nicht nach draußen" heißt nicht ' +
+      '„in der EU". Datenbank und Kontostände sind ausdrücklich auf Westeuropa festgelegt; die ' +
+      '<em>Inferenz</em> ist es nicht und kann es ohne Enterprise-Vertrag auch nicht werden — Custom ' +
+      'Regions ist ein kostenpflichtiger Zusatz. Ein Diktat wird dort gerechnet, wo Cloudflare gerade ' +
+      'Kapazität hat, und der Vertragspartner dafür ist Cloudflare, Inc. in den USA. Getragen wird ' +
+      'die Übermittlung deshalb von den Standardvertragsklauseln und davon, dass nichts gespeichert ' +
+      'wird — nicht von einer Ortswahl.</p>' +
+      '<p><strong>Es wird nicht nachgedacht.</strong> Bei Workers AI ist der Denkmodus <em>standardmäßig ' +
+      'an</em>, wird also ausdrücklich abgeschaltet. Gemessen an einem Satz: 20 Ausgabe-Token gegen 777, ' +
+      '1,06 s gegen 7,70 s, 1,43 Neuronen gegen 22,10 — bei gleicher Antwort. Denk-Token gehen als ' +
+      'Ausgabe vom Guthaben des Käufers ab, weshalb jede Antwort daraufhin geprüft wird und nicht bloß ' +
+      'jede Anfrage entsprechend gestellt.</p>' +
+      '<p>Die Menge wird <strong>abgelesen, nicht gerechnet</strong>: Jede Antwort bringt ihre Neuronen ' +
+      'mit. Eine abgelesene Menge kann nicht dadurch falsch werden, dass sich still eine Preisliste ' +
+      'ändert — die Preistabelle im Quelltext ist nur noch die Gegenprobe.</p>',
+    source: 'src/routes/transcriptions.ts, src/routes/chat.ts',
+  },
   {
     id: 'worker', zone: 'cf', label: 'Worker', sub: 'api.dictatekeyboard.com',
     col: 1, row: 1,
-    holds: ['OPENAI_API_KEY', 'GOOGLE_SERVICE_ACCOUNT', 'RTDN_SECRET', 'ACCESS_AUD'],
+    // Kein Schlüssel für die Modelle: Workers AI läuft über die Bindung und rechnet über dasselbe
+    // Konto ab wie dieser Worker.
+    holds: ['GOOGLE_SERVICE_ACCOUNT', 'RTDN_SECRET', 'ACCESS_AUD'],
     guards: ['Rate-Limit je Konto (20/min)', 'Tagesbudget', 'Not-Aus', 'Audio ≤ 10 min', 'Chat ≤ 8k/2k Token', 'höchstens 3 Geräte', 'Codeversuche gedrosselt'],
     detail: 'Prüft das Token gegen den SHA-256-Abzug, liest die Audiodauer aus dem Dateikopf — WAV, FLAC, Ogg/Opus, MP4/M4A und MP3 sagen sie selbst —, bucht ab und reicht erst dann weiter. Nur ein unbekannter Container wird nach Größe geschätzt, und dann nur zum Zurücklegen. Abgerechnet wird alles in Sekunden, Diktat wie Umformulierung. Speichert niemals Audio oder Text.',
     long:
       '<p>Alles läuft hier durch, und die Reihenfolge innerhalb einer Anfrage ist Absicht, nicht ' +
       'Geschmack: <strong>wer bist du</strong> (sonst 401) → <strong>wie lang ist die Aufnahme</strong> ' +
       '(aus dem Dateikopf, nicht aus einer Behauptung des Clients) → <strong>darf der Dienst heute ' +
-      'noch</strong> (Tagesbudget) → <strong>abbuchen</strong> → <strong>erst jetzt zu OpenAI</strong> ' +
+      'noch</strong> (Tagesbudget) → <strong>abbuchen</strong> → <strong>erst jetzt zum Modell</strong> ' +
       '→ bei Fehlschlag zurückbuchen. Würde nach dem Einkauf abgebucht, ginge jeder Abbruch auf Kosten ' +
       'des Betreibers.</p>' +
       '<p><strong>Die Länge wird gelesen, nicht geraten.</strong> WAV, FLAC, Ogg/Opus, MP4/M4A und MP3 ' +
@@ -395,9 +435,9 @@ export const NODES: GraphNode[] = [
     id: 'cron', zone: 'cf', label: 'Cron · 03:17 UTC', sub: 'nächtliche Langsamarbeit',
     col: 2, row: 3,
     guards: ['Speicherbegrenzung', 'Netz unter den Push-Meldungen'],
-    detail: 'Vier Arbeiten, bewusst zu einer krummen Minute statt zur vollen Stunde, wo sich jeder Cron der Plattform staut: Einzelzeilen aus <code>usage_log</code> älter als 90 Tage löschen; den Prüfwert des Vorgängerkontos 24 Monate nach einer Löschung kappen; die Tageskurse holen und fehlende Umrechnungen nachtragen; und 30 Tage gegen Googles Liste stornierter Käufe abgleichen, weil eine Push-Meldung ausbleiben kann.',
+    detail: 'Fünf Arbeiten, bewusst zu einer krummen Minute statt zur vollen Stunde, wo sich jeder Cron der Plattform staut: Einzelzeilen aus <code>usage_log</code> älter als 90 Tage löschen; den Prüfwert des Vorgängerkontos 24 Monate nach einer Löschung kappen; die Tageskurse holen und fehlende Umrechnungen nachtragen; bei Google nachfragen, was Verkäufe eingebracht haben; und 30 Tage gegen Googles Liste stornierter Käufe abgleichen, weil eine Push-Meldung ausbleiben kann. Das Nachfragen und das Umrechnen laufen seit der Umstellung stündlich — hier stehen sie nur noch als Tagesnetz.',
     long:
-      '<p>Vier Arbeiten, die niemand im laufenden Betrieb sehen soll:</p>' +
+      '<p>Fünf Arbeiten, die niemand im laufenden Betrieb sehen soll:</p>' +
       '<p><strong>Aufräumen.</strong> Einzelne Protokollzeilen älter als 90 Tage werden stapelweise ' +
       'gelöscht. Tagessummen und Admin-Protokoll bleiben — die Statistik ist vollständig, das ' +
       'Detailprotokoll altert weg.</p>' +
@@ -406,23 +446,65 @@ export const NODES: GraphNode[] = [
       'stillschweigend "für immer" geworden.</p>' +
       '<p><strong>Umrechnen.</strong> Die Tageskurse werden geholt und Käufe ohne Umrechnung ' +
       'nachgetragen. Erst danach zählt ein Verkauf in Franken oder Zloty überhaupt mit.</p>' +
+      '<p><strong>Nachfragen.</strong> Was Google beim Kauf noch nicht sagen konnte, wird erneut ' +
+      'geholt: den Entwickleranteil rechnet Play erst nach der Abrechnung aus. Das ist inzwischen ' +
+      'stündlich (siehe den Kasten darunter) — hier bleibt es als Tagesnetz stehen, damit eine Reihe ' +
+      'gescheiterter Stundenläufe einmal am Tag doch noch aufgeholt wird.</p>' +
       '<p><strong>Abgleichen.</strong> 30 Tage gegen Googles eigene Liste stornierter Käufe. Eine ' +
       'Push-Nachricht ist nicht garantiert; ohne dieses Netz wäre eine verpasste Erstattung ein ' +
       'dauerhaft falscher Kontostand, den niemand bemerkt.</p>' +
       '<p>Die krumme Minute ist kein Zufall: Zur vollen Stunde staut sich jeder Cron der Plattform.</p>',
-    source: 'src/retention.ts, src/fx.ts, src/sweep.ts',
+    source: 'src/retention.ts, src/fx.ts, src/orders.ts, src/sweep.ts',
   },
   {
-    id: 'watchdog', zone: 'cf', label: 'Wachhund · alle 15 min', sub: 'sechs Regeln, Versand',
+    id: 'orders', zone: 'cf', label: 'Erlöse · stündlich :23', sub: 'fragt Google nach dem Anteil',
+    col: 2, row: 4,
+    guards: ['Aufgabefrist zwei Wochen ab Kauf', 'höchstens 50 Käufe je Lauf', 'Kursausfall folgenlos'],
+    detail: 'Was ein Verkauf wirklich eingebracht hat, weiß Google erst nach der Abrechnung — die Frage beim Kauf kommt fast immer zu früh, und ohne eine zweite steht ein bezahlter Kauf für immer mit „nichts verdient" in den Büchern. Dieser Lauf stellt sie: <code>orders.get</code> für jeden Kauf ohne Erlöszahl, danach die Umrechnung dessen, was zurückkam. Zur Minute 23, also außerhalb der Viertelstunden des Wachhunds und außerhalb der vollen Stunde, zu der sich jeder Cron der Plattform staut.',
+    long:
+      '<p>Google beantwortet zwei Fragen auf zwei Uhren. <strong>Was die Kundschaft gezahlt hat</strong>, ' +
+      'steht im Moment des Kaufs fest. <strong>Was davon beim Entwickler ankommt</strong>, wird erst ' +
+      'ausgerechnet, wenn die Zahlung abgerechnet ist — bis dahin trägt die Bestellung schlicht keine ' +
+      'Erlöszahl. Der Kaufweg fragt in derselben Sekunde wie der Verkauf und fragt deshalb fast immer ' +
+      'zu früh. Das ist in Ordnung, solange jemand noch einmal fragt.</p>' +
+      '<p>Niemand tat es. Der erste echte Verkauf stand daraufhin unbefristet mit 0,00 € im Hauptbuch, ' +
+      'und jede Auswertung glaubte es.</p>' +
+      '<p><strong>Warum stündlich.</strong> Die Abrechnung dauert Stunden, nicht einen Tag. Ein Verkauf ' +
+      'vom Vormittag hatte seine Zahl längst bereitliegen, während die Bücher bis 03:17 der Folgenacht ' +
+      'weiter 0,00 € zeigten — der Takt gehörte dem Job, nicht der Sache, auf die er wartete.</p>' +
+      '<p><strong>Warum die Frist am Kaufdatum hängt.</strong> Früher war es eine Zählung: vierzehn ' +
+      'Versuche. Das hieß nur so lange „zwei Wochen", wie einmal pro Nacht gefragt wurde — stündlich ' +
+      'wäre das ganze Kontingent vor Ablauf des ersten Tages verbraucht gewesen, und eine Abrechnung, ' +
+      'die ehrlich drei Tage braucht, wäre nach vierzehn Stunden aufgegeben worden. Gezählt werden die ' +
+      'Versuche weiter, sie sind das Protokoll; die Uhr sind sie nicht mehr. Nebenwirkung: Eine Phase, ' +
+      'in der Google nicht erreichbar ist, frisst nicht mehr die Frist auf, in der es antworten soll.</p>' +
+      '<p><strong>Was nach zwei Wochen passiert:</strong> nichts mehr. Dann ist die Antwort nicht spät, ' +
+      'sondern abwesend — ein fehlendes Recht am Dienstkonto, eine Bestellung, die Google nicht ' +
+      'herausgibt. Weiterzufragen würde das hinter einer Zahl verstecken, die nie kommt; der Wachhund ' +
+      'meldet stattdessen, was offen bleibt.</p>' +
+      '<p>Die Kurse holt dieser Lauf mit, darf davon aber nicht aufgehalten werden: Ein Kauf, der seit ' +
+      'dem Morgen wartet, soll nicht weiterwarten, weil eine Kursquelle gerade nicht erreichbar ist.</p>',
+    source: 'src/orders.ts, src/fx.ts',
+  },
+  {
+    id: 'watchdog', zone: 'cf', label: 'Wachhund · alle 15 min', sub: 'sieben Regeln, Versand',
     col: 2, row: 5,
     holds: ['MAIL-Bindung'],
     guards: ['Regeln einzeln abschaltbar', 'gleiche Meldung nur einmal', 'Empfänger in der Bindung festgeschrieben'],
-    detail: 'Prüft auf Budgetüberschreitung, ein zu schnell verbrauchtes Paket, ein Konto mit auffälligem Budgetanteil, weitergegebene Zugänge, Abweichungen zwischen kalkulierten und tatsächlichen Einkaufskosten und erhöhte Fehlerquoten. Viertelstündlich, weil das, worauf es wartet, in Minuten passiert — stündlich wäre ein Bericht statt einer Warnung. Der Versand läuft über Cloudflare Email Routing, und die Zieladresse steht in der Bindung, nicht nur in den Einstellungen: Eine im Dashboard vertippte Adresse führt damit zu einer fehlgeschlagenen Zustellung statt zu Post an Fremde.',
+    detail: 'Prüft auf ein zu schnell verbrauchtes Paket, ein Konto mit auffälligem Budgetanteil, weitergegebene Zugänge, Abweichungen zwischen kalkulierten und tatsächlichen Einkaufskosten, ein dauerhaftes Minus, erhöhte Fehlerquoten und Käufe, zu denen Google auch nach einer Woche keinen Erlös gemeldet hat. Viertelstündlich, weil das, worauf es wartet, in Minuten passiert — stündlich wäre ein Bericht statt einer Warnung. Der Versand läuft über Cloudflare Email Routing, und die Zieladresse steht in der Bindung, nicht nur in den Einstellungen: Eine im Dashboard vertippte Adresse führt damit zu einer fehlgeschlagenen Zustellung statt zu Post an Fremde.',
     long:
-      '<p>Sechs Regeln, jede gegen einen anderen Weg, Geld zu verlieren: das Tagesbudget läuft voll; ein ' +
-      'frisches Paket wird in Minuten verbraucht (das Muster vor einer Rückbuchung); ein einzelnes ' +
-      'Konto beansprucht einen auffälligen Anteil des Tagesbudgets; ein Zugang läuft auf ungewöhnlich ' +
-      'vielen Geräten; OpenAI rechnet anders ab als kalkuliert; die Fehlerquote steigt.</p>' +
+      '<p>Sieben Regeln, jede gegen einen anderen Weg, Geld zu verlieren: ein frisches Paket wird in ' +
+      'Minuten verbraucht (das Muster vor einer Rückbuchung); ein einzelnes Konto beansprucht einen ' +
+      'auffälligen Anteil des Tagesbudgets; ein Zugang läuft auf ungewöhnlich vielen Geräten; der ' +
+      'Neuronenverbrauch springt gegenüber dem, was die Preistabelle erwarten lässt; die Einnahmen ' +
+      'bleiben dauerhaft hinter den Kosten zurück; die ' +
+      'Fehlerquote steigt; ein bezahlter Kauf hat auch nach einer Woche keinen gemeldeten Erlös.</p>' +
+      '<p>Die letzte ist die stillste und deshalb aufgenommen worden: Ohne sie liest sich ein Verkauf, ' +
+      'zu dem Google nichts herausrückt, einfach so, als hätte er nichts eingebracht — und genau das ' +
+      'ist dem ersten echten passiert. Sie meldet, was der stündliche Lauf nicht beantwortet bekommt.</p>' +
+      '<p>Sofortmeldungen wie „das Tagesbudget ist zu 80 % voll" oder eine eingehende Erstattung ' +
+      'stammen nicht von hier: Die entstehen dort, wo das Ereignis passiert, und brauchen keinen ' +
+      'Zeitplan.</p>' +
       '<p><strong>Viertelstündlich</strong>, weil das, worauf gewartet wird, in Minuten passiert. ' +
       'Stündlich wäre ein Bericht, keine Warnung — die Minuten sind dann längst verbraucht.</p>' +
       '<p>Dieselbe Meldung geht nur einmal raus; ohne diese Sperre erzeugt ein anhaltender Zustand ' +
@@ -435,48 +517,10 @@ export const NODES: GraphNode[] = [
     source: 'src/notify/rules.ts, src/notify/email.ts',
   },
 
-  {
-    id: 'openai', zone: 'openai', label: 'OpenAI API', sub: 'gpt-transcribe · gpt-5-nano',
-    col: 3, row: 0,
-    guards: ['Modell serverseitig festgelegt', 'Antwortlänge gedeckelt', 'Reasoning fest auf minimal'],
-    detail: 'Diktat und Umformulierung. Modell, Antwortlänge und Denkaufwand bestimmt der Server, nicht der Client — sonst wäre die Kalkulation offen. Der Denkaufwand steht fest auf <code>minimal</code>, weil Reasoning-Token gegen dasselbe Ausgabebudget laufen wie die Antwort: mit der Voreinstellung kam bei langen Texten eine leere Antwort zurück, für die trotzdem bezahlt war. Der Schlüssel liegt ausschließlich als Worker-Secret vor.',
-    long:
-      '<p>Zwei Aufrufe, ein Schlüssel: Sprache zu Text mit einem Transkriptionsmodell, Umformulierung ' +
-      'mit einem kleinen Chatmodell. Beides bestimmt der Server. Was der Client als Modell mitschickt, ' +
-      'wird verworfen — sonst könnte jemand das teuerste Modell wählen und für den Preis des ' +
-      'kalkulierten bekommen.</p>' +
-      '<p><strong>Der Denkaufwand steht fest auf <code>minimal</code>, und das ist eine teuer gelernte ' +
-      'Zeile.</strong> Bei den gpt-5-Modellen zählen Reasoning-Token gegen dasselbe Ausgabebudget wie ' +
-      'die Antwort selbst. Mit der Voreinstellung verbrauchte ein langer Text sein ganzes Budget im ' +
-      'Nachdenken und lieferte eine <em>leere</em> Antwort — bezahlt, geliefert nichts. Für "formuliere ' +
-      'diesen Satz höflicher" ist ausgiebiges Nachdenken ohnehin verschwendet.</p>' +
-      '<p>Der Schlüssel liegt ausschließlich in Cloudflares Secret-Speicher: nicht im Quelltext, nicht ' +
-      'in der Konfigurationsdatei, nicht in der Datenbank. Deshalb kann der Quelltext veröffentlicht ' +
-      'werden.</p>',
-  },
-  {
-    id: 'costs', zone: 'openai', label: 'Costs API', sub: 'was OpenAI wirklich berechnet',
-    col: 3, row: 1,
-    holds: ['OPENAI_ADMIN_KEY'],
-    guards: ['nur Lesen', 'eigener Schlüssel, nicht der des Diensts'],
-    detail: 'Ein <strong>anderer</strong> Schlüssel als der, mit dem diktiert wird: organisationsweit und ausschließlich zum Lesen der Abrechnung. Ohne ihn sagt die Finanzansicht das offen, statt eine Zahl zu erfinden. Er ist die einzige Quelle, gegen die sich die eigene Kalkulation prüfen lässt — daher die Warnung bei Abweichung.',
-    long:
-      '<p>Der Dienst rechnet selbst mit, was eine Anfrage bei OpenAI kostet — Sekunden mal Preis, Token ' +
-      'mal Preis. Diese Rechnung kann falsch sein: ein geänderter Listenpreis, ein anderes Modell im ' +
-      'Hintergrund, ein Denkfehler in der Formel. Ohne eine zweite Quelle fällt das erst auf der ' +
-      'Kreditkartenabrechnung auf.</p>' +
-      '<p>Deshalb wird die tatsächliche Abrechnung gelesen und gegen die eigene Kalkulation gehalten. ' +
-      'Weicht sie um mehr als die eingestellte Spanne ab, kommt eine kritische Warnung. Das ist die ' +
-      'einzige Regel, die einen Fehler in der <em>eigenen</em> Mathematik finden kann.</p>' +
-      '<p><strong>Ein anderer Schlüssel</strong> als der zum Diktieren: organisationsweit statt ' +
-      'projektgebunden, und nur zum Lesen. Ist er nicht hinterlegt, sagt die Finanzansicht genau das, ' +
-      'statt eine Zahl zu erfinden — ein leeres Feld ist ehrlicher als ein geschätztes.</p>',
-    source: 'src/costs.ts',
-  },
 
   {
     id: 'oauth', zone: 'google', label: 'Google OAuth2', sub: 'oauth2.googleapis.com',
-    col: 3, row: 3,
+    col: 3, row: 0,
     holds: ['Access-Token (1 h)'],
     detail: 'Tauscht den selbstsignierten RS256-JWT des Dienstkontos gegen ein Access-Token. Der Worker baut den JWT von Hand mit WebCrypto — ein Worker hat keine Node-Bibliotheken.',
     long:
@@ -493,7 +537,7 @@ export const NODES: GraphNode[] = [
   },
   {
     id: 'playapi', zone: 'google', label: 'Play Developer API', sub: 'androidpublisher v3',
-    col: 3, row: 4,
+    col: 3, row: 1,
     guards: ['Einzige verbindliche Quelle für Käufe'],
     detail: '<code>purchases.products.get</code> entscheidet, ob wirklich Geld geflossen ist — der Kauf-Token der App wird nicht geglaubt. <code>:acknowledge</code> verhindert, dass Google den Kauf nach drei Tagen zurückdreht. <code>orders.get</code> liefert getrennt, was der Kauf wirklich wert war (gezahlt, Steuer, Erlös), und <code>purchases.voidedpurchases</code> ist die Liste, gegen die der nächtliche Abgleich läuft.',
     long:
@@ -512,7 +556,7 @@ export const NODES: GraphNode[] = [
   },
   {
     id: 'pubsub', zone: 'google', label: 'Cloud Pub/Sub', sub: 'Thema play-rtdn',
-    col: 3, row: 5,
+    col: 3, row: 2,
     holds: ['RTDN_SECRET in der Push-URL'],
     guards: ['Kann ausschließlich Guthaben entfernen'],
     detail: 'Push-Abo an <code>/v1/rtdn?key=…</code>. Meldet Erstattungen. Selbst wer den Schlüssel kennt, kann darüber nur Guthaben abziehen — und nur für einen Kauf, den er bereits kennen müsste.',
@@ -530,7 +574,7 @@ export const NODES: GraphNode[] = [
   },
   {
     id: 'console', zone: 'google', label: 'Play Console', sub: 'Produkte, Kanäle, Tester',
-    col: 3, row: 6,
+    col: 3, row: 3,
     detail: 'Hier liegen die vier Einmalkaufprodukte, die Testkanäle und die Lizenztester. Die Produkt-IDs müssen zeichengenau mit <code>PACKAGES</code> im Server übereinstimmen.',
     long:
       '<p>Kein technischer Bestandteil des Diensts, aber der Ort, an dem drei Dinge festgelegt werden, ' +
@@ -545,7 +589,7 @@ export const NODES: GraphNode[] = [
   },
   {
     id: 'sa', zone: 'google', label: 'Dienstkonto', sub: 'IAM · Play-Berechtigung',
-    col: 3, row: 7,
+    col: 3, row: 4,
     holds: ['privater RSA-Schlüssel'],
     guards: ['Nur Leserecht auf Käufe nötig'],
     detail: 'In der Google Cloud angelegt, in der Play Console eingeladen und dort auf diese App berechtigt. Die vollständige JSON-Schlüsseldatei liegt als Worker-Secret und sonst nirgends.',
@@ -564,7 +608,12 @@ export const NODES: GraphNode[] = [
 
   {
     id: 'fx', zone: 'ext', label: 'Frankfurter · EZB-Kurse', sub: 'api.frankfurter.dev',
-    col: 3, row: 9,
+    // Eine gebrochene Zeile, und das ist Absicht statt Schlamperei. „Öffentliche Quellen" ist die
+    // einzige Zone mit einem einzigen Mitglied, und ihr Kasten braucht 54 px Kopf über dem Knoten.
+    // Auf Zeile 7 liefe der in die Google-Zone hinein, auf Zeile 8 klafften 118 px Leere darüber —
+    // das Loch unten rechts, das das Bild schief aussehen ließ. 7,2 ist die erste Stelle, an der
+    // keins von beidem passiert: 106 px weniger Höhe, und zwölf zwischen den beiden Kästen.
+    col: 3, row: 5.4,
     guards: ['ohne Anmeldung', 'Ausfall ist folgenlos'],
     detail: 'Die Referenzkurse der EZB, mit denen ein Verkauf in CHF oder PLN überhaupt in der Hauswährung zählbar wird. Der Kurs des Kauftags wird einmal geschrieben und nie neu gerechnet — eine Zahl, die sich von selbst ändert, ist keine Buchführung. Bleibt der Dienst aus, fehlt nur die Umrechnung, nicht das Guthaben.',
     long:
@@ -694,7 +743,7 @@ export const EDGES: GraphEdge[] = [
   },
   {
     from: 'cron', to: 'd1', kind: 'store',
-    label: 'Aufräumen, Kurse, Abgleich', guard: 'Speicherbegrenzung',
+    label: 'Aufräumen, Kurse, Erlöse, Abgleich', guard: 'Speicherbegrenzung',
     long:
       '<p>Der nächtliche Lauf schreibt in dieselbe Datenbank, aus der tagsüber gelesen wird: Er löscht ' +
       'alte Protokollzeilen stapelweise, kappt abgelaufene Prüfwerte, trägt Umrechnungen nach und ' +
@@ -715,11 +764,69 @@ export const EDGES: GraphEdge[] = [
       'Anfrage hängt daran.</p>',
   },
   {
+    from: 'cron', to: 'playapi', kind: 'auth',
+    label: 'voidedpurchases · 30 Tage zurück', token: 'OAuth-Token', guard: 'Netz unter den Push-Meldungen',
+    long:
+      '<p>Googles eigene Liste stornierter Käufe, 30 Tage rückwärts. Sie ist das Netz unter den ' +
+      'Push-Meldungen: Eine RTDN ist nicht garantiert, und eine verpasste Erstattung wäre ein dauerhaft ' +
+      'falscher Kontostand, den niemand bemerkt — Geld zurück und die Minuten behalten.</p>' +
+      '<p>Der Aufruf reitet auf demselben zwischengespeicherten Zugangstoken wie die Kaufprüfung; ' +
+      'erklärt wird die Anmeldung an der Kette <code>Worker → OAuth2 → Play API</code> und hier nicht ' +
+      'noch einmal. Die Linie steht trotzdem im Bild, weil sonst ein Netzweg zu Google unsichtbar ' +
+      'bliebe, den es tatsächlich jede Nacht gibt.</p>',
+  },
+  {
+    from: 'orders', to: 'playapi', kind: 'auth',
+    label: 'orders.get', token: 'OAuth-Token', guard: 'Aufgabefrist zwei Wochen',
+    long:
+      '<p>Die Frage, die beim Kauf zu früh kam: Was hat diese Bestellung wirklich eingebracht? Die ' +
+      'Antwort trennt sauber zwischen Gezahltem, Steuer und Entwickleranteil — und existiert erst, ' +
+      'wenn Google die Zahlung abgerechnet hat.</p>' +
+      '<p>Gefragt wird stündlich und nur für Käufe ohne Erlöszahl, höchstens 50 je Lauf, und nur ' +
+      'innerhalb von zwei Wochen nach dem Kauf. Danach ist die Antwort nicht spät, sondern abwesend, ' +
+      'und das ist ein Fall für den Wachhund, nicht für eine weitere Abfrage.</p>' +
+      '<p>Auch dieser Aufruf nutzt das zwischengespeicherte Token der Kaufprüfung — dieselbe ' +
+      'Berechtigung, dieselbe Stunde Gültigkeit, kein zusätzliches Geheimnis.</p>',
+  },
+  {
+    from: 'orders', to: 'd1', kind: 'store',
+    label: 'Erlös, Steuer, Umrechnung eintragen', guard: 'Kurs des Kauftags',
+    long:
+      '<p>Was zurückkommt, wird auf die Kaufzeile geschrieben: gezahlter Betrag, Steuer, ' +
+      'Entwickleranteil, Währung, Käuferland — und die Umrechnung dazu, <strong>mit dem Kurs des ' +
+      'Kauftags</strong>, nicht dem von heute. Eine Zahl, die drei Nächte zu spät eintrifft, ist damit ' +
+      'noch immer wert, was sie wert war.</p>' +
+      '<p>Mitgeschrieben wird auch jeder erfolglose Versuch. Ein Kauf, zu dem niemand eine Antwort ' +
+      'bekommen konnte, soll nicht aussehen wie einer, nach dem niemand gefragt hat.</p>',
+  },
+  {
+    from: 'orders', to: 'fx', kind: 'data',
+    label: 'HTTPS · Tageskurse', guard: 'Ausfall hält den Lauf nicht auf',
+    long:
+      '<p>Ein gespeicherter Kurs trägt das Veröffentlichungsdatum der EZB, nicht den Tag des Abrufs. ' +
+      'Stündlich erneut zu fragen schreibt deshalb dieselben Zeilen mit denselben Zahlen — bis die Bank ' +
+      'veröffentlicht, und dann ist die neue Notierung binnen einer Stunde da statt erst in der Nacht.</p>' +
+      '<p>Anders als im nächtlichen Lauf darf ein Fehlschlag hier nichts aufhalten: Er wird geschluckt, ' +
+      'und die beiden Schritte, um die es geht, laufen trotzdem. Sonst hinge ein Kauf, der seit dem ' +
+      'Morgen auf seine Zahl wartet, an der Erreichbarkeit einer Kursquelle.</p>',
+  },
+  {
+    from: 'd1', to: 'backup', kind: 'store',
+    label: 'wrangler d1 export · von Hand', guard: 'verschlüsselter Ordner',
+    long:
+      '<p>Die einzige Linie im Bild, die niemand automatisch auslöst. Sie läuft, wenn der Befehl ' +
+      'aufgerufen wird, und holt die gesamte Datenbank als SQL-Datei über die Cloudflare-API auf den ' +
+      'eigenen Rechner.</p>' +
+      '<p>Sie steht hier, weil sie die Zone verlässt: Alles andere an Kontodaten bleibt in Westeuropa ' +
+      'bei Cloudflare, diese Kopie nicht. Was am anderen Ende liegt, ist deshalb Teil der ' +
+      'Sicherheitsbetrachtung und nicht bloß eine Bequemlichkeit.</p>',
+  },
+  {
     from: 'watchdog', to: 'd1', kind: 'store',
-    label: 'SQL · sechs Regeln', guard: 'nur Zahlen, keine Inhalte',
+    label: 'SQL · sieben Regeln', guard: 'nur Zahlen, keine Inhalte',
     long:
       '<p>Der Wachhund liest, was ohnehin da ist: Käufe, Verbrauch, Statuscodes, Gerätezahlen. Er ' +
-      'braucht keine zusätzliche Erhebung, weil jede seiner sechs Regeln aus Zahlen beantwortbar ist, ' +
+      'braucht keine zusätzliche Erhebung, weil jede seiner sieben Regeln aus Zahlen beantwortbar ist, ' +
       'die für die Abrechnung sowieso anfallen.</p>' +
       '<p>Er schreibt auch dorthin zurück: Jede ausgelöste Warnung wird als Zeile abgelegt, mit einem ' +
       'Schlüssel gegen Wiederholungen. Deshalb ist im Dashboard nachlesbar, was wann gemeldet wurde, ' +
@@ -741,32 +848,23 @@ export const EDGES: GraphEdge[] = [
   },
 
   {
-    from: 'worker', to: 'openai', kind: 'data',
-    label: 'HTTPS · Audio & Text durchgereicht', token: 'OPENAI_API_KEY (Secret)',
-    guard: 'nichts gespeichert',
+    from: 'worker', to: 'workersai', kind: 'data',
+    label: 'Bindung · Audio & Text, ohne Netzweg',
+    guard: 'kein Schlüssel, nichts gespeichert',
     long:
-      '<p>Die einzige Stelle, an der Inhalte den eigenen Dienst verlassen. Die Aufnahme wird ' +
-      'durchgereicht, das Ergebnis zurückgereicht — <strong>ohne Zwischenspeicherung auf einem ' +
-      'Datenträger</strong>, in beide Richtungen.</p>' +
-      '<p>Was der Server dabei ersetzt: Modell, Antwortformat, Antwortlänge und Denkaufwand. Was er ' +
-      'durchlässt: Sprache und Prompt, weil beides die Qualität verbessert und keines die Kosten ' +
-      'öffnet.</p>' +
-      '<p>Fehler von OpenAI werden weitergegeben, aber nicht deren Wortlaut. Die nutzende Person hat ' +
-      'keinen Vertrag mit OpenAI und kann mit "your organization has been blocked" nichts anfangen; ' +
-      'außerdem verriete die Meldung Interna. Sie bekommt eine Aussage, auf die sie reagieren kann, ' +
-      'und ihr Guthaben zurück.</p>',
-  },
-  {
-    from: 'worker', to: 'costs', kind: 'auth',
-    label: 'HTTPS · Abrechnung lesen', token: 'OPENAI_ADMIN_KEY (Secret)', guard: 'nur Lesen',
-    long:
-      '<p>Die Gegenprobe. Gelesen wird, was OpenAI tatsächlich in Rechnung stellt, um es gegen die ' +
-      'eigene Kalkulation zu halten — für die Finanzansicht und für die Warnung bei Abweichung.</p>' +
-      '<p>Bewusst ein <strong>anderer Schlüssel</strong> als der, mit dem diktiert wird, und einer, der ' +
-      'nur lesen kann. Ein einziger Schlüssel für beides wäre bequemer und würde dem Diktatpfad ' +
-      'organisationsweite Rechte geben, die er nie braucht.</p>' +
-      '<p>Die Abfrage ist zwischengespeichert: Sie beantwortet eine Frage über Tage, nicht über ' +
-      'Sekunden, und gehört nicht in den Weg einer einzelnen Anfrage.</p>',
+      '<p>Die einzige Linie, auf der Inhalte den Worker verlassen — und sie verlässt das Haus nicht. ' +
+      'Die Bindung ist ein Aufruf innerhalb der Laufzeit: kein HTTPS, kein Schlüssel, keine ' +
+      'Gegenstelle, die man erreichen können muss. Gespeichert wird nichts, in keine Richtung.</p>' +
+      '<p><strong>Es gibt nur diese eine Linie.</strong> Diktat und Umformulierung gehen beide über ' +
+      'dieselbe Bindung: ein Auftragsverarbeiter, kein Schlüssel in der Umgebung, und keine zweite ' +
+      'Verbindung, an der jemand mitlesen könnte.</p>' +
+      '<p><strong>Was diese Linie kostet, bevor sie überhaupt anfängt:</strong> Das Modell will das ' +
+      'Audio als Zeichenkette, also wird es kodiert — aus 19 MB werden 26,5 MB und rund zwei Sekunden ' +
+      'Rechenzeit. Gegen die Fünf-Minuten-Grenze unkritisch, aber wer annimmt, der Weg ohne Netzsprung ' +
+      'sei deshalb der schnellere, liegt bei langen Aufnahmen zwei Sekunden daneben.</p>' +
+      '<p>Was zurückkommt, wird auf das Nötige gekürzt: der Text, beziehungsweise die eine Antwort und ' +
+      'ihr Verbrauch. Segmente, Wortzahlen, ein VTT-Spur und der <code>@cf/…</code>-Modellname bleiben ' +
+      'hier — sie helfen niemandem und verraten, was hinter Dictate Cloud steht.</p>',
   },
 
   {

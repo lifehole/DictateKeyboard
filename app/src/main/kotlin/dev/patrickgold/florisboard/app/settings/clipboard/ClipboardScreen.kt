@@ -16,6 +16,9 @@
 
 package dev.patrickgold.florisboard.app.settings.clipboard
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import dev.patrickgold.florisboard.R
@@ -61,12 +64,37 @@ fun ClipboardScreen() = FlorisScreen {
             enabledIf = { prefs.clipboard.useInternalClipboard isEqualTo true },
         )
 
+        // Sits with the top-level clipboard behaviour rather than in a group, because it applies to
+        // every way of pasting there is — the key, the panel and the suggestion chip (issue #329).
+        SwitchPreference(
+            prefs.clipboard.stripTrackingParams,
+            icon = Icons.Default.LinkOff,
+            modifier = Modifier.settingsSearchAnchor("pref__clipboard__strip_tracking_params__label"),
+            title = stringRes(R.string.pref__clipboard__strip_tracking_params__label),
+            summary = stringRes(R.string.pref__clipboard__strip_tracking_params__summary),
+        )
+
+        // The counterpart on the way out: cut and copy alike, whichever button was used (issue #335).
+        SwitchPreference(
+            prefs.clipboard.trimOnCopy,
+            icon = Icons.Default.ContentCut,
+            modifier = Modifier.settingsSearchAnchor("pref__clipboard__trim_on_copy__label"),
+            title = stringRes(R.string.pref__clipboard__trim_on_copy__label),
+            summary = stringRes(R.string.pref__clipboard__trim_on_copy__summary),
+        )
+
         PreferenceGroup(title = stringRes(R.string.pref__clipboard__group_clipboard_suggestion__label)) {
             SwitchPreference(
                 prefs.clipboard.suggestionEnabled,
                 modifier = Modifier.settingsSearchAnchor("pref__clipboard__suggestion_enabled__label"),
                 title = stringRes(R.string.pref__clipboard__suggestion_enabled__label),
                 summary = stringRes(R.string.pref__clipboard__suggestion_enabled__summary),
+            )
+            SwitchPreference(
+                prefs.clipboard.suggestionShowExtracted,
+                modifier = Modifier.settingsSearchAnchor("pref__clipboard__suggestion_show_extracted__label"),
+                title = stringRes(R.string.pref__clipboard__suggestion_show_extracted__label),
+                enabledIf = { prefs.clipboard.suggestionEnabled isEqualTo true },
             )
             DialogSliderPreference(
                 prefs.clipboard.suggestionTimeout,
@@ -104,6 +132,12 @@ fun ClipboardScreen() = FlorisScreen {
                 min = 0,
                 max = 10,
                 stepIncrement = 1,
+                enabledIf = { prefs.clipboard.historyEnabled isEqualTo true },
+            )
+            SwitchPreference(
+                prefs.clipboard.historyPinnedOnTop,
+                modifier = Modifier.settingsSearchAnchor("pref__clipboard__history_pinned_on_top__label"),
+                title = stringRes(R.string.pref__clipboard__history_pinned_on_top__label),
                 enabledIf = { prefs.clipboard.historyEnabled isEqualTo true },
             )
             SwitchPreference(

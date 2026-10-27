@@ -9,7 +9,7 @@
     <string name="one_handed__move_start_btn_content_description" comment="Content description for the one-handed move to left button">将键盘移动到左边。</string>
     <string name="one_handed__move_end_btn_content_description" comment="Content description for the one-handed move to right button">将键盘移动到右边。</string>
     <!-- Media strings -->
-    <string name="settings__media__title">表情符号 &amp; GIFs</string>
+    <string name="settings__media__title">表情符号、GIF 和贴纸</string>
     <string name="media__tab__emojis" comment="Tab description for emojis in the media UI">表情符号</string>
     <string name="media__tab__emoticons" comment="Tab description for emoticons in the media UI">绘文字</string>
     <string name="media__tab__kaomoji" comment="Tab description for kaomoji in the media UI">颜文字</string>
@@ -18,6 +18,8 @@
     <string name="prefs__media__emoji_history__title" comment="Preference group title">Emoji表情选择历史</string>
     <string name="prefs__media__emoji_history_enabled" comment="Preference title">开启emoji表情选择历史记录</string>
     <string name="prefs__media__emoji_history_enabled__summary" comment="Preference summary">保留近期使用过的emoji表情以便快速访问</string>
+    <string name="prefs__media__emoji_row_enabled">表情行</string>
+    <string name="prefs__media__emoji_row_enabled__summary">在键盘上方显示一行已固定和最近使用的表情符号</string>
     <string name="prefs__media__emoji_history_pinned_update_strategy" comment="Preference title">更新策略(已置顶)</string>
     <string name="prefs__media__emoji_history_recent_update_strategy" comment="Preference title">更新策略(最近的)</string>
     <string name="prefs__media__emoji_history_max_size">要保存的最多项目个数</string>
@@ -58,6 +60,10 @@
     <string name="quick_action__arrow_left__tooltip">执行向左方向键</string>
     <string name="quick_action__arrow_right" comment="Please mind the limited available space for the quick action strings">向右键</string>
     <string name="quick_action__arrow_right__tooltip">执行向右方向键</string>
+    <string name="quick_action__move_start_of_page" comment="Please mind the limited available space for the quick action strings">文本开头</string>
+    <string name="quick_action__move_start_of_page__tooltip">跳转到文本开头</string>
+    <string name="quick_action__move_end_of_page" comment="Please mind the limited available space for the quick action strings">文本末尾</string>
+    <string name="quick_action__move_end_of_page__tooltip">跳转到文本末尾</string>
     <string name="quick_action__ime_hide_ui" comment="Please mind the limited available space for the quick action strings">隐藏键盘</string>
     <string name="quick_action__ime_hide_ui__tooltip">执行隐藏键盘</string>
     <string name="quick_action__clipboard_clear_primary_clip" comment="Please mind the limited available space for the quick action strings">清除主要剪贴板条目</string>
@@ -68,6 +74,7 @@
     <string name="quick_action__clipboard_cut__tooltip">执行剪贴板剪切</string>
     <string name="quick_action__clipboard_paste" comment="Please mind the limited available space for the quick action strings">粘贴</string>
     <string name="quick_action__clipboard_paste__tooltip">执行剪贴板粘贴</string>
+    <string name="quick_action__clipboard_select">选择</string>
     <string name="quick_action__clipboard_select_all" comment="Please mind the limited available space for the quick action strings">全选</string>
     <string name="quick_action__clipboard_select_all__tooltip">执行剪贴板全选</string>
     <string name="quick_action__forward_delete" comment="Please mind the limited available space for the quick action strings">向前删除</string>
@@ -95,8 +102,14 @@
     <string name="quick_action__floating_window_mode__tooltip">切换浮动键盘窗口模式</string>
     <string name="quick_action__one_handed_mode" comment="Please mind the limited available space for the quick action strings">单手模式</string>
     <string name="quick_action__one_handed_mode__tooltip">单手模式开关</string>
+    <string name="quick_action__split_layout" comment="Please mind the limited available space for the quick action strings">分屏键盘</string>
+    <string name="quick_action__split_layout__tooltip">分屏键盘开关</string>
     <string name="quick_action__resize_mode" comment="Please mind the limited available space for the quick action strings">调整大小</string>
     <string name="quick_action__resize_mode__tooltip">切换调整大小模式</string>
+    <string name="quick_action__toggle_number_row" comment="Quick action that shows or hides the row of digit keys above the letters. Please mind the limited available space for the quick action strings">数字行</string>
+    <string name="quick_action__toggle_number_row__tooltip">显示或隐藏数字行</string>
+    <string name="quick_action__view_numeric_advanced" comment="Quick action that replaces the whole keyboard with a number pad (digits, arithmetic signs, brackets). Not to be confused with the number row above. Please mind the limited available space for the quick action strings">数字键盘</string>
+    <string name="quick_action__view_numeric_advanced__tooltip">切换到数字键盘</string>
     <string name="quick_action__drag_marker" comment="This action is only used as a placeholder in the actions editor drag and drop screen and only visible in debug mode">拖动标记</string>
     <string name="quick_action__drag_marker__tooltip" comment="This action is only used as a placeholder in the actions editor drag and drop screen and only visible in debug mode">当前拖动标记位置</string>
     <string name="quick_action__noop" comment="Noop=no operation; this action is only used as a placeholder in the actions editor drag and drop screen">无</string>
@@ -119,12 +132,24 @@
     <string name="settings__home__title" comment="Title of the Home screen">欢迎使用{app_name}</string>
     <string name="settings__home__ime_not_enabled" comment="Error message shown in Home fragment when Dictate Keyboard is not enabled in the system">{app_name}没有在系统中被启用，因此在输入法选择界面中不会出现。点击这里解决这一问题。</string>
     <string name="settings__home__ime_not_selected" comment="Warning message shown in Home fragment when Dictate Keyboard is not selected as the default keyboard">{app_name}没有被设置为默认输入法。点击这里解决这一问题。</string>
+    <string name="dictate__settings_unreadable_card">无法读取你的设置，因此 Dictate 已使用默认值启动。点按此处即可恢复。</string>
+    <string name="dictate__settings_unreadable_title">恢复设置？</string>
+    <string name="dictate__settings_unreadable_message">Dictate 启动时无法读取其设置文件。它已原样保留该文件，并使用默认值启动。“还原”会将你的服务商、密钥、提示词和设置恢复原样。“删除”会移除旧文件。</string>
+    <string name="dictate__settings_restore_failed">仍然无法读取旧设置。</string>
     <string name="settings__search__title" comment="Title of the settings search screen">搜索设置</string>
     <string name="settings__search__placeholder" comment="Placeholder in the settings search field">搜索设置…</string>
     <string name="settings__search__recent" comment="Header above recently used search terms">最近搜索</string>
     <string name="settings__search__clear_recent" comment="Button to clear the recent searches">清除最近搜索</string>
     <string name="settings__search__popular" comment="Header above a small list of popular settings shortcuts">热门</string>
     <string name="settings__search__no_results" comment="Shown when a settings search returns nothing">未找到设置</string>
+    <string name="settings__search__keywords__text_expansion" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the typing-shortcut setting, which lets a short trigger expand into a saved block of text. Translate as the words people in your language would actually type when looking for that feature, separated by spaces. Do not translate word for word; add or drop terms as makes sense.">文本扩展 短语 缩写 快捷短语 宏 自动文本 模板 snippet text expansion</string>
+    <string name="settings__search__keywords__selection_metrics" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which shows how many words and characters are selected. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">字数 词数 统计 字符数</string>
+    <string name="settings__search__keywords__trim_on_copy" comment="NOT SHOWN ANYWHERE — extra search terms that lead to the setting which removes spaces and line breaks at the ends of copied text. Translate as the words people in your language would actually type when looking for it, separated by spaces. Do not translate word for word.">去除空格 空白 修剪 复制 剪切</string>
+    <string name="settings__search__keywords__clear_cache">缓存 存储 空间 临时文件 释放 删除 清理</string>
+    <string name="settings__search__keywords__momentary_layer">长按 滑动 符号 层 临时 瞬时 标点 123 iphone</string>
+    <string name="settings__search__keywords__emoji_row">表情 emoji 行 栏 最近 使用 键盘 上方 快捷</string>
+    <string name="settings__search__keywords__request_timeout">超时 等待 慢 连接 秒 断开</string>
+    <string name="settings__search__keywords__floating_side_buttons">撤销 取消 暂停 继续 恢复</string>
     <string name="settings__localization__title" comment="Title of languages and Layout screen">语言 &amp; 键盘布局</string>
     <string name="settings__localization__display_language_names_in__label" comment="Label of Display language names in preference">语言名称的显示语言</string>
     <string name="settings__localization__display_keyboard_labels_in_subtype_language" comment="Label of Display keyboard labels in subtype language preference">以键盘子类型的语言显示键盘标签</string>
@@ -132,6 +157,8 @@
     <string name="settings__localization__subtype_add_title" comment="Title of subtype dialog when adding a new subtype">添加键盘子类型</string>
     <string name="settings__localization__language_pack_title" comment="Title of the language pack manager screen for managing installed and custom language packs">管理已安装的语言包</string>
     <string name="settings__localization__language_pack_summary" comment="Summary of preference item for adding a new language pack">添加输入法的扩展：中文拼音以及形码输入法。</string>
+    <string name="settings__localization__subtype_download_title">语言数据</string>
+    <string name="settings__localization__subtype_download_message">添加 {language_name} 将下载 {size} 的词库和上下文数据。输入建议和自动更正需要它们。下载会立即开始，可能使用移动数据。</string>
     <string name="settings__localization__subtype_edit_title" comment="Title of subtype dialog when editing an existing subtype">编辑键盘子类型</string>
     <string name="settings__localization__subtype_locale" comment="Label for locale dropdown in subtype dialog">主要语言</string>
     <string name="settings__localization__subtype_popup_mapping" comment="Label for popup mapping dropdown in subtype screen">弹出键映射表</string>
@@ -168,6 +195,8 @@
     <string name="settings__localization__subtype_delete_confirmation_title" comment="Title of the subtype delete confirmation dialog">删除前确认</string>
     <string name="settings__localization__subtype_delete_confirmation_warning" comment="Warning message in the confirmation dialog to confirm the user's intent to delete">你确定要删除此子类型嘛？</string>
     <string name="settings__theme__title" comment="Title of the Theme screen">主题</string>
+    <string name="pref__theme__high_contrast__label" comment="Label of the switch that turns on the measured high-contrast theme pair">高对比度</string>
+    <string name="pref__theme__high_contrast__summary" comment="Summary of the high-contrast switch. 7:1 is the WCAG AAA contrast ratio for body text; keep the ratio as digits.">按键带描边，每处文字对比度均达 7:1。同时设置日间和夜间主题。</string>
     <string name="pref__theme__mode__label" comment="Label of the theme mode preference">主题模式</string>
     <string name="pref__theme__sunrise_time__label" comment="Label of the sunrise time preference">日出时间</string>
     <string name="pref__theme__sunset_time__label" comment="Label of the sunset time preference">日落时间</string>
@@ -310,6 +339,7 @@
     <string name="snygg__rule_element__smartbar_candidate_clip">智能栏候选剪贴板条目</string>
     <string name="snygg__rule_element__smartbar_candidate_clip_icon">智能栏候选剪贴板图标</string>
     <string name="snygg__rule_element__smartbar_candidate_clip_text">智能栏候选剪贴板文本</string>
+    <string name="snygg__rule_element__smartbar_candidate_clip_dismiss">智能栏候选剪贴板关闭按钮</string>
     <string name="snygg__rule_element__smartbar_candidate_spacer">智能栏候选条目间隔</string>
     <string name="snygg__rule_element__subtype_panel">子类型面板</string>
     <string name="snygg__rule_element__subtype_panel_header">子类型面板标题</string>
@@ -323,10 +353,13 @@
     <string name="snygg__rule_selector__disabled">已停用</string>
     <string name="snygg__property_name__background">背景</string>
     <string name="snygg__property_name__foreground">前景</string>
+    <string name="snygg__property_name__background_blur">背景模糊</string>
     <string name="snygg__property_name__background_image">背景图片</string>
     <string name="snygg__property_name__content_scale">内容规模</string>
     <string name="snygg__property_name__border_color">边框颜色</string>
     <string name="snygg__property_name__border_style">边框样式</string>
+    <string name="snygg__property_name__background_sheen">背景光泽</string>
+    <string name="snygg__property_name__border_sheen">边框光泽</string>
     <string name="snygg__property_name__border_width">边框宽度</string>
     <string name="snygg__property_name__font_family">字体系列</string>
     <string name="snygg__property_name__font_size">字体大小</string>
@@ -375,6 +408,8 @@
     <string name="snygg__property_value__circle_shape">圆形形状</string>
     <string name="snygg__property_value__cut_corner_shape_dp">切角形状 (dp)</string>
     <string name="snygg__property_value__cut_corner_shape_percent">切角形状 (%)</string>
+    <string name="snygg__property_value__sheen">光泽</string>
+    <string name="snygg__property_value__squircle_shape">超椭圆</string>
     <string name="snygg__property_value__rounded_corner_shape_dp">圆角矩形形状 (%)</string>
     <string name="snygg__property_value__rounded_corner_shape_percent">圆角矩形形状 (%)</string>
     <string name="snygg__property_value__dp_size">尺寸 (dp)</string>
@@ -412,13 +447,35 @@
     <string name="pref__input_feedback__any_feat_key_press__summary" comment="Preference summary">例如：键、按钮、表情符号选项卡</string>
     <string name="pref__input_feedback__any_feat_key_long_press__summary" comment="Preference summary">例如：弹出菜单</string>
     <string name="pref__input_feedback__any_feat_key_repeated_action__summary" comment="Preference summary">例如：删除键</string>
-    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">功能尚未完成</string>
+    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">例如：滑动切换语言、滑行输入</string>
     <string name="pref__input_feedback__any_feat_gesture_moving_swipe__summary" comment="Preference summary">例如：光标控制滑动</string>
     <string name="settings__keyboard__title" comment="Title of Keyboard preferences screen">键盘</string>
     <string name="pref__keyboard__number_row__label" comment="Preference title">数字行</string>
     <string name="pref__keyboard__number_row__summary" comment="Preference summary">在字母布局上方显示数字行</string>
     <string name="pref__keyboard__hinted_number_row_mode__label" comment="Preference title">提示数字行</string>
     <string name="pref__keyboard__hinted_symbols_mode__label" comment="Preference title">提示符号</string>
+    <string name="settings__custom_symbols__title">自定义符号</string>
+    <string name="pref__keyboard__custom_symbols__label">使用自定义符号</string>
+    <string name="custom_symbols__edit_key">编辑按键</string>
+    <string name="custom_symbols__key">符号</string>
+    <string name="custom_symbols__currency">语言的货币</string>
+    <string name="custom_symbols__long_press">长按时</string>
+    <string name="custom_symbols__add_placeholder">添加，例如 ✔ ☑ ✅</string>
+    <string name="custom_symbols__insert_as">插入为</string>
+    <string name="custom_symbols__target_key">按键</string>
+    <string name="custom_symbols__target_long_press">长按</string>
+    <string name="custom_symbols__palette_math">数学</string>
+    <string name="custom_symbols__palette_arrows">箭头</string>
+    <string name="custom_symbols__palette_currencies">货币</string>
+    <string name="custom_symbols__palette_punctuation">标点</string>
+    <string name="custom_symbols__palette_shapes">形状</string>
+    <string name="custom_symbols__palette_greek">希腊字母</string>
+    <string name="custom_symbols__palette_scripts">上标和下标</string>
+    <string name="custom_symbols__reset_all">重置所有按键</string>
+    <string name="custom_symbols__reset_all_confirm">将所有按键恢复为默认值？</string>
+    <string name="custom_symbols__import_confirm">用此文件中的符号替换你的符号？</string>
+    <string name="custom_symbols__import_done">符号已导入</string>
+    <string name="custom_symbols__import_invalid">这不是符号文件</string>
     <string name="pref__keyboard__utility_key_enabled__label" comment="Preference title">显示功能键</string>
     <string name="pref__keyboard__utility_key_enabled__summary" comment="Preference summary">在空格键旁边显示一个可配置的功能键</string>
     <string name="pref__keyboard__utility_key_action__label" comment="Preference title">功能键操作</string>
@@ -427,6 +484,8 @@
     <string name="pref__keyboard__font_size_multiplier__label" comment="Preference title">字体大小缩放倍率</string>
     <string name="pref__keyboard__group_layout__label" comment="Preference group title">布局</string>
     <string name="pref__keyboard__landscape_input_ui_mode__label" comment="Preference value">横向全屏输入</string>
+    <string name="pref__keyboard__key_spacing__label" comment="Preference title">按键间距</string>
+    <string name="pref__keyboard__key_spacing__summary" comment="Preference summary">垂直 {v}%、水平 {h}% — 间距越大按键越小，键盘大小不变。</string>
     <string name="pref__keyboard__group_keypress__label" comment="Preference group title">按键</string>
     <string name="pref__keyboard__popup_enabled__label" comment="Preference title">弹出键可见</string>
     <string name="pref__keyboard__popup_enabled__summary" comment="Preference summary">按键时显示弹出提示</string>
@@ -444,9 +503,16 @@
     <string name="pref__smartbar__group_layout_specific__label" comment="Preference group title">特定布局的选项</string>
     <string name="pref__smartbar__flip_toggles__label" comment="Preference title">翻转开关按钮位置</string>
     <string name="pref__smartbar__flip_toggles__summary" comment="Preference summary">翻转操作栏开关按钮位置</string>
+    <string name="pref__smartbar__selection_metrics__label" comment="Preference title, keep short">选中内容统计</string>
+    <string name="pref__smartbar__selection_metrics__summary" comment="Preference summary, keep short (one line)">显示所选文字的词数和字符数</string>
     <string name="pref__smartbar__shared_actions_auto_expand_collapse__label" comment="Preference title">自动展开 / 折叠</string>
     <string name="pref__smartbar__shared_actions_auto_expand_collapse__summary" comment="Preference summary">根据当前状态自动展开 / 折叠共用操作行</string>
     <string name="pref__smartbar__extended_actions_placement__label" comment="Preference title">操作行位置</string>
+    <string name="settings__smartbar__second_actions__title" comment="Title of the Smartbar second actions screen">第二操作</string>
+    <string name="settings__smartbar__second_actions__summary" comment="Preference summary">长按 Smartbar 按钮可执行第二操作</string>
+    <string name="settings__smartbar__second_actions__note" comment="Header of the screen while nothing is being paired: says what to do">先点按一个按钮，再点按它长按时要执行的操作。两者都保留各自的按钮——在键盘的操作编辑器中隐藏其中一个即可腾出位置。</string>
+    <string name="settings__smartbar__second_actions__hint_pick_second" comment="Header while a button is selected; {action} is that button's name">长按 {action} 时执行什么？</string>
+    <string name="settings__smartbar__second_actions__section_child_only" comment="Heading above the buttons that cannot carry a second action">仅可作为第二操作——这些按钮长按会重复，或已有自己的长按功能</string>
     <!-- Typing strings -->
     <string name="settings__typing__title" comment="Title of Typing screen">键入</string>
     <string name="pref__suggestion__title" comment="Preference group title">建议</string>
@@ -461,10 +527,19 @@
     <string name="pref__correction__auto_capitalization__summary" comment="Preference summary">根据当前输入上下文将单词首字母大写</string>
     <string name="pref__correction__auto_space_punctuation__label" comment="Preference title">标点后自动空格</string>
     <string name="pref__correction__auto_space_punctuation__summary" comment="Preference summary">在标点符号后自动插入一个空格</string>
+    <string name="pref__correction__tighten_punctuation_spacing__label" comment="Preference title">标点前不留空格</string>
+    <string name="pref__correction__tighten_punctuation_spacing__summary" comment="Preference summary">删除在 . , ? ! 前输入的空格</string>
     <string name="pref__correction__remember_caps_lock_state__label" comment="Preference title">记住大写锁定状态</string>
     <string name="pref__correction__remember_caps_lock_state__summary" comment="Preference summary">移动到另一个文本框时，大写锁定将保持原状态</string>
-    <string name="pref__correction__double_space_period__label" comment="Preference title">双空格句号</string>
-    <string name="pref__correction__double_space_period__summary" comment="Preference summary">在空格键上点击两次会插入一个句号加一个空格</string>
+    <string name="pref__correction__double_space_period__label" comment="Preference title">双击空格键</string>
+    <string name="enum__double_space_action__punctuation" comment="Enum value label">句子结尾</string>
+    <string name="enum__double_space_action__punctuation__description" comment="Enum value description. The character in brackets is the Devanagari danda, the Hindi full stop, and must stay as it is.">所输入语言中用于结束句子的字符，后跟一个空格——多数为句号，印地语为丹达符（।）。</string>
+    <string name="enum__double_space_action__comma" comment="Enum value label">逗号</string>
+    <string name="enum__double_space_action__comma__description" comment="Enum value description">一个逗号，后跟一个空格。</string>
+    <string name="enum__double_space_action__newline" comment="Enum value label">换行</string>
+    <string name="enum__double_space_action__newline__description" comment="Enum value description">用换行代替空格。</string>
+    <string name="enum__double_space_action__slash" comment="Enum value label">斜杠</string>
+    <string name="enum__double_space_action__slash__description" comment="Enum value description">不带空格的斜杠，用于书写“和/或”之类的内容。</string>
     <string name="pref__spelling__title" comment="Preference group title">拼写</string>
     <string name="pref__spelling__active_spellchecker__summary_disabled">已在系统范围内禁用。对于不正确的单词，文本框中不会出现红线。点击进行更改。</string>
     <string name="pref__spelling__active_spellchecker__summary_none">未设置内嵌式文本拼写检查服务。点击进行更改。</string>
@@ -491,16 +566,24 @@
     <string name="settings__udm__open_system_manager_ui" comment="Label of the Open system manager UI menu option">打开系统管理器界面</string>
     <string name="settings__udm__dictionary_import_success" comment="Message for dictionary import success">用户词典导入成功！</string>
     <string name="settings__udm__dictionary_export_success" comment="Message for dictionary export success">用户词典导出成功！</string>
+    <string name="settings__udm__add_from_contacts">从联系人添加姓名</string>
+    <string name="settings__udm__import_from_contacts_file">从联系人文件导入姓名</string>
+    <string name="settings__udm__contacts_confirm_message">在此文件中找到 {count} 个姓名。要添加到词典吗？</string>
+    <string name="settings__udm__contacts_added_one">已将 {name} 添加到词典</string>
+    <string name="settings__udm__contacts_added_many">已将 {count} 个姓名添加到词典</string>
+    <string name="settings__udm__contacts_added_none">未找到新的姓名</string>
+    <string name="settings__udm__contacts_file_unreadable">无法读取该文件</string>
+    <string name="settings__udm__contacts_no_picker">未找到联系人应用</string>
     <string name="settings__udm__dialog__title_add" comment="Label for the title (when in adding mode) in the user dictionary add/edit dialog">添加词条</string>
     <string name="settings__udm__dialog__title_edit" comment="Label for the title (when in editing mode) in the user dictionary add/edit dialog">编辑词条</string>
     <string name="settings__udm__dialog__word_label" comment="Label for the word in the user dictionary add/edit dialog">词条</string>
     <string name="settings__udm__dialog__word_error_empty" comment="Error label for the word in the user dictionary add/edit dialog">请输入一个词条</string>
-    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog">请输入一个匹配正则表达式 {regex} 的词条</string>
+    <string name="settings__udm__dialog__word_error_invalid">此处只能填一个词，不能包含空格、逗号或分号。若要插入整句或多行文本，请在提示词中添加一个片段。</string>
     <string name="settings__udm__dialog__freq_label" comment="Label for the frequency in the user dictionary add/edit dialog. The two decimal placeholders are the minimum and maximum frequency, both inclusive.">频率（在 {f_min} 和 {f_max} 之间）</string>
     <string name="settings__udm__dialog__freq_error_empty" comment="Error label for the frequency in the user dictionary add/edit dialog">请输入频率值</string>
     <string name="settings__udm__dialog__freq_error_invalid" comment="Error label for the frequency in the user dictionary add/edit dialog">请输入指定范围内的有效数字</string>
     <string name="settings__udm__dialog__shortcut_label" comment="Label for the shortcut in the user dictionary add/edit dialog">快捷键（可选）</string>
-    <string name="settings__udm__dialog__shortcut_error_invalid" comment="Error label for the shortcut in the user dictionary add/edit dialog">请输入一个匹配正则表达式 {regex} 的快捷键</string>
+    <string name="settings__udm__dialog__shortcut_error_invalid">快捷词只能是一个词，不能包含空格、逗号或分号。</string>
     <string name="settings__udm__dialog__locale_label" comment="Label for the language code in the user dictionary add/edit dialog">语言代码（可选）</string>
     <string name="settings__udm__dialog__locale_error_invalid" comment="Error label for the language code in the user dictionary add/edit dialog">此语言代码不符合预期的语法。代码必须是一种语言（如 en）、一种语言和国家（如 en_US）或一种语言、国家和文字（如 en_US-script）。</string>
     <string name="settings__gestures__title" comment="Title of Gestures screen">手势 &amp; 滑动输入</string>
@@ -523,9 +606,12 @@
     <string name="pref__gestures__swipe_left__label" comment="Preference title">向左滑动</string>
     <string name="pref__gestures__swipe_right__label" comment="Preference title">向右滑动</string>
     <string name="pref__gestures__space_bar_swipe_up__label" comment="Preference title">空格键向上滑动</string>
+    <string name="pref__gestures__space_bar_swipe_down__label" comment="Preference title">空格键向下滑动</string>
     <string name="pref__gestures__space_bar_swipe_left__label" comment="Preference title">空格键向左滑动</string>
     <string name="pref__gestures__space_bar_swipe_right__label" comment="Preference title">空格键向右滑动</string>
     <string name="pref__gestures__space_bar_long_press__label" comment="Preference title">空格键长按</string>
+    <string name="pref__gestures__momentary_layer__label" comment="Preference title, keep short">长按临时切换层</string>
+    <string name="pref__gestures__momentary_layer__summary" comment="Preference summary, keep short (one line)">按住 ?123 滑到某个字符再松开 — 字符已输入，键盘回到字母</string>
     <string name="pref__gestures__delete_key_swipe_left__label" comment="Preference title">删除键向左滑动</string>
     <string name="pref__gestures__delete_key_long_press__label" comment="Preference title">删除键长按</string>
     <string name="pref__gestures__swipe_velocity_threshold__label" comment="Preference title">滑动触发速度阈值</string>
@@ -539,6 +625,10 @@
     <string name="pref__other__settings_accent_color__label" comment="Label of accent color preference in Other">软件设置页中各控件(如开关、滑动条)的强调色    </string>
     <string name="pref__other__settings_language__label" comment="Label of Settings language preference in Other">软件设置页的显示语言</string>
     <string name="pref__other__show_app_icon__label" comment="Label of Show app icon preference in Other">在系统桌面显示软件logo图标</string>
+    <string name="pref__other__clear_cache__label">清除缓存</string>
+    <string name="pref__other__clear_cache__summary">临时文件：{size}</string>
+    <string name="pref__other__clear_cache__confirm">清除</string>
+    <string name="pref__other__clear_cache__message">删除应用可以重新生成的临时文件：正在转录的共享文件、下载的 GIF 和贴纸、解码后的图片。语音输入历史、录音、设置和词典不受影响。正在进行的录音或转录可能会中断。</string>
     <string name="pref__other__show_app_icon__summary_atleast_q" comment="Summary of Show app icon preference in Other for Android 10+">由于系统限制，在Android 10及以上版本中将始终启用</string>
     <!-- About UI strings -->
     <string name="about__title" comment="Title of About activity">关于</string>
@@ -601,6 +691,10 @@
     <string name="backup_and_restore__back_up__destination_share_intent">通过共享菜单保存到第三方应用</string>
     <string name="backup_and_restore__back_up__files">选择要备份的内容</string>
     <string name="backup_and_restore__back_up__files_jetpref_datastore">选项</string>
+    <string name="backup_and_restore__back_up__files_provider_credentials">API 密钥和密码</string>
+    <string name="backup_and_restore__back_up__credentials_warning">该归档以明文保存你的 API 密钥和密码，还包含你的 Dictate Cloud 余额——拿到它的人都能用你的账户来听写。不要转交；如果已经转交过，请在服务商处更换密钥。下面勾选的其他内容也会一同带走，包括听写历史和剪贴板。</string>
+    <string name="backup_and_restore__back_up__credentials_excluded_note">该归档不含 API 密钥、密码和 Dictate Cloud 余额，因此可以转交——但也不会恢复你的密钥。下面勾选的其他内容仍在其中，包括听写历史和剪贴板。</string>
+    <string name="backup_and_restore__back_up__personal_content_note">该归档不含 API 密钥和密码，但包含下面勾选的一切：听写历史及保留的录音、剪贴板、你的提示词，以及键盘从你这里学到的词。</string>
     <string name="backup_and_restore__back_up__files_ime_keyboard">键盘扩展</string>
     <string name="backup_and_restore__back_up__files_ime_spelling">拼写扩展 / 词典</string>
     <string name="backup_and_restore__back_up__files_ime_theme">主题扩展</string>
@@ -616,6 +710,7 @@
     <string name="backup_and_restore__restore__metadata">选定的备份档案</string>
     <string name="backup_and_restore__restore__metadata_warn_different_version">这个备份档案是在其他版本中生成的，本应用一般支持这一操作。但请注意，这样可能会出现一些小问题，或者可能由于功能差异某些偏好设置无法正确导入。</string>
     <string name="backup_and_restore__restore__metadata_warn_different_vendor">这个备份档案是在第三方应用中生成的，本应用一般不支持这一操作。可能会发生数据丢失，进行还原需要您自担风险！</string>
+    <string name="backup_and_restore__restore__metadata_note_no_credentials">该备份归档不含 API 密钥和密码。其他内容都会恢复。合并会保留本机已有的密钥；覆盖则会删除它们——包括无法重新输入的 Dictate Cloud 恢复码。</string>
     <string name="backup_and_restore__restore__metadata_error_invalid_metadata">这个备份档案包含无效的元数据。可能它已损坏，或者修改不当。无法从这个档案还原，请选择其他档案。</string>
     <string name="backup_and_restore__restore__metadata_error_nothing_to_restore">这个备份档案不包含任何可以还原的文件，请选择其他档案。</string>
     <string name="backup_and_restore__restore__mode">还原模式</string>
@@ -638,7 +733,10 @@
     <string name="crash_multiple_notification__title" comment="Title of the notification for consecutive crashes">Dictate 似乎反复停止工作…</string>
     <string name="crash_multiple_notification__body" comment="Body of the notification for consecutive crashes">回退到上一个键盘以停止无限崩溃循环。点击查看错误详情</string>
     <!-- Clipboard strings -->
+    <string name="editing__back_to_keyboard">返回键盘</string>
     <string name="clipboard__header_title">剪贴板</string>
+    <string name="clipboard__search_placeholder" comment="Hint inside the clipboard search field">搜索剪贴板</string>
+    <string name="clipboard__search_no_results" comment="Shown when no clip contains what was typed">没有包含该内容的剪贴项</string>
     <string name="clipboard__disabled__title">剪贴板历史记录当前已禁用</string>
     <string name="clipboard__disabled__message">{app_name} 的剪贴板历史记录允许您快速存储、访问您复制的文本和图像，并能够置顶条目、设置自动清理、限制最大条目数。</string>
     <string name="clipboard__disabled__enable_button">启用剪贴板历史记录</string>
@@ -649,6 +747,7 @@
     <string name="clipboard__group_pinned">置顶</string>
     <string name="clipboard__group_recent">最新</string>
     <string name="clipboard__group_other">其他</string>
+    <string name="pref__clipboard__history_pinned_on_top__label">置顶项显示在上方</string>
     <string name="clipboard__item_description_email">电子邮箱</string>
     <string name="clipboard__item_description_url">链接地址</string>
     <string name="clipboard__item_description_phone">电话号码</string>
@@ -671,7 +770,10 @@
     <string name="pref__clipboard__sync_to_system_clipboard__label">同步到系统剪贴板</string>
     <string name="pref__clipboard__group_clipboard_suggestion__label">根据剪切板内容给出的建议</string>
     <string name="pref__clipboard__suggestion_enabled__label" comment="Preference title">剪贴板内容建议</string>
+    <string name="pref__clipboard__trim_on_copy__label" comment="Preference title, keep short">复制时去除空白</string>
+    <string name="pref__clipboard__trim_on_copy__summary" comment="Preference summary, keep short (one line)">删除首尾的空格和换行</string>
     <string name="pref__clipboard__suggestion_enabled__summary" comment="Preference summary">建议之前复制的内容</string>
+    <string name="pref__clipboard__suggestion_show_extracted__label" comment="Preference title (switch) in the group Clipboard suggestions, keep short (one line): whether the links, email addresses and phone numbers found inside a copied text are also offered as suggestions of their own, next to the whole text">链接、电子邮件和电话号码</string>
     <string name="pref__clipboard__num_history_grid_columns__label">网格列数</string>
     <string name="pref__clipboard__suggestion_timeout__label" comment="Preference title; Translators: This should form a sentence together with `pref__clipboard__suggestion_timeout__summary` and is the first part">将剪贴板建议限制为</string>
     <string name="pref__clipboard__suggestion_timeout__summary" comment="Preference summary; Translators: This should form a sentence together with `pref__clipboard__suggestion_timeout__label` and is the second part">在过去 {v} 秒内复制的项目</string>
@@ -1022,6 +1124,7 @@
     <string name="enum__swipe_action__move_cursor_start_of_page" comment="Enum value label">移动光标到页首</string>
     <string name="enum__swipe_action__move_cursor_end_of_page" comment="Enum value label">移动光标到页尾</string>
     <string name="enum__swipe_action__switch_to_clipboard_context" comment="Enum value label">打开剪贴板管理器 / 历史</string>
+    <string name="enum__swipe_action__switch_to_editing_context">打开文本编辑面板</string>
     <string name="enum__swipe_action__switch_to_media_context" comment="Enum value label">打开表情符号面板</string>
     <string name="enum__swipe_action__shift" comment="Enum value label">Shift 键</string>
     <string name="enum__swipe_action__redo" comment="Enum value label">恢复</string>
@@ -1056,12 +1159,21 @@
         <item quantity="other">{v} 项</item>
     </plurals>
     <plurals name="unit__characters__written">
-        <item quantity="other">字符</item>
+        <item quantity="other">{v} 个字符</item>
+    </plurals>
+    <plurals name="unit__words__written">
+        <item quantity="other">{v} 个词</item>
     </plurals>
     <plurals name="unit__candidates__written">
         <item quantity="other">候选</item>
     </plurals>
     <!-- Dictate strings -->
+    <string name="quick_action__ime_ui_mode_editing">文本编辑</string>
+    <string name="quick_action__ime_ui_mode_editing__tooltip">移动光标、选择和编辑文本</string>
+    <string name="quick_action__ime_ui_mode_scan">扫描文字</string>
+    <string name="quick_action__ime_ui_mode_scan__tooltip">拍摄印刷文字并插入</string>
+    <string name="quick_action__translate">翻译</string>
+    <string name="quick_action__translate__tooltip">边输入边翻译，全程在本机完成</string>
     <string name="quick_action__ime_ui_mode_dictate">听写</string>
     <string name="quick_action__ime_ui_mode_dictate__tooltip">点按开始听写，再次点按进行转录</string>
     <string name="quick_action__dictate_live_prompt">实时指令</string>
@@ -1138,10 +1250,16 @@
     <string name="dictate__floating_button_disclosure_continue">打开设置</string>
     <string name="dictate__floating_button_mic_title">麦克风权限</string>
     <string name="dictate__floating_button_mic_summary">录制语音所必需 · 点按以授予</string>
-    <string name="dictate__floating_button_show_with_keyboard_title">随 Dictate 键盘一起显示</string>
-    <string name="dictate__floating_button_show_with_keyboard_summary_on">当 Dictate 键盘处于活动状态时，按钮也会显示。</string>
-    <string name="dictate__floating_button_show_with_keyboard_summary_off">当 Dictate 键盘处于活动状态时隐藏，因为它已经有麦克风键。</string>
+    <string name="dictate__floating_button_show_when_title">显示时机</string>
+    <string name="dictate__floating_button_show_when_field">选中文本框时</string>
+    <string name="dictate__floating_button_show_when_keyboard">仅在键盘打开时</string>
+    <string name="dictate__floating_button_show_when_dictate_keyboard">Dictate 键盘打开时也显示</string>
     <string name="dictate__action_continue_recording">继续录音</string>
+    <string name="dictate__a11y_mic_hold_local">在设备上转录</string>
+    <string name="smartbar__a11y_show_actions">显示操作</string>
+    <string name="smartbar__a11y_show_suggestions">显示建议</string>
+    <string name="smartbar__a11y_show_more_actions">显示更多操作</string>
+    <string name="smartbar__a11y_hide_more_actions">隐藏更多操作</string>
     <string name="dictate__floating_button_auto_dim_summary_off">始终保持完全可见。</string>
     <string name="dictate__floating_button_auto_dim_summary_on">几秒后缩小为一个小圆点；点按可恢复。</string>
     <string name="dictate__floating_button_auto_dim_title">空闲时淡出</string>
@@ -1158,10 +1276,18 @@
     <string name="dictate__floating_button_design_pill_summary">激活时展开，显示计时器和实时波形。</string>
     <string name="dictate__floating_button_design_ring">圆环</string>
     <string name="dictate__floating_button_design_ring_summary">紧凑的圆形，录音和转写时圆环会有动画。</string>
+    <string name="dictate__floating_button_apps_title">按应用显示</string>
+    <string name="dictate__floating_button_apps_summary_all">在所有应用中显示</string>
+    <string name="dictate__floating_button_apps_summary_only">仅在 {n} 个应用中显示</string>
+    <string name="dictate__floating_button_apps_summary_except">除 {n} 个应用外都显示</string>
+    <string name="dictate__floating_button_apps_scope_all">所有应用</string>
+    <string name="dictate__floating_button_apps_scope_only">仅下列应用</string>
+    <string name="dictate__floating_button_apps_scope_except">除下列应用外的所有应用</string>
+    <string name="dictate__floating_button_apps_note">被排除的应用上方永远不会绘制按钮，Dictate 也不会读取其中的文本框。但对于本身就抵触无障碍服务的应用，它仍然能看出该服务已开启。</string>
+    <string name="dictate__floating_button_apps_list_title">应用</string>
+    <string name="dictate__floating_button_apps_search">搜索应用</string>
+    <string name="dictate__floating_button_apps_none">未找到与“{search_term}”匹配的应用</string>
     <string name="dictate__floating_button_design_title">按钮样式</string>
-    <string name="dictate__floating_button_haptic_summary_off">点按时不振动。</string>
-    <string name="dictate__floating_button_haptic_summary_on">点按按钮时短暂振动。</string>
-    <string name="dictate__floating_button_haptic_title">点按时振动</string>
     <string name="dictate__floating_button_no_prompts">暂无改写提示词——请在 Dictate 设置中添加。</string>
     <string name="dictate__floating_button_remember_position_summary_off">所有应用共用一个位置。</string>
     <string name="dictate__floating_button_remember_position_summary_on">每个应用保留各自的按钮位置。</string>
@@ -1174,8 +1300,10 @@
     <string name="dictate__floating_button_snap_summary_on">拖动后按钮会吸附到最近的一侧。</string>
     <string name="dictate__floating_button_snap_title">吸附到边缘</string>
     <string name="dictate__interrupted_recording">已中断（{time}）</string>
+    <string name="dictate__transcription_stopped">已停止，录音已保留</string>
+    <string name="dictate__transcription_stopped_in_history">已停止，录音在历史中</string>
     <string name="dictate__providers_summary_both">转写：{transcription} · 改写：{rewording}</string>
-    <string name="dictate__remember_last_dictation_summary">保留上次听写，可用 Smartbar 的“重新插入”按钮再次插入。</string>
+    <string name="dictate__remember_last_dictation_summary">保留你最近一次的听写，以便悬浮按钮可以撤销它、经典布局可以重新插入它。</string>
     <string name="dictate__remember_last_dictation_title">记住上次听写</string>
     <string name="changelog__v4_2_0">• 新功能：悬浮听写按钮——即使其他键盘处于激活状态，也能直接在任何应用中听写。可从三种样式（胶囊、圆环、光球）中选择，说话时显示实时波形，可拖到任意位置并吸附到边缘，设置颜色和大小，长按即可改写。在 设置 ▸ Dictate ▸ 悬浮按钮 中开启。\n• 新功能：Google Gemini — 使用你自己的 AI Studio API 密钥进行转录和改写。\n• 提示词现在默认显示在按键上方的常驻行中。\n• 跨应用的文本插入更可靠，包括浏览器和其他键盘。</string>
     <string name="dictate__promo_floating_button_message">新功能：在任何应用中听写</string>
@@ -1213,6 +1341,8 @@
     <string name="dictate__error_transcription_failed">转录失败。</string>
     <string name="dictate__error_unknown">转录时发生未知错误。</string>
     <string name="dictate__error_rewording_failed">改写失败。</string>
+    <string name="dictate__error_rewording_default_model">%1$s 是 %2$s 的内置默认模型，并非你选择的模型。请在“AI 提供商”中选择改写模型。</string>
+    <string name="dictate__notice_rewording_failed">改写失败 – 已插入原始文本</string>
     <string name="dictate__error_overlay_insert_clipboard">该应用没有接受这段文字。它已复制到剪贴板——长按输入框粘贴即可。</string>
     <string name="dictate__error_invalid_api_key">请检查您的 API 密钥</string>
     <string name="dictate__error_quota_exceeded">已达到配额或限额</string>
@@ -1220,10 +1350,11 @@
     <string name="dictate__error_text_size_limit">文本太长，无法改写</string>
     <string name="dictate__error_format_not_supported">不支持该音频格式</string>
     <string name="dictate__error_timeout">请求超时</string>
+    <string name="dictate__error_timeout_on_device">设备端转录过慢</string>
     <string name="dictate__error_network">无网络连接</string>
     <string name="dictate__error_server">服务商不可用——请重试</string>
     <string name="dictate__error_try_on_device">无法连接——试试本机转写</string>
-    <string name="dictate__error_try_on_device_detail">本机转写完全不需要联网——无论是服务商被屏蔽，还是根本没有信号，都用得上。请在 AI 服务商 中设置，并打开 离线回退，让它自动接管。</string>
+    <string name="dictate__error_try_on_device_detail">本机转写完全不需要联网——无论是服务商被屏蔽，还是根本没有信号，都用得上。请在 AI 服务商 中设置，并在 回退 中选择它，让它自动接管。</string>
     <string name="dictate__action_settings">打开设置</string>
     <string name="dictate__action_error_details">显示错误详情</string>
     <string name="dictate__error_details_title">错误详情</string>
@@ -1257,6 +1388,7 @@
     <string name="dictate__model_default_summary">服务商默认</string>
     <string name="dictate__custom_server_title">自定义服务器</string>
     <string name="dictate__base_url_title">基础 URL</string>
+    <string name="dictate__base_url_cleartext_warning">未加密：API 密钥和你的录音以明文传输。在你自己的网络中没有问题，但在其他任何 Wi-Fi 上都可能被他人读取。</string>
     <string name="dictate__base_url_placeholder">https://your-server/v1/</string>
     <string name="dictate__base_url_required">自定义服务商必填</string>
     <string name="dictate__value_not_set">未设置</string>
@@ -1273,15 +1405,48 @@
     <string name="dictate__providers_cap_chat">改写</string>
     <string name="dictate__providers_add_custom">添加你自己的服务器</string>
     <string name="dictate__providers_add_custom_summary">自建服务器或任何兼容 OpenAI 的端点——可用于语音识别和改写</string>
+    <string name="dictate__providers_add">添加服务商</string>
+    <string name="dictate__providers_search">搜索服务商</string>
+    <string name="dictate__providers_filter_eu">欧盟</string>
+    <string name="dictate__providers_add_none">没有匹配的服务商</string>
+    <string name="dictate__providers_azure_endpoint">终结点就在门户“Keys and Endpoint”页面上密钥的旁边。MAI-Transcribe 仅在 East US、West US、West US 2、North Europe、Southeast Asia 和 Central India 运行。</string>
     <string name="dictate__providers_ollama_no_stt">Ollama 没有语音识别端点，因此只能改写。若要通过自己的服务器听写，请运行一个语音服务器（例如 Speaches、faster-whisper-server 或 whisper.cpp），并在“添加你自己的服务器”中添加——或者使用设备端识别，它完全不需要服务器。</string>
+    <string name="dictate__providers_region_title">区域</string>
+    <string name="dictate__providers_region_us">美国</string>
+    <string name="dictate__providers_region_eu">欧盟</string>
+    <string name="dictate__providers_region_jp">日本</string>
+    <string name="dictate__providers_region_in">印度</string>
+    <string name="dictate__providers_region_global">全球</string>
     <string name="dictate__providers_custom_title">自定义服务器</string>
+    <string name="dictate__providers_get_key">获取 API 密钥</string>
     <string name="dictate__providers_field_name">名称</string>
     <string name="dictate__providers_field_transcription_model">转录模型</string>
     <string name="dictate__providers_field_chat_model">改写模型</string>
     <string name="dictate__providers_test">测试连接</string>
-    <string name="dictate__providers_test_success">已连接 · {count} 个模型</string>
-    <string name="dictate__providers_test_failed">连接失败</string>
+    <string name="dictate__providers_test_transcribe">测试转录</string>
+    <string name="dictate__providers_check_no_key">请先输入 API 密钥。</string>
+    <string name="dictate__providers_check_credentials_ok">凭据已验证 · {count} 个模型</string>
+    <string name="dictate__providers_check_credentials_ok_nocount">凭据已验证</string>
+    <string name="dictate__providers_check_endpoint_ok">已连接服务器 · {count} 个模型</string>
+    <string name="dictate__providers_check_credentials_untested">尚未测试转录。</string>
+    <string name="dictate__providers_check_transcription_ok">转录已验证</string>
+    <string name="dictate__providers_check_transcription_text">返回内容：“{text}”</string>
+    <string name="dictate__providers_check_transcription_empty">请求成功，但没有返回文字——连接正常，只是该模型没听懂这段样本。</string>
+    <string name="dictate__providers_check_failed_connection">连接测试失败</string>
+    <string name="dictate__providers_check_failed_transcription">转录测试失败</string>
+    <string name="dictate__providers_check_err_auth">密钥被拒绝。请检查密钥，以及地址是否属于同一账户。</string>
+    <string name="dictate__providers_check_err_quota">密钥有效，但账户额度用尽或超出限制。请在服务商处查看你的套餐。</string>
+    <string name="dictate__providers_check_err_network">无法连接服务器。请检查地址和网络连接。</string>
+    <string name="dictate__providers_check_err_timeout">未在限定时间内收到回应。服务商可能繁忙，请重试。</string>
+    <string name="dictate__providers_check_err_server">服务商报告了自身错误。这里无需改动，请稍后重试。</string>
+    <string name="dictate__providers_check_err_format">服务商拒绝了该语音样本，可能不支持这种格式。</string>
+    <string name="dictate__providers_check_err_unknown">请求失败。</string>
+    <string name="dictate__providers_azure_link_signup">创建 Azure 账户</string>
+    <string name="dictate__providers_azure_link_portal">Azure 门户</string>
+    <string name="dictate__providers_azure_link_guide">设置指南</string>
     <string name="dictate__providers_network_group">网络</string>
+    <string name="dictate__request_timeout_title">请求超时</string>
+    <string name="dictate__request_timeout_summary">{v} 秒 · 自建服务器较慢时可调高</string>
     <string name="dictate__proxy_title">代理</string>
     <string name="dictate__proxy_summary_off">关闭 · 直接连接</string>
     <string name="dictate__proxy_enabled_title">使用代理</string>
@@ -1319,8 +1484,10 @@
     <string name="dictate__recording_animation_static_description">录音时保持为一个纯红色圆点</string>
     <string name="dictate__recording_animation_pulse_label">脉动</string>
     <string name="dictate__recording_animation_pulse_description">以固定节奏跳动</string>
-    <string name="dictate__recording_animation_level_label">跟随你的声音</string>
+    <string name="dictate__recording_animation_level_label">跟随你的声音（圆点）</string>
     <string name="dictate__recording_animation_level_description">根据麦克风音量变化，表明麦克风正在拾音</string>
+    <string name="dictate__recording_animation_wave_label">跟随你的声音（波形）</string>
+    <string name="dictate__recording_animation_wave_description">将最近几秒绘制成实时波形，便于看出你何时停止说话</string>
     <string name="dictate__skip_silent_title">跳过静音录音</string>
     <string name="dictate__skip_silent_summary">避免静音录音产生幻觉文本和浪费 API 调用</string>
     <string name="dictate__trim_silent_gaps_title">裁剪长停顿</string>
@@ -1335,7 +1502,10 @@
     <string name="dictate__paragraph_split_off">关闭</string>
     <string name="dictate__paragraph_split_value">{n} 个词后</string>
     <string name="dictate__realtime_title">实时转录</string>
-    <string name="dictate__realtime_summary">在您说话时实时显示文本，适用于支持此功能的提供商</string>
+    <string name="dictate__realtime_summary">在您说话时即时转写，而不是停止后才开始，适用于支持此功能的提供商</string>
+    <string name="dictate__realtime_mode_off">关闭</string>
+    <string name="dictate__realtime_mode_live">说话时显示文本</string>
+    <string name="dictate__realtime_mode_at_end">仅在停止时显示文本</string>
     <string name="dictate__longform_title">长篇听写</string>
     <string name="dictate__longform_summary">在后台逐段转写长语音输入，你可以边说边处理——录音时点按「下一段」发送当前部分，这样结束时无需长时间等待。</string>
     <string name="dictate__longform_autosplit_title">智能自动分段</string>
@@ -1354,7 +1524,7 @@
     <string name="dictate__providers_field_realtime_model">实时模型</string>
     <string name="dictate__providers_custom_realtime">实时流式传输</string>
     <string name="dictate__providers_custom_realtime_summary">此服务器在 /v1/realtime 上支持 OpenAI 实时协议</string>
-    <string name="dictate__providers_custom_warm_up">改写前先唤醒</string>
+    <string name="dictate__providers_custom_warm_up">提前唤醒</string>
     <string name="dictate__providers_custom_warm_up_summary">提前访问服务器，让休眠的机器有时间启动</string>
     <string name="dictate__providers_realtime_model_default">默认</string>
     <string name="dictate__instant_recording_title">即时录音</string>
@@ -1381,7 +1551,13 @@
     <string name="dictate__languages_title">转录语言</string>
     <string name="dictate__languages_summary">选择您听写所用的语言。可从录音栏快速切换。</string>
     <string name="dictate__language_detect">自动检测</string>
+    <string name="dictate__languages_selected_title">已选语言</string>
     <string name="dictate__languages_active_title">当前语言</string>
+    <string name="dictate__languages_follow_keyboard">跟随键盘语言</string>
+    <string name="dictate__languages_follow_keyboard_summary">若该语言已选中，听写语言也随之切换</string>
+    <string name="quick_action__dictate_switch_provider">转录服务商</string>
+    <string name="quick_action__dictate_switch_provider__tooltip">切换转录服务商</string>
+    <string name="enum__space_bar_mode__transcription_provider">转录服务商</string>
     <string name="dictate__prompt_selection_none">无</string>
     <string name="dictate__prompt_selection_predefined">默认</string>
     <string name="dictate__prompt_selection_custom">自定义</string>
@@ -1394,6 +1570,26 @@
     <string name="dictate__custom_words_title">自定义词汇</string>
     <string name="dictate__custom_words_summary_empty">添加姓名或专业术语以正确拼写</string>
     <string name="dictate__custom_words_placeholder">例如：FlorisBoard、Kubernetes、Renée、OAuth、Anthropic</string>
+    <string name="dictate__custom_words_summary">{count} 个词 · 约 {tokens}/{budget} 个词元</string>
+    <string name="dictate__custom_words_budget_info">这里的每个词都会随每次听写一起发送，而语音模型只读取其中约 {budget} 个词元的上下文。你的列表约占 {tokens} 个。</string>
+    <string name="dictate__custom_words_budget_over">你的列表比语音模型能读取的更长。{count} 个词中约有 {fits} 个能送达，其余的每次听写都会发送并被忽略。词汇量较大时请改用自定义替换，它精确、可离线工作，而且不产生任何费用。</string>
+    <string name="dictate__custom_words_import">导入词表</string>
+    <string name="dictate__custom_words_export">导出词表</string>
+    <string name="dictate__custom_words_export_filename">dictate_words.txt</string>
+    <string name="dictate__custom_words_import_title">导入词表</string>
+    <string name="dictate__custom_words_import_fitting">此文件中有 {count} 个新词可以放进你的列表。</string>
+    <string name="dictate__custom_words_import_known">其中 {count} 个已经在列表里了。</string>
+    <string name="dictate__custom_words_import_nofit">有 {count} 个没放下——语音模型只读取约 {budget} 个词元的上下文，它们即使被发送也会被忽略。</string>
+    <string name="dictate__custom_words_import_unusable">{count} 行没有可拼写的内容，已跳过。</string>
+    <string name="dictate__custom_words_import_truncated">只读取了文件中的前 {count} 条。</string>
+    <string name="dictate__custom_words_import_also_dictionary">同时加入个人词典</string>
+    <string name="dictate__custom_words_import_also_dictionary_summary">这个列表只告诉语音模型一个词该怎么写。个人词典才是键盘在你打字时使用的词典——它没有长度限制，所以文件中的每个词都会加入，而不只是上面放得下的那些。</string>
+    <string name="dictate__custom_words_import_empty">在该文件中未找到词语</string>
+    <string name="dictate__custom_words_import_done">已添加 {count} 个词</string>
+    <string name="dictate__custom_words_import_done_dictionary">已添加 {count} 个词，并将 {dict} 个加入你的个人词典</string>
+    <string name="dictate__file_unreadable">无法读取该文件</string>
+    <string name="dictate__file_export_done">文件已保存</string>
+    <string name="dictate__file_export_failed">无法写入该文件</string>
     <string name="dictate__rewording_group">改写（AI 编辑）</string>
     <string name="dictate__rewording_title">改写（AI）</string>
     <string name="dictate__rewording_summary_on">开启——使用 AI 改写、翻译和格式化</string>
@@ -1408,6 +1604,12 @@
     <string name="dictate__manage_prompts_title">管理提示词</string>
     <string name="dictate__manage_prompts_summary">{count} 条提示词</string>
     <string name="dictate__manage_prompts_summary_loading">添加、编辑和删除您的提示词</string>
+    <string name="dictate__command_word_title">指令唤醒词</string>
+    <string name="dictate__command_word_off">关闭</string>
+    <string name="dictate__command_word_summary">以“{word}”开头的听写将作为实时指令执行</string>
+    <string name="dictate__command_word_placeholder">贾维斯</string>
+    <string name="dictate__command_word_info_title">关于指令唤醒词</string>
+    <string name="dictate__command_word_info_description">Dictate 通常会把你说的话原样写下来。设置唤醒词后，以它开头的听写会改为按指令处理：该词被去掉，其余内容连同选中的文本（如果有）一起发送给 AI。\n\n“贾维斯，把这段改得正式一点”会改写选中的文本；“贾维斯，日本的首都是哪里”会把答案写进输入框。也就是把实时指令按钮从“点一下”变成“叫一声”。\n\n该词只有位于听写最开头、且作为完整词出现时才生效，所以请挑一个你很少用来起头的词。</string>
     <string name="dictate__auto_formatting_title">自动格式化</string>
     <string name="dictate__auto_formatting_summary">将口述的格式提示转换为 Markdown（标题、列表等）</string>
     <string name="dictate__system_prompt_title">改写指令</string>
@@ -1422,7 +1624,11 @@
     <string name="dictate__prompt_name_title">名称</string>
     <string name="dictate__prompt_name_placeholder">例如：修正语法</string>
     <string name="dictate__prompt_text_title">提示词</string>
-    <string name="dictate__prompt_text_placeholder">发送给 AI 模型的指令</string>
+    <string name="dictate__prompt_text_placeholder">给 AI 的指令 —— 或用[方括号]括起来的文本，原样插入</string>
+    <string name="dictate__prompt_trigger_title">输入快捷词（可选）</string>
+    <string name="dictate__prompt_trigger_placeholder">例如 ;sig</string>
+    <string name="dictate__prompt_trigger_error_invalid">快捷词是一个不含空格的词，最多 32 个字符。</string>
+    <string name="dictate__prompt_trigger_error_duplicate">“{name}”已在使用该快捷词。</string>
     <string name="dictate__prompt_requires_selection_title">需要选中文本</string>
     <string name="dictate__prompt_requires_selection_summary">对选中的文本进行操作并替换它</string>
     <string name="dictate__prompt_auto_apply_title">自动应用</string>
@@ -1470,6 +1676,7 @@
     <string name="dictate__prompt_library_all">全部</string>
     <string name="dictate__prompt_library_add">追加</string>
     <string name="dictate__prompt_library_added">已添加</string>
+    <string name="dictate__prompt_library_add_again">再次添加</string>
     <string name="dictate__prompt_library_empty">没有与搜索匹配的提示词。</string>
     <string name="dictate__prompt_library_error">无法加载社区库。请检查网络连接后重试。</string>
     <string name="dictate__prompt_library_retry">重试</string>
@@ -1484,6 +1691,34 @@
     <string name="dictate__file_preparing">正在准备文件…</string>
     <string name="dictate__file_too_large">文件过大——服务商最多接受 25 MB。</string>
     <string name="dictate__file_read_error">无法读取所选文件。</string>
+    <string name="dictate__import_share_label">转写</string>
+    <string name="dictate__import_title">转写文件</string>
+    <string name="dictate__import_menu">转写文件</string>
+    <string name="dictate__import_menu_summary">选择音频或视频文件，读一读里面说了什么</string>
+    <string name="dictate__import_step_copy">正在接收文件</string>
+    <string name="dictate__import_step_extract">正在提取音频</string>
+    <string name="dictate__import_step_prepare">正在准备音频</string>
+    <string name="dictate__import_step_upload">正在上传</string>
+    <string name="dictate__import_step_transcribe">正在使用 {provider} 转录</string>
+    <string name="dictate__import_step_transcribe_local">正在本机转录</string>
+    <string name="dictate__import_step_finish">正在完成</string>
+    <string name="dictate__import_step_percent">{v}%</string>
+    <string name="dictate__import_step_part">第 {current}/{total} 部分</string>
+    <string name="dictate__import_result_label">转写文本</string>
+    <string name="dictate__import_prompt_button">重写</string>
+    <string name="dictate__import_revert">撤销</string>
+    <string name="dictate__import_copy">复制</string>
+    <string name="dictate__import_copied">已复制！</string>
+    <string name="dictate__import_save">保存为文件</string>
+    <string name="dictate__import_saved">转写文本已保存。</string>
+    <string name="dictate__import_save_failed">无法保存转写文本。</string>
+    <string name="dictate__import_search">在转写文本中搜索</string>
+    <string name="dictate__import_search_hits">{current}/{total}</string>
+    <string name="dictate__import_search_none">0/0</string>
+    <string name="dictate__import_retry">重试</string>
+    <string name="dictate__import_no_file">没有共享任何音频文件。</string>
+    <string name="dictate__import_not_audio">此文件不含音频。</string>
+    <string name="dictate__import_only_first">只转写第一个文件，另外 {count} 个已跳过。</string>
     <string name="dictate__setup_description">设置您的 AI 服务商和 API 密钥，即可用麦克风开始听写。</string>
     <string name="dictate__setup_configure_btn">配置 Dictate</string>
     <string name="setup__grant_mic_permission__title">麦克风访问权限</string>
@@ -1519,16 +1754,23 @@
     <string name="dictate__local_model_none_selected">尚未下载模型</string>
     <string name="dictate__local_model_delete_confirm">删除“{model}”？以后可以重新下载。</string>
     <string name="dictate__local_model_not_installed_error">未下载本地模型</string>
-    <string name="dictate__local_fallback_title">离线回退</string>
-    <string name="dictate__local_fallback_summary">离线时，提供商失败后用已下载的模型在本地转写</string>
+    <string name="dictate__local_model_family_installed">已安装 {count}/{total}</string>
+    <string name="dictate__local_model_family_open">显示变体</string>
+    <plurals name="dictate__local_model_languages">
+        <item quantity="other">{count} 种语言</item>
+    </plurals>
+    <string name="dictate__fallback_title">回退</string>
+    <string name="dictate__fallback_off">关闭</string>
+    <string name="dictate__fallback_hint">无法连接转录服务商时，由它接管本次听写。</string>
+    <string name="dictate__providers_transcription_with_fallback">{provider} · 回退：{fallback}</string>
     <string name="backup_and_restore__back_up__files_dictate_prompts">已保存的改写提示词</string>
     <string name="dictate__floating_button_undo_failed">无法撤销——文本可能已更改。</string>
     <string name="dictate__floating_button_copy_to_clipboard_title">将每次听写复制到剪贴板</string>
     <string name="dictate__floating_button_copy_to_clipboard_summary_on">每次听写也会复制到剪贴板，这样即使插入失败也能手动粘贴。在某些手机上可能会显示剪贴板提示。</string>
     <string name="dictate__floating_button_copy_to_clipboard_summary_off">听写仅插入，不复制到剪贴板。</string>
-    <string name="dictate__floating_button_undo_summary_off">不显示撤销按钮。</string>
-    <string name="dictate__floating_button_undo_summary_on">听写完成后，按钮旁会出现撤销按钮，轻点一下即可删除已插入的文本。</string>
-    <string name="dictate__floating_button_undo_title">撤销按钮</string>
+    <string name="dictate__floating_button_menu_group">长按菜单</string>
+    <string name="dictate__floating_button_menu_settings_title">Dictate 设置</string>
+    <string name="dictate__floating_button_side_buttons_title">额外按钮</string>
     <string name="dictate__mappings_add">添加映射</string>
     <string name="dictate__mappings_editor_title">映射</string>
     <string name="dictate__mappings_empty_summary">添加规则可在每条转录中自动替换字词或短语——精确匹配，不消耗 AI 令牌。</string>
@@ -1540,6 +1782,16 @@
     <string name="dictate__mappings_field_to_placeholder">例如 GitHub</string>
     <string name="dictate__mappings_group">替换规则</string>
     <string name="dictate__mappings_matchcase_summary">仅在大小写完全一致时才替换。</string>
+    <string name="dictate__mappings_import">导入规则</string>
+    <string name="dictate__mappings_export">导出规则</string>
+    <string name="dictate__mappings_export_filename">dictate_mappings.tsv</string>
+    <string name="dictate__mappings_import_title">导入规则</string>
+    <string name="dictate__mappings_import_message">此文件中有 {count} 条新规则。要加入你的列表吗？</string>
+    <string name="dictate__mappings_import_known">其中 {count} 条已经在列表里了。</string>
+    <string name="dictate__mappings_import_unusable">{count} 行没有写明替换内容，已跳过。</string>
+    <string name="dictate__mappings_import_format">每行一条规则：听到的内容、一个制表符、应该变成的内容。</string>
+    <string name="dictate__mappings_import_empty">在该文件中未找到规则</string>
+    <string name="dictate__mappings_import_done">已添加 {count} 条规则</string>
     <string name="dictate__mappings_matchcase_title">区分大小写</string>
     <string name="dictate__mappings_opt_caseinsensitive">忽略大小写</string>
     <string name="dictate__mappings_opt_casesensitive">区分大小写</string>
@@ -1549,8 +1801,11 @@
     <string name="dictate__mappings_wholeword_summary">仅替换独立的字词，不替换较长词语中的匹配部分。</string>
     <string name="dictate__mappings_wholeword_title">仅整词匹配</string>
     <string name="dictate__wear_standalone_summary">将 API 密钥发送到手表，即使手机不在附近也能听写。</string>
+    <string name="dictate__wear_tether_notif_channel_name">手表听写</string>
+    <string name="dictate__wear_tether_notif_title">正在为手表转写…</string>
     <string name="dictate__wear_standalone_title">将密钥同步到手表</string>
     <string name="emoji__search__hint">搜索表情符号</string>
+    <string name="emoji__row__open_panel">打开全部表情</string>
     <string name="emoji__search__no_results">没有匹配的表情符号</string>
     <string name="pref__suggestion__api30_inline_suggestions_enabled__label">系统自动填充建议</string>
     <string name="pref__suggestion__block_possibly_offensive__summary">在你输入时阻止建议可能令人反感的字词</string>
@@ -1559,7 +1814,6 @@
     <string name="dictate__providers_field_transcription_rewording_model">转录和改写模型</string>
     <string name="dictate__providers_single_call_title">单次多模态调用</string>
     <string name="dictate__providers_single_call_summary">一个支持音频的模型在一次请求中完成转录和格式化。</string>
-    <string name="dictate__providers_single_call_pick_audio">选择一个支持音频输入的模型（在模型列表中以 🎤 标记）。</string>
     <string name="dictate__providers_rewording_single_call_note">当前未使用 — 你的转录服务商在其单次调用中完成改写。</string>
     <string name="dictate__wear_title">Wear OS</string>
     <string name="dictate__wear_summary">从已配对手表听写的选项</string>
@@ -1579,7 +1833,6 @@
     <string name="dictate__audio_source_voice_recognition_summary">针对语音优化、处理更少 — 如果转录不准确请试试</string>
     <string name="dictate__audio_source_unprocessed">未处理（原始）</string>
     <string name="dictate__audio_source_unprocessed_summary">完全不处理；若手机不支持则回退到语音识别</string>
-    <string name="dictate__security_group">安全</string>
     <string name="dictate__trust_user_certs_title">信任用户证书</string>
     <string name="dictate__trust_user_certs_summary">信任你自己安装的 CA 证书，用于私有 CA 后的自托管端点。</string>
     <string name="dictate__stats_title">统计</string>
@@ -1611,6 +1864,26 @@
     <string name="dictate__history_clear_title">清除历史记录？</string>
     <string name="dictate__history_clear_message">这将永久删除所有历史记录条目和任何保留的音频。</string>
     <string name="dictate__history_clear_confirm">全部清除</string>
+    <string name="dictate__history_export_title">导出到文件夹</string>
+    <string name="dictate__history_export_summary">每段新的听写完成后，都会以纯文本文件的形式同时写入该文件夹。</string>
+    <string name="dictate__history_export_folder">文件夹</string>
+    <string name="dictate__history_export_folder_unset">未设置</string>
+    <string name="dictate__history_export_folder_unavailable">文件夹不可用 — 请重新选择</string>
+    <string name="dictate__history_export_choose">选择文件夹</string>
+    <string name="dictate__history_export_change">更改</string>
+    <string name="dictate__history_export_disconnect">断开</string>
+    <string name="dictate__history_export_audio_title">同时导出录音</string>
+    <string name="dictate__history_export_audio_summary">将音频保存在转写文本旁边。</string>
+    <string name="dictate__history_export_audio_needs_retention">需要先开启“保留音频”。</string>
+    <string name="dictate__history_export_all">立即导出全部</string>
+    <string name="dictate__history_export_all_summary">写入所有尚未出现在该文件夹中的听写：选择文件夹之前的记录，以及文件夹不可用期间未能写入的记录。</string>
+    <string name="dictate__history_export_all_result">已写入 {written} 条，已存在 {skipped} 条，失败 {failed} 条</string>
+    <string name="dictate__history_export_last_failure">{when}有一次写入失败。“立即导出全部”可以补齐缺失的文件。</string>
+    <string name="dictate__history_export_warning_title">文件夹里会有什么</string>
+    <string name="dictate__history_export_warning_message">从现在起，该文件夹会保存你每一段听写的文字；如果开启，还会保存录音。任何同步它的工具 — 云端客户端、备份工具或其他应用 — 都会把这些转写带离本设备。\n\n在你断开该文件夹之前，Dictate 会持续写入，并且从不删除其中的文件：从历史记录中移除的条目仍会留在文件夹里。密码字段和无痕输入从不记录，因此也从不导出。</string>
+    <string name="dictate__history_export_needs_history">文件夹导出写入的是历史记录所保存的内容，因此需要开启历史记录。</string>
+    <string name="dictate__history_export_enable_history">开启历史记录</string>
+    <string name="dictate__history_export_pick_failed">无法获得该文件夹的写入权限</string>
     <string name="dictate__stats_empty">还没有听写 — 开始听写后统计会显示在这里。</string>
     <string name="dictate__stats_time_saved">节省的时间</string>
     <string name="dictate__stats_time_saved_sub">相比打字</string>
@@ -1655,6 +1928,10 @@
     <string name="dictate__action_save_audio">保存音频</string>
     <string name="dictate__audio_saved">音频已保存到 Downloads/Dictate：%s</string>
     <string name="dictate__audio_save_failed">无法保存音频</string>
+    <string name="dictate__instant_recording_mode_off">关闭</string>
+    <string name="dictate__instant_recording_mode_always">每次打开键盘时</string>
+    <string name="dictate__instant_recording_mode_after_switch">仅在切换到 {app_name} 后</string>
+    <string name="dictate__instant_recording_in_numeric">在数字输入框中也启用</string>
     <string name="dictate__instant_recording_skip_numeric_title">跳过数字输入框</string>
     <string name="dictate__instant_recording_skip_numeric_summary">在数字、电话或 PIN 输入框中不自动开始</string>
     <string name="settings__localization__subtype_status_words">候选词</string>
@@ -1663,10 +1940,19 @@
     <string name="settings__localization__subtype_status_context">上下文</string>
     <string name="pref__suggestion__auto_correct__label">自动更正</string>
     <string name="pref__suggestion__auto_correct__summary">按空格时自动修正拼写错误</string>
+    <string name="pref__correction__auto_correct_strength__label">自动更正强度</string>
+    <string name="enum__auto_correct_strength__cautious">谨慎</string>
+    <string name="enum__auto_correct_strength__cautious__description">只更正明显的手滑。绝不改动不常见的拼写。</string>
+    <string name="enum__auto_correct_strength__balanced">均衡</string>
+    <string name="enum__auto_correct_strength__balanced__description">更正日常错字，包括按到旁边的键。推荐。</string>
+    <string name="enum__auto_correct_strength__aggressive">激进</string>
+    <string name="enum__auto_correct_strength__aggressive__description">也更正相差更远的词——偶尔会替换掉你本来想要的词。</string>
     <string name="pref__suggestion__multilingual_typing__label">多语言输入</string>
     <string name="pref__suggestion__multilingual_typing__summary">接受来自所有键盘语言的单词</string>
     <string name="pref__suggestion__next_word_prediction__label">下一个词建议</string>
     <string name="pref__suggestion__next_word_prediction__summary">输入完一个词后建议可能的下一个词</string>
+    <string name="pref__suggestion__ignore_app_suggestion_block__label">忽略关闭候选词的应用</string>
+    <string name="pref__suggestion__ignore_app_suggestion_block__summary">仍然显示，密码框除外</string>
     <string name="suggestion__added_to_dictionary">已将“{word}”添加到词典</string>
     <string name="suggestion__already_in_dictionary">“{word}”已在词典中</string>
     <string name="dictate__legacy_record">录音</string>
@@ -1849,6 +2135,149 @@
     <string name="apptour60__outro_eyebrow">这就是 6.0</string>
     <string name="apptour60__outro_title">用得愉快</string>
     <string name="apptour60__outro_body">无论你怎么使用 Dictate——自己的密钥、自己的服务器、设备上的模型，还是额度——其他方式都没有任何变化。所有导览都可以在 设置 › 关于 中重新查看。</string>
+    <string name="apptour61__cta_try">试一试</string>
+    <string name="apptour61__art_folder">贴纸</string>
+    <string name="apptour61__art_share">分享到</string>
+    <string name="apptour61__art_typed">帐号</string>
+    <string name="apptour61__art_fixed">账号</string>
+    <string name="apptour61__intro_eyebrow">Dictate 6.1</string>
+    <string name="apptour61__intro_title">贴纸、语音消息，以及终于看得见错字的自动更正</string>
+    <string name="apptour61__intro_body">把一个装着你自己贴纸的文件夹指给键盘，把语音消息直接分享给 Dictate 就能知道里面说了什么，还有一个终于能发现它本来被设计为看不见的那类错误的自动更正。</string>
+    <string name="apptour61__stickers_eyebrow">新功能：你自己的贴纸</string>
+    <string name="apptour61__stickers_title">手机里的一个文件夹，搬到键盘上</string>
+    <string name="apptour61__stickers_body">把任意文件夹指给 Dictate，里面的图片就成了贴纸——子文件夹变成标签页，各有自己的收藏和最近使用。从任何应用通过分享菜单添加，不离开键盘就能删除。聊天应用真正接受的东西，和它声称接受的并不一样，所以每张贴纸在放进来时就被整理成合适的样子，之后只管发送。</string>
+    <string name="apptour61__share_eyebrow">新功能：分享给 Dictate</string>
+    <string name="apptour61__share_title">弄清那条语音消息说了什么</string>
+    <string name="apptour61__share_body">Dictate 现在会出现在音频和视频的分享菜单里。把语音消息分享过去，就会打开一个自己开始转写的界面——不用找输入框，也不用按按钮。转写结果可以搜索，长录音会分段处理，而不是被拒绝。</string>
+    <string name="apptour61__autocorrect_eyebrow">自动更正</string>
+    <string name="apptour61__autocorrect_title">它本来看不见的那个错字</string>
+    <string name="apptour61__autocorrect_body">决定一个词能否被更正的规则，会放过滑到相邻按键附近的手指，却从不放过端端正正落在相邻按键上的手指——而后者恰恰是最常见的错字。这一点已经修好，更正得多果断也由你自己设定。空格键将要采用的那个词会用你的强调色标出，而紧接着按退格会原样还给你刚才输入的内容。</string>
+    <string name="apptour61__contacts_eyebrow">联系人</string>
+    <string name="apptour61__contacts_title">不再被划红线的名字</string>
+    <string name="apptour61__contacts_body">联系人的名字可以加进个人词典，键盘就不再把它们当作错字，而是开始给出建议。这不需要通讯录权限——名字由你自己挑选，或者导入一个 vCard。你没有交出来的内容，一概不会被读取。</string>
+    <string name="apptour61__models_eyebrow">Gemini 与 Deepgram Flux</string>
+    <string name="apptour61__models_title">两家把耳朵练得更好的服务商</string>
+    <string name="apptour61__models_body">Google 发布了自家的语音转文字模型，Gemini 因此不再靠一个被下了指令的聊天模型来转写，现在也支持实时。Deepgram 的 Flux 会自己判断你有没有说完，而不是干等一段静音。如果你会说好几种语言，现在可以直接说明是哪几种，而不必选一种然后碰运气。</string>
+    <string name="apptour61__more_eyebrow">此外</string>
+    <string name="apptour61__more_title">许多小改进</string>
+    <string name="apptour61__more_body">提示词可以通过输入一个缩写触发，而不只是点一下。俄语可以按读音输入，法语能从不带符号的字母里找到自己的重音符。非常宽的平板在横屏下重新有了键盘。建议开关现在是真的把建议关掉——包括应用想替你关掉的时候。</string>
+    <string name="apptour61__outro_eyebrow">这就是 6.1</string>
+    <string name="apptour61__outro_title">同一块键盘，少了些棱角</string>
+    <string name="apptour61__outro_body">你现在的口述方式没有任何变化——自己的密钥、自己的服务器，或是设备上的模型。所有导览都能在 设置 › 关于 中重新查看。</string>
+    <string name="apptour62__cta_try">试试看</string>
+    <string name="apptour62__cta_manage">在哪里关掉</string>
+    <string name="apptour62__art_word">泽雅</string>
+    <string name="apptour62__art_emoji_word">蛋糕</string>
+    <string name="apptour62__art_emoji">🍰</string>
+    <string name="apptour62__intro_eyebrow">Dictate 6.2</string>
+    <string name="apptour62__intro_title">它会记住你的词，还添了五套新外观</string>
+    <string name="apptour62__intro_body">键盘现在能记住任何词典都不认识的词，按键之间可以透出下面的应用，两个拇指也能各占一半。此外还有一把小工具，专门帮你处理每天都在做的事。</string>
+    <string name="apptour62__learning_eyebrow">新功能：边打边学</string>
+    <string name="apptour62__learning_title">词典都不认识的词</string>
+    <string name="apptour62__learning_body">把一个名字或术语输入足够多次，键盘就会把它留下：不再标成错误，而是开始推荐它。这次更新会为所有人打开它，包括此前把它关掉的人。在无痕模式、密码输入框，以及任何不是你一键一键敲出来的内容里都不会学到东西；所有内容都只留在这台设备上，下面的按钮会打开这份清单——以及那个开关。</string>
+    <string name="apptour62__themes_eyebrow">五套新外观</string>
+    <string name="apptour62__themes_title">Glass、Sand、Deep，以及深色 E-Ink</string>
+    <string name="apptour62__themes_body">Dictate Glass 让应用从按键之间的缝隙透出来，而按键本身仍然足够不透明，字看得清；Glass Clear 更通透、更好看，代价是在那些会画到键盘后面的应用里，它们的文字会透过来。Sand 是温暖的浅色主题，Deep 是沉静的深色主题，E-Ink 终于有了夜间版本——自动切换在天黑之后不会再递给你一块白色键盘。</string>
+    <string name="apptour62__split_eyebrow">新功能：分体键盘</string>
+    <string name="apptour62__split_title">两个拇指都够得着，不必伸手</string>
+    <string name="apptour62__split_body">在单手模式和悬浮模式旁边新增的快捷操作，会把每一行拉开，让每个拇指都待在自己那一半。所有布局都能分开，不只是 QWERTY，因为分界点是从键宽算出来的，而不是写进每套布局里。横屏时，只要空间够，应用现在会一直保持可见。</string>
+    <string name="apptour62__emoji_eyebrow">表情符号</string>
+    <string name="apptour62__emoji_title">词会找到自己的表情</string>
+    <string name="apptour62__emoji_body">输入一个词，它所对应的表情就会出现在候选栏里——支持约五十种语言，用的是系统本身所用的同一份数据。它跟在候选词旁边一起走，而不是占掉其中一个位置。此外还可以在按键上方开启一行固定的和最近用过的表情。</string>
+    <string name="apptour62__helpers_eyebrow">四个小帮手</string>
+    <string name="apptour62__helpers_title">无痕、干净的链接，还有算式的答案</string>
+    <string name="apptour62__helpers_body">无痕模式开启期间不会记住任何东西：不学习，也不留存。粘贴的链接可以在进入输入框的路上就去掉追踪参数。输入一个以 = 结尾的算式，答案会作为候选出现。数字行开启时，字母键也会重新显示自己的数字。</string>
+    <string name="apptour62__selection_eyebrow">选择与跳转</string>
+    <string name="apptour62__selection_title">看得见你选了多少</string>
+    <string name="apptour62__selection_body">选中文字时一直空着的那一行，现在会数出其中的词数和字符数。新按钮可以跳到输入框的最开头和最末尾，复制时还能把两端多余的空格留下。一旦开始选择，操作行会主动让开，而不是挡在上面。</string>
+    <string name="apptour62__clipboard_eyebrow">剪贴板</string>
+    <string name="apptour62__clipboard_title">按内容找到那一条</string>
+    <string name="apptour62__clipboard_body">剪贴板现在可以搜索了，涵盖里面的全部内容。刚刚复制的东西会以一枚可以划掉的胶囊形式出现在候选栏里；同一段文字复制两次就算两次，所以它会再回来。删除一条记录现在也会删掉它背后的文件，而不是把图片留在手机上。</string>
+    <string name="apptour62__gestures_eyebrow">手势</string>
+    <string name="apptour62__gestures_title">按住 ?123，滑动，松手</string>
+    <string name="apptour62__gestures_body">按住符号键，滑到想要的字符再松手：字符就输入了，字母也已经回来，不用来回切换。在空格键上向上滑，现在能够到上面一行，而不只是前一个词。按键之间的间距也能在真正看得出差别的范围内调整。</string>
+    <string name="apptour62__export_eyebrow">新功能：口述存成文件</string>
+    <string name="apptour62__export_title">每次口述都写进你选的文件夹</string>
+    <string name="apptour62__export_body">选定一个文件夹之后，每段完成的口述在完成的那一刻都会额外以纯文本文件写进去。不论是什么在盯着那个文件夹——记事应用、同步工具、你的备份——都能拿到你的文字，而 Dictate 不必去学它的那套规矩。</string>
+    <string name="apptour62__more_eyebrow">此外</string>
+    <string name="apptour62__more_title">许多小改进</string>
+    <string name="apptour62__more_body">候选词现在在每种语言里都会看光标前的两个词，而不只是英语。备份可以不带你的 API 密钥生成，因而可以放心转交。Azure 自家的转写模型已经可用，为离线使用选择模型时现在也会一并切换到离线引擎，每个请求也都有与等待时间相称的期限。口述在送出的那一刻就出现在历史记录里，导入会说明自己正处在哪一步并且可以取消，文字进入那些一向挑剔的应用时也更可靠了。</string>
+    <string name="apptour62__outro_eyebrow">这就是 6.2</string>
+    <string name="apptour62__outro_title">还是那块键盘，更多地属于你</string>
+    <string name="apptour62__outro_body">你的口述方式没有任何变化——自己的密钥、自己的服务器，或是设备上的模型。所有导览都能在 设置 › 关于 中重新查看。</string>
+    <string name="apptour63__cta_try">试试看</string>
+    <string name="apptour63__intro_eyebrow">Dictate 6.3</string>
+    <string name="apptour63__intro_title">不用离开键盘，就能做更多</string>
+    <string name="apptour63__intro_body">把相机对准印刷文字，它就会落进输入框。光标、选择和剪贴板终于共用一个面板。智能栏上的任何按钮都能在长按时承载第二个操作。离线听写也终于有了真正装得下手机的模型。</string>
+    <string name="apptour63__scan_eyebrow">新功能：扫描文字</string>
+    <string name="apptour63__scan_title">印刷文字，直接进入输入框</string>
+    <string name="apptour63__scan_body">信上的 IBAN、盒子上的序列号、包裹上的地址：把相机对准它，文字就出现在你正在输入的位置，而不必重新敲一遍。识别在本机完成——不上传任何内容，也没有任何服务商参与。Dictate 也从不索取相机权限：照片由系统相机拍摄，只交回那一张，读取完就删除。</string>
+    <string name="apptour63__editing_eyebrow">新功能：编辑面板</string>
+    <string name="apptour63__editing_title">光标、选择和剪贴板在同一个地方</string>
+    <string name="apptour63__editing_body">这些其实早就有了，只是分散在十一个你得先知道的按键上。现在是一个面板：按字符、按词或按行移动，选择、复制、粘贴、撤销。按住一个键会重复，而不是要你点十一下。数字键盘现在也能明确调出，不必再靠一个谁也没绑定过的手势偶然撞见。</string>
+    <string name="apptour63__second_eyebrow">新功能：长按触发第二个操作</string>
+    <string name="apptour63__second_title">智能栏一个位置，两个操作</string>
+    <string name="apptour63__second_body">第二个操作由你自己与按钮配对，长按即可执行。同时可见的按钮只有五六个——这正是「功能存在」和「功能放得下」之间的差别。角上的小标记会显示哪些按钮带着第二个操作。</string>
+    <string name="apptour63__floating_eyebrow">悬浮按钮</string>
+    <string name="apptour63__floating_title">长按出菜单，并且只在你想要的地方出现</string>
+    <string name="apptour63__floating_body">长按悬浮按钮会展开一个简短菜单，第一项就是转写文件。你还可以告诉它在哪些应用里受欢迎，而不必让它跟着你进每一个应用。停止现在就停在开始所在的位置，胶囊无论贴在屏幕哪一侧都能流畅展开。</string>
+    <string name="apptour63__offline_eyebrow">离线听写</string>
+    <string name="apptour63__offline_title">装得下手机的模型</string>
+    <string name="apptour63__offline_body">英语、德语和俄语现在可以用几百兆字节量级的模型离线听写，不再只有 670 MB 的那些。Dolphin 补上了四十种此前目录只能勉强应付的东方语言。列表也按大多数人真正会下载的内容排序，而不是按架构：从二十四行减到十行，细节都在一次点击之后。</string>
+    <string name="apptour63__more_eyebrow">此外</string>
+    <string name="apptour63__more_title">许多细小的改进</string>
+    <string name="apptour63__more_body">你自己的词表现在可以作为文件导入，也可以作为文件导出。录音条会绘制波形，所以能看出你的声音何时停下。服务商账户可以选择数据留在哪个地区，流式传输的主机也随之迁移。正在录音的麦克风消失时，听写不会跟着中断。连接测试只说它真正检查过的内容，服务商的密钥页面就在填写密钥的输入框旁一步之遥，全新安装打开的是这块键盘的用途，而不是它的功能碰巧上线的顺序。</string>
+    <string name="apptour63__outro_eyebrow">这就是 6.3</string>
+    <string name="apptour63__outro_title">弯路更少，键盘依旧</string>
+    <string name="apptour63__outro_body">你的口述方式没有任何变化——自己的密钥、自己的服务器，或是设备上的模型。所有导览都能在 设置 › 关于 中重新查看。</string>
+    <string name="apptour64__cta_languages">选择语言</string>
+    <string name="apptour64__cta_providers">查看服务商</string>
+    <string name="apptour64__intro_eyebrow">Dictate 6.4</string>
+    <string name="apptour64__intro_title">在手机上翻译，符号由你安排</string>
+    <string name="apptour64__intro_body">用一种语言输入，输入框里出现的却是另一种语言——翻译就在这台设备上完成。两页符号都能放上你自己选的按键。此外还有新的服务商、一个好得多的离线模型、一个能把听写变成指令的词，以及对整个应用的一次隐私与安全审查。</string>
+    <string name="apptour64__translate_eyebrow">新功能：翻译</string>
+    <string name="apptour64__translate_title">不离开手机的翻译</string>
+    <string name="apptour64__translate_body">在智能栏中点按「翻译」，然后在它上方的输入框里打字——应用的输入框会随之填入译文。翻译由 Mozilla 的模型在这台设备上完成，支持 49 种语言，你输入的内容不会被发送到任何地方。按 Enter 会先填入完整的译文再发送，所以消息绝不会只译了一半就发出去。每种语言只需下载一次，列表会在下载前标出它的大小。</string>
+    <string name="apptour64__symbols_eyebrow">新功能：自己的符号</string>
+    <string name="apptour64__symbols_title">常用的符号，放在你想要的位置</string>
+    <string name="apptour64__symbols_body">在 键盘 › 自定义符号 中，两页符号都由你安排，每种语言都可以。在页面示意图里点按一个按键，选好它输入什么、长按时提供哪些符号，再拖动排好顺序。符号面板里有你的键盘上还没有的符号。在你改动任何按键之前，这些页面和内置的完全一样；排好的布局可以导出分享。</string>
+    <string name="apptour64__providers_eyebrow">服务商与离线模型</string>
+    <string name="apptour64__providers_title">新的服务商，更好的离线模型</string>
+    <string name="apptour64__providers_body">xAI 的 Grok 现在也能转写了，文件和实时都行，用的就是改写所用的同一把密钥。Scaleway 和 OVHcloud 让音频和文字都留在欧盟境内。离线方面，Parakeet Ultra 取代了 Parakeet TDT 0.6B v3：同样是 670 MB、同样支持 25 种语言，德语错误却少了 29%。如果你在用 v3，请在设备端模型列表中下载 Ultra，再删掉旧的——在此之前 v3 照常可用。另外，服务商列表现在只显示你在用的那些；其余的都在「添加服务商」里，还能搜索。</string>
+    <string name="apptour64__command_eyebrow">新功能：指令唤醒词</string>
+    <string name="apptour64__command_title">说出这个词，听写就成了指令</string>
+    <string name="apptour64__command_body">在「改写」中选一个词，比如「贾维斯」。以它开头的听写会作为实时指令执行：有选中的文本就作用于它，什么都没选就作为提问。只有第一个词算数，所以只是顺带提到它的句子会照常写下来。自动提示词现在也按预期工作了：它们总能拿到自己要处理的那段听写；而只由[方括号]括起来的文本构成的提示词，会原样追加到末尾，不再发给模型。</string>
+    <string name="apptour64__privacy_eyebrow">隐私与安全</string>
+    <string name="apptour64__privacy_title">整个应用，全面检查</string>
+    <string name="apptour64__privacy_body">Dictate 的每个部分都做了隐私与安全审查，发现的问题均已修复。在密码或 PIN 输入框里听写的内容不会进入历史记录，现在通过悬浮按钮也是如此。Android 的云备份只会以端到端加密的形式带走你的 API 密钥。「信任用户证书」现在按服务商账户分别设置，而不是一次对所有账户生效。</string>
+    <string name="apptour64__more_eyebrow">此外</string>
+    <string name="apptour64__more_title">6.4 的其他改动</string>
+    <string name="apptour64__more_body">一些较小的改动，写给想了解细节的人。不感兴趣的话，直接跳过即可。</string>
+    <string name="apptour64__more_typing">打字</string>
+    <string name="apptour64__more_typing_slips">建议现在能读懂手误：按到了旁边的键、两个字母前后颠倒、打到一半的词里有错。你想要的那个词出现得频繁多了，每次按键也更快。</string>
+    <string name="apptour64__more_typing_autocorrect">关闭「自动更正」后，更正仍会显示在建议栏中。这个开关只决定按空格时是否替换单词。</string>
+    <string name="apptour64__more_typing_glide">滑动输入能找到以带重音符号的字母开头或结尾的词——匈牙利语、俄语、芬兰语、波兰语、土耳其语等均适用。</string>
+    <string name="apptour64__more_typing_swipe">在字母上横向滑动不再切换语言——这多半是误触。地球键仍可切换，在「手势 &amp; 滑动输入」中也能把这个滑动找回来。</string>
+    <string name="apptour64__more_typing_punctuation">紧跟在自动更正之后的标点会占据它留下的空格；沿空格键滑动时也会停留在当前这一行。</string>
+    <string name="apptour64__more_typing_calculator">计算器在输入「=」之前就给出结果，点按结果即可补全这一行。</string>
+    <string name="apptour64__more_typing_size">键盘会按语言分别记住自己的大小。</string>
+    <string name="apptour64__more_typing_languages">南非荷兰语现已成为完整的键盘语言。新建布局只需选好语言——其余字段会自动填好。</string>
+    <string name="apptour64__more_dictation">听写</string>
+    <string name="apptour64__more_dictation_stop">停止一段仍在等待服务器的听写时，录音会被保留，随时可以重新发送。</string>
+    <string name="apptour64__more_dictation_timeout">连接卡住时，经过一次超时就会放弃，而不是四次；被服务商拒绝的请求也不会再重发。</string>
+    <string name="apptour64__more_dictation_live">实时听写中删掉的词会保持删除，连续两段听写之间也会加上空格。</string>
+    <string name="apptour64__more_dictation_hold">按住麦克风说话时：慢慢的一次点按仍算点按，按住不到一秒则会被丢弃。</string>
+    <string name="apptour64__more_dictation_talkback">TalkBack 能找到并按下麦克风，还会播报听写正在做什么。</string>
+    <string name="apptour64__more_clipboard">剪贴板与表情</string>
+    <string name="apptour64__more_clipboard_pins">置顶的剪贴内容现在排在底部，并有标签页可在各组之间跳转。「置顶项显示在上方」可以恢复原来的顺序。</string>
+    <string name="apptour64__more_clipboard_chips">复制的文本旁边那些链接、电子邮件和电话号码小标签现在可以关闭。</string>
+    <string name="apptour64__more_clipboard_emoji">表情行可以滚动，也会响应长按；表情搜索会显示两行。</string>
+    <string name="apptour64__more_elsewhere">悬浮按钮与手表</string>
+    <string name="apptour64__more_elsewhere_bubble">悬浮按钮可以等键盘出现后再显示，并会写入你点按的那个网页输入框。</string>
+    <string name="apptour64__more_elsewhere_watch">在手表上，听写会按输入框的要求结束——发送、搜索或打勾——可按需自动发送，等待时还会显示秒数。</string>
+    <string name="apptour64__outro_eyebrow">这就是 6.4</string>
+    <string name="apptour64__outro_title">更多在手机上完成，更多由你决定</string>
+    <string name="apptour64__outro_body">翻译和新的离线模型无需联网即可使用，其他一切仍按你的设置运行——自己的密钥、自己的服务器，或是设备上的模型。所有导览都能在 设置 › 关于 中重新查看。</string>
     <string name="changelog__v5_0_0">• 新增：滑动输入 — 在按键上滑动即可输入整个单词，配有按需下载的分语言词典。 👆\n• 新增：单词建议与自动更正 — 拼写错误会自动更正，你输入的原词只需一按即可取回。 ✨\n• 新增：实时转录 — 说话时即可看到文字出现，支持 OpenAI、Deepgram、Soniox、AssemblyAI 和 ElevenLabs。 ⚡\n• 新增：又添三家转录服务商 — ElevenLabs Scribe、Deepgram 和 AssemblyAI。 ☁️\n• 新增：经典听写布局 — Dictate 3 的无键盘语音界面回归，可锁定或一滑即达。 🎙️\n• 新增：社区提示词库 — 浏览并分享改写提示词。 📚\n• 新增：带里程碑的听写统计。 📊\n• 新增：离线模型 NVIDIA Parakeet，以及跳过空录音的静音过滤器。 📴\n• 更多：更稳定的悬浮按钮、推理强度控制、触觉反馈、全新的 E-Reader 主题以及数十项修复。 🛠️</string>
     <string name="media__tab__gifs">GIFs</string>
     <string name="prefs__media__gif__title">GIFs</string>
@@ -1863,6 +2292,11 @@
     <string name="prefs__media__gif_setup__step3">复制你的密钥并粘贴到下方的字段中。</string>
     <string name="prefs__media__gif_setup__open_klipy">打开 KLIPY 合作伙伴面板</string>
     <string name="prefs__media__gif_setup__key_label">KLIPY API 密钥</string>
+    <string name="prefs__media__gif_content_filter">安全搜索</string>
+    <string name="prefs__media__gif_content_filter__high">严格</string>
+    <string name="prefs__media__gif_content_filter__medium">中等</string>
+    <string name="prefs__media__gif_content_filter__low">宽松</string>
+    <string name="prefs__media__gif_content_filter__off">关闭</string>
     <string name="prefs__media__gif_setup__privacy_note">只有在 GIF 面板打开时，你的搜索词才会发送给 KLIPY — 听写过程中绝不发送。</string>
     <string name="gif__search_placeholder">搜索 KLIPY</string>
     <string name="gif__powered_by">由 KLIPY 提供支持</string>
@@ -1966,4 +2400,124 @@
     <string name="dictate__action_top_up">充值额度</string>
     <string name="dictate__promo_low_credit_message">额度快用完了。</string>
     <string name="dictate__promo_low_credit_action">充值</string>
+    <string name="prefs__media__sticker__title">贴纸</string>
+    <string name="prefs__media__sticker_folder__title">贴纸文件夹</string>
+    <string name="prefs__media__sticker_folder__summary_unset">选择一个存放你自己图片的文件夹</string>
+    <string name="prefs__media__sticker_folder_clear">忘记此文件夹</string>
+    <string name="prefs__media__sticker_rescan">重新读取文件夹</string>
+    <string name="prefs__media__sticker_rescan__summary">在添加或删除文件后使用</string>
+    <string name="prefs__media__sticker_thumbnail_size">贴纸大小</string>
+    <string name="prefs__media__sticker_history_recent_max_size">保留的最近使用贴纸数量</string>
+    <string name="prefs__media__sticker_confirm_before_insert">发送前确认</string>
+    <string name="prefs__media__sticker_confirm_before_insert__summary">轻点一次贴纸以选中，再轻点一次发送。快速双击可直接发送</string>
+    <string name="prefs__media__sticker_pinned_reset">清除收藏的贴纸</string>
+    <string name="prefs__media__sticker_history_reset">清除最近使用的贴纸</string>
+    <string name="sticker__title">贴纸</string>
+    <string name="sticker__category_all">全部</string>
+    <string name="sticker__section_favorites">收藏</string>
+    <string name="sticker__section_recent">最近使用</string>
+    <string name="sticker__section_rest">所有贴纸</string>
+    <string name="sticker__pin">添加到收藏</string>
+    <string name="sticker__unpin">从收藏中移除</string>
+    <string name="sticker__reorder">调整位置</string>
+    <string name="sticker__reorder_hint">用箭头移动</string>
+    <string name="sticker__reorder_earlier">向前移动</string>
+    <string name="sticker__reorder_later">向后移动</string>
+    <string name="sticker__search">搜索贴纸</string>
+    <string name="sticker__search_placeholder">按文件名搜索</string>
+    <string name="sticker__search_no_results">没有同名贴纸</string>
+    <string name="sticker__setup_needed">选择一个文件夹以使用你自己的贴纸</string>
+    <string name="sticker__setup_needed_action">打开设置</string>
+    <string name="sticker__folder_empty">此文件夹中没有图片</string>
+    <string name="sticker__access_lost">已无法读取贴纸文件夹，请重新选择。</string>
+    <string name="sticker__folder_pick_failed">无法保留对该文件夹的访问权限</string>
+    <string name="sticker__rescan_done">找到 {n} 个贴纸</string>
+    <string name="sticker__rescan_done_converted">找到 {n} 个贴纸，已转换 {converted} 个</string>
+    <string name="sticker__copied_to_clipboard">此应用不接受贴纸 — 已复制到剪贴板，长按即可粘贴</string>
+    <string name="sticker__insert_failed">无法插入贴纸</string>
+    <string name="quick_action__ime_ui_mode_sticker">贴纸</string>
+    <string name="quick_action__ime_ui_mode_sticker__tooltip">插入你自己的贴纸</string>
+    <string name="prefs__media__sticker_add">添加贴纸</string>
+    <string name="prefs__media__sticker_add__summary">把图片复制到文件夹。你也可以从任意应用把图片分享到 Dictate。</string>
+    <string name="prefs__media__sticker_import_whatsapp">从 WhatsApp 获取</string>
+    <string name="prefs__media__sticker_import_whatsapp__summary">在 WhatsApp 的贴纸文件夹中打开文件选择器。三星键盘等把自己的贴纸存放在其他应用无法读取的位置 — 那些请分享到 Dictate。</string>
+    <string name="sticker__import_share_label">保存为贴纸</string>
+    <string name="sticker__import_added">已添加 {n} 个</string>
+    <string name="sticker__import_duplicate">{n} 个已存在</string>
+    <string name="sticker__import_unsupported">{n} 个不可用</string>
+    <string name="sticker__import_failed">{n} 个失败</string>
+    <string name="sticker__import_nothing">没有可添加的内容</string>
+    <string name="sticker__import_no_folder">请先选择贴纸文件夹</string>
+    <string name="sticker__import_needs_write">请重新选择贴纸文件夹，以允许添加和删除</string>
+    <string name="sticker__forget_recent">从最近使用中移除</string>
+    <string name="sticker__delete_file">删除文件</string>
+    <string name="sticker__delete_confirm">确定删除？</string>
+    <string name="sticker__delete_failed">无法删除该文件</string>
+    <string name="prefs__media__emoji__title">表情符号</string>
+    <string name="prefs__media__sticker_import_source">从应用获取</string>
+    <string name="prefs__media__sticker_import_source__summary">直接在其他应用写入的文件夹中打开文件选择器</string>
+    <string name="prefs__media__sticker_packs">贴纸包</string>
+    <string name="prefs__media__sticker_packs__summary">创建、重命名和删除用来整理贴纸的文件夹</string>
+    <string name="sticker__source_whatsapp">WhatsApp</string>
+    <string name="sticker__source_whatsapp_business">WhatsApp Business</string>
+    <string name="sticker__source_telegram">Telegram</string>
+    <string name="sticker__source_downloads">下载</string>
+    <string name="sticker__source_pictures">图片</string>
+    <string name="sticker__source_dcim">相机</string>
+    <string name="sticker__source_hint">这些只是起点，不是保证 — 文件夹不存在时，选择器会照常打开。像三星键盘这类把贴纸留给自己的应用，只能分享到 Dictate。</string>
+    <string name="sticker__import_progress">正在复制 {done} / {total}</string>
+    <string name="sticker__import_cancel">点按即可停止。已复制的会保留。</string>
+    <string name="sticker__refused_declares_nothing">此应用不接受来自键盘的图片 — 已复制到剪贴板，长按即可粘贴</string>
+    <string name="sticker__refused_accepts_only">此应用只接受 {accepted}，而这个贴纸是 {own} — 已复制到剪贴板，长按即可粘贴</string>
+    <string name="sticker__move_to_pack">移动到贴纸包</string>
+    <string name="sticker__pack_none">不属于任何包</string>
+    <string name="sticker__move_failed">无法移动该贴纸</string>
+    <string name="sticker__pack_new">新建贴纸包</string>
+    <string name="sticker__pack_name">贴纸包名称</string>
+    <string name="sticker__pack_rename">重命名</string>
+    <string name="sticker__pack_reorder_hint">长按贴纸包即可移动</string>
+    <string name="sticker__pack_icon_set">设为贴纸包图标</string>
+    <string name="sticker__pack_icon_clear">移除贴纸包图标</string>
+    <string name="sticker__pack_delete">删除贴纸包</string>
+    <string name="sticker__pack_delete_confirm">要删除贴纸包“{name}”及其中的 {n} 个贴纸吗？</string>
+    <string name="sticker__pack_failed">没有成功 — 该文件夹可能是只读的</string>
+    <string name="sticker__packs_loading">正在读取文件夹…</string>
+    <string name="sticker__packs_empty">还没有贴纸包。贴纸包就是贴纸文件夹下的子文件夹。</string>
+    <string name="sticker__share">通过分享菜单发送</string>
+    <string name="sticker__insert_as_gif">以 GIF 插入</string>
+    <string name="sticker__source_browse">浏览文件…</string>
+    <string name="sticker__source_threema">Threema</string>
+    <string name="sticker__source_signal">Signal</string>
+    <string name="sticker__source_stickers_folder">贴纸文件夹</string>
+    <string name="scan__take_photo">拍照</string>
+    <string name="scan__pick_image">选择图片</string>
+    <string name="scan__retake">重试</string>
+    <string name="scan__empty_hint">拍摄印刷文字，然后点按需要的部分。</string>
+    <string name="scan__latin_only">仅支持拉丁字母</string>
+    <string name="scan__reading">正在读取照片…</string>
+    <string name="scan__no_text">照片中未找到文字。</string>
+    <string name="scan__failed">无法读取照片。</string>
+    <string name="scan__no_camera">未找到相机应用。</string>
+    <string name="scan__select_all">全选</string>
+    <string name="scan__discard">放弃</string>
+    <string name="scan__approve">确认</string>
+
+    <!-- On-device translation (issue #424) -->
+    <string name="settings__translation__title">翻译</string>
+    <string name="translate__settings_intro">直接在手机上翻译，你输入的内容不会离开手机。在智能栏中点按“翻译”即可打开。</string>
+    <string name="translate__group_installed">已下载</string>
+    <string name="translate__group_available">可下载</string>
+    <string name="translate__english_included">始终内置</string>
+    <string name="translate__size_installed">占用本机 {size}</string>
+    <string name="translate__size_download">下载 {download} · 占用本机 {size}</string>
+    <string name="translate__hint">输入要翻译的文字</string>
+    <string name="translate__detect">检测语言</string>
+    <string name="translate__detected">{language}（已检测）</string>
+    <string name="translate__swap">交换语言</string>
+    <string name="translate__no_languages">尚未下载任何语言</string>
+    <string name="translate__get_languages">下载语言</string>
+    <string name="translate__more_languages">更多语言</string>
+    <string name="translate__missing">{language}尚未下载</string>
+    <string name="translate__failed">翻译失败</string>
+    <string name="translate__unsupported">此设备不支持翻译</string>
 </resources>

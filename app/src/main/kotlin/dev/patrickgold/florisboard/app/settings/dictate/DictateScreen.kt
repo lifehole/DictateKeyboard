@@ -44,12 +44,11 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Mic
@@ -79,6 +78,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import dev.patrickgold.florisboard.dictate.importer.TranscribeShareActivity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.Role
@@ -152,19 +154,28 @@ fun DictateScreen() = FlorisScreen {
             onClick = { navController.navigate(Routes.Settings.DictateHistory) },
         )
 
-        // Dictation layout: its own category (issue #199) — the classic keyboard-less layout toggle
-        // today, with more layout options to follow. Kept out of Output (it changes the whole keyboard,
-        // not how text is inserted) and given top-level prominence here.
+        // "Transcribe a file" (issue #301): the same screen a share lands on, reached from inside.
+        // Deliberately the system picker rather than a browser of our own — SAF is better at it than
+        // we would ever be, and it reopens where it was last used, which was the actual request in
+        // discussion #300 (a folder of Signal voice messages).
+        val importContext = LocalContext.current
+        val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) importContext.startActivity(TranscribeShareActivity.intentFor(importContext, uri))
+        }
         Preference(
-            icon = Icons.Default.Dialpad,
-            modifier = Modifier.settingsSearchAnchor("dictate__layout_title"),
-            title = stringRes(R.string.dictate__layout_title),
-            summary = stringRes(R.string.dictate__layout_menu_summary),
-            onClick = { navController.navigate(Routes.Settings.DictateLayout) },
+            icon = Icons.Default.AudioFile,
+            modifier = Modifier.settingsSearchAnchor("dictate__import_menu"),
+            title = stringRes(R.string.dictate__import_menu),
+            summary = stringRes(R.string.dictate__import_menu_summary),
+            onClick = { importPicker.launch(TranscribeShareActivity.MIME_TYPES) },
         )
 
         // Hub: each row opens a dedicated sub-screen (issue #153), keeping this landing page short and
         // scannable instead of one long list of every setting.
+        //
+        // Who dictates and in which language comes first: those two are what somebody sets up once and
+        // then changes when something is wrong, while the layout is a matter of taste that most people
+        // never touch.
         Preference(
             icon = Icons.Default.Cloud,
             modifier = Modifier.settingsSearchAnchor("dictate__providers_title"),
@@ -194,6 +205,17 @@ fun DictateScreen() = FlorisScreen {
             title = stringRes(R.string.dictate__languages_title),
             summary = languagesSummary,
             onClick = { navController.navigate(Routes.Settings.DictateLanguages) },
+        )
+
+        // Dictation layout: its own category (issue #199) — the classic keyboard-less layout toggle
+        // today, with more layout options to follow. Kept out of Output, because it changes the whole
+        // keyboard rather than how text is inserted.
+        Preference(
+            icon = Icons.Default.Dialpad,
+            modifier = Modifier.settingsSearchAnchor("dictate__layout_title"),
+            title = stringRes(R.string.dictate__layout_title),
+            summary = stringRes(R.string.dictate__layout_menu_summary),
+            onClick = { navController.navigate(Routes.Settings.DictateLayout) },
         )
 
         Preference(
@@ -270,7 +292,6 @@ fun DictateFormattingScreen() = FlorisScreen {
 
     content {
         val navController = LocalNavController.current
-        val styleSelection by prefs.dictate.stylePromptSelection.collectAsState()
         val activeLang by prefs.dictate.activeInputLanguage.collectAsState()
         PromptSelectionPreference(
             pref = prefs.dictate.stylePromptSelection,
@@ -283,24 +304,11 @@ fun DictateFormattingScreen() = FlorisScreen {
             // rather than an English one, and the info box should say so instead of showing nothing.
             infoPromptText = DictatePromptDefaults.punctuationPromptFor(activeLang)
                 ?: stringRes(R.string.dictate__style_prompt_info_none),
+            customPref = prefs.dictate.stylePromptCustom,
+            customPlaceholder = stringRes(R.string.dictate__style_prompt_custom_placeholder),
         )
-        if (styleSelection == DictatePromptDefaults.SELECTION_CUSTOM) {
-            TextInputPreference(
-                pref = prefs.dictate.stylePromptCustom,
-                icon = Icons.Default.Edit,
-                title = stringRes(R.string.dictate__style_prompt_custom_title),
-                placeholder = stringRes(R.string.dictate__style_prompt_custom_placeholder),
-                multiline = true,
-            )
-        }
-        TextInputPreference(
-            pref = prefs.dictate.customWords,
-            icon = Icons.Default.MenuBook,
-            title = stringRes(R.string.dictate__custom_words_title),
-            placeholder = stringRes(R.string.dictate__custom_words_placeholder),
-            multiline = true,
-            notSetSummary = stringRes(R.string.dictate__custom_words_summary_empty),
-        )
+        // The editor, what the list costs on every request, and the file import/export (issue #389).
+        CustomWordsSection(prefs.dictate.customWords)
         Preference(
             icon = Icons.Default.SwapHoriz,
             modifier = Modifier.settingsSearchAnchor("dictate__mappings_title"),
@@ -334,12 +342,13 @@ fun DictateRecordingScreen() = FlorisScreen {
             summaryOn = stringRes(R.string.dictate__push_to_talk_summary),
             summaryOff = stringRes(R.string.dictate__push_to_talk_summary_off),
         )
-        SwitchPreference(
-            prefs.dictate.realtimeTranscription,
+        // One row, three states: off, stream and show it live, stream and only show the result (#345).
+        RealtimeTranscriptionPreference(
+            enabled = prefs.dictate.realtimeTranscription,
+            hidePreview = prefs.dictate.realtimeHidePreview,
             icon = Icons.Default.GraphicEq,
             modifier = Modifier.settingsSearchAnchor("dictate__realtime_title"),
             title = stringRes(R.string.dictate__realtime_title),
-            summary = stringRes(R.string.dictate__realtime_summary),
         )
         // All long-form settings live behind one entry that opens a single dialog (#170).
         val longformMode by prefs.dictate.longformMode.collectAsState()
@@ -429,6 +438,11 @@ fun DictateRecordingScreen() = FlorisScreen {
                     label = stringRes(R.string.dictate__recording_animation_level_label),
                     description = stringRes(R.string.dictate__recording_animation_level_description),
                 )
+                entry(
+                    key = DictateRecordingAnimation.WAVE,
+                    label = stringRes(R.string.dictate__recording_animation_wave_label),
+                    description = stringRes(R.string.dictate__recording_animation_wave_description),
+                )
             },
         )
         SwitchPreference(
@@ -472,32 +486,17 @@ fun DictateRecordingScreen() = FlorisScreen {
             max = AudioSpeedUp.MAX_PERCENT,
             stepIncrement = 5,
         )
-        SwitchPreference(
-            prefs.dictate.instantRecording,
+        // One row, three states and a detail — see [InstantRecordingPreference] (issue #224).
+        var showInstantRecordingInfo by remember { mutableStateOf(false) }
+        InstantRecordingPreference(
+            enabled = prefs.dictate.instantRecording,
+            afterSwitchOnly = prefs.dictate.instantRecordingAfterSwitchOnly,
+            skipNumeric = prefs.dictate.instantRecordingSkipNumeric,
+            title = stringRes(R.string.dictate__instant_recording_title),
             icon = Icons.Default.Bolt,
             modifier = Modifier.settingsSearchAnchor("dictate__instant_recording_title"),
-            title = stringRes(R.string.dictate__instant_recording_title),
-            summary = stringRes(R.string.dictate__instant_recording_summary),
+            onTurnedOn = { showInstantRecordingInfo = true },
         )
-        SwitchPreference(
-            prefs.dictate.instantRecordingSkipNumeric,
-            icon = Icons.Default.Dialpad,
-            modifier = Modifier.settingsSearchAnchor("dictate__instant_recording_skip_numeric_title"),
-            title = stringRes(R.string.dictate__instant_recording_skip_numeric_title),
-            summary = stringRes(R.string.dictate__instant_recording_skip_numeric_summary),
-            enabledIf = { prefs.dictate.instantRecording.isTrue() },
-        )
-        // Inform the user once, when they switch instant recording on, that it disables the
-        // interrupted-recording recovery (mutually exclusive — issue #120).
-        val instantRecordingEnabled by prefs.dictate.instantRecording.collectAsState()
-        var showInstantRecordingInfo by remember { mutableStateOf(false) }
-        var prevInstantRecording by remember { mutableStateOf(instantRecordingEnabled) }
-        LaunchedEffect(instantRecordingEnabled) {
-            if (instantRecordingEnabled && !prevInstantRecording) {
-                showInstantRecordingInfo = true
-            }
-            prevInstantRecording = instantRecordingEnabled
-        }
         if (showInstantRecordingInfo) {
             AlertDialog(
                 onDismissRequest = { showInstantRecordingInfo = false },

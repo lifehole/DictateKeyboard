@@ -11,6 +11,11 @@
 package dev.patrickgold.florisboard.dictate.provider
 
 import java.io.InterruptedIOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.PortUnreachableException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /**
  * Normalised error for all provider calls. The [kind] lets the UI show the right message/action
@@ -58,7 +63,51 @@ class DictateApiException(
             get() = this == TIMEOUT || this == NETWORK || this == SERVER_ERROR || this == UNKNOWN
     }
 
+    /**
+     * Whether sending this very request again could plausibly succeed — [Kind.isRetryable], minus the
+     * answers that were a refusal.
+     *
+     * A 4xx means the provider read the request and said no: a model it has shut down, one it does not
+     * serve on this endpoint, a parameter it does not take. The same bytes get the same no. Those land in
+     * [Kind.UNKNOWN] whenever their wording matches none of the keywords in [fromHttp], and UNKNOWN is
+     * retryable — so each one was sent four times with three-second pauses between, ten seconds of silence
+     * per rewording step before the error the first answer already held (#416). 408 and 425 are the two
+     * 4xx that ask to be sent again, and stay retryable.
+     */
+    val isRetryable: Boolean
+        get() = kind.isRetryable && (httpStatus == null || httpStatus !in 400..499 || httpStatus in RETRYABLE_4XX)
+
+    /**
+     * Whether no connection to the provider could be made at all: the name did not resolve, nothing
+     * listened on the port, there was no route, or the connection attempt timed out (#455).
+     *
+     * Narrower than [Kind.NETWORK] and [Kind.TIMEOUT] on purpose. Those also cover a connection that broke
+     * halfway through the upload and a server that took too long to answer, and in both of those the
+     * provider has already got the audio. Handing it to another provider then would be the "switch after
+     * N seconds" that #391 declined: the same dictation paid for twice, and a slow answer thrown away. A
+     * server that was never reached has seen nothing, so passing the recording on costs nothing.
+     *
+     * A connection timeout and a read timeout are the same exception type; only the message tells them
+     * apart. Android words a connect timeout "failed to connect to … after N ms", the JVM "Connect timed
+     * out", while a read timeout says "timeout" or "Read timed out".
+     */
+    val isConnectFailure: Boolean
+        get() = httpStatus == null && generateSequence(cause) { it.cause }.take(MAX_CAUSE_DEPTH).any(::isUnreachable)
+
     companion object {
+        private const val MAX_CAUSE_DEPTH = 8
+
+        private fun isUnreachable(t: Throwable): Boolean = when (t) {
+            is UnknownHostException, is ConnectException, is NoRouteToHostException, is PortUnreachableException -> true
+            is SocketTimeoutException -> t.message.orEmpty().lowercase().let {
+                it.startsWith("failed to connect") || it.contains("connect timed out")
+            }
+            else -> false
+        }
+
+        /** Request Timeout and Too Early: the only client errors whose remedy is to send the request again. */
+        private val RETRYABLE_4XX = setOf(408, 425)
+
         /**
          * Classifies a non-2xx HTTP response into a [Kind]. Works across all OpenAI-compatible providers
          * by combining the HTTP status (the most reliable, standardized signal) with the machine-readable
@@ -88,7 +137,9 @@ class DictateApiException(
                 hay.contains("input_too_long") || hay.contains("reword_truncated") -> Kind.TEXT_SIZE_LIMIT
                 status == 413 ||
                     hay.contains("audio duration") || hay.contains("content size limit") ||
-                    hay.contains("too large") || hay.contains("maximum context length") -> Kind.CONTENT_SIZE_LIMIT
+                    hay.contains("too large") || hay.contains("maximum context length") ||
+                    // Scaleway refuses an oversized upload with a 400, "Maximum file size exceeded" (#423).
+                    hay.contains("file size") -> Kind.CONTENT_SIZE_LIMIT
                 hay.contains("format") || hay.contains("unsupported") || hay.contains("decode") ||
                     hay.contains("could not process") -> Kind.FORMAT_NOT_SUPPORTED
                 status in 500..599 -> Kind.SERVER_ERROR

@@ -48,6 +48,7 @@ import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.jetpref.datastore.model.collectAsState
 import dev.patrickgold.florisboard.dictate.DictateController
 import dev.patrickgold.florisboard.dictate.data.prompts.PromptModel
+import dev.patrickgold.florisboard.dictate.data.prompts.snippetBody
 import dev.patrickgold.florisboard.ime.input.LocalInputFeedbackController
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
@@ -58,6 +59,13 @@ import org.florisboard.lib.snygg.ui.SnyggText
 
 /** Matches the themed `smartbar-action-tile` shape (`rounded-corner(20%)`) for the highlight ring. */
 private val ChipShape = RoundedCornerShape(percent = 20)
+
+/**
+ * How much of the user's accent colour washes over a highlighted chip. It is the one colour a theme
+ * cannot control on this strip, so the high-contrast pair (#387) is measured against it at both
+ * extremes the user can pick — see `HighContrastThemeTest`. Changing it changes that guarantee.
+ */
+const val HIGHLIGHT_WASH_ALPHA = 0.22f
 
 /**
  * The contextual prompt chip strip shown in the Smartbar's center area, in place of the candidates,
@@ -234,7 +242,7 @@ internal fun DictatePromptChip(
             .then(
                 if (highlighted) {
                     Modifier
-                        .background(accent.copy(alpha = 0.22f))
+                        .background(accent.copy(alpha = HIGHLIGHT_WASH_ALPHA))
                         .border(1.5.dp, accent, ChipShape)
                 } else {
                     Modifier
@@ -302,10 +310,8 @@ internal fun DictateLivePromptChip(
  *  - free prompt (generates from the instruction) → sparkle glyph
  */
 internal fun dictatePromptIcon(prompt: PromptModel): ImageVector {
-    val raw = prompt.prompt.orEmpty()
-    val isSnippet = raw.length >= 2 && raw.startsWith("[") && raw.endsWith("]")
     return when {
-        isSnippet -> Icons.AutoMirrored.Filled.ShortText
+        prompt.snippetBody() != null -> Icons.AutoMirrored.Filled.ShortText
         prompt.requiresSelection -> Icons.Default.SelectAll
         else -> Icons.Default.AutoAwesome
     }

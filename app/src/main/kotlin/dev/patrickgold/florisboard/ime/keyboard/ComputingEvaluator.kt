@@ -18,6 +18,10 @@ package dev.patrickgold.florisboard.ime.keyboard
 
 import android.content.Context
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.Gif
 import androidx.compose.material.icons.automirrored.filled.ArrowRightAlt
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -33,7 +37,10 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPasteGo
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.HighlightAlt
 import androidx.compose.material.icons.filled.FontDownload
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -43,6 +50,8 @@ import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.KeyboardVoice
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.History
@@ -54,6 +63,7 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SpaceBar
+import androidx.compose.material.icons.filled.VerticalSplit
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.patrickgold.florisboard.FlorisImeService
@@ -65,10 +75,12 @@ import dev.patrickgold.florisboard.ime.editor.ImeOptions
 import dev.patrickgold.florisboard.ime.input.InputShiftState
 import dev.patrickgold.florisboard.ime.text.key.KeyCode
 import dev.patrickgold.florisboard.ime.text.key.KeyType
+import dev.patrickgold.florisboard.ime.text.keyboard.DevanagariBase
 import dev.patrickgold.florisboard.ime.window.ImeWindowMode
 import dev.patrickgold.florisboard.lib.FlorisLocale
 import dev.patrickgold.florisboard.lib.compose.vectorResource
 import org.florisboard.lib.compose.icons.ForwardDelete
+import org.florisboard.lib.compose.icons.Sticker
 
 interface ComputingEvaluator {
     val version: Int
@@ -84,6 +96,16 @@ interface ComputingEvaluator {
     /** True while a KLIPY GIF search is being typed, so the Enter key shows a search icon. */
     val isGifSearchActive: Boolean
         get() = false
+
+    /**
+     * The Devanagari consonant waiting for a vowel sign, or [DevanagariBase.NONE] (issue #315). Turns the
+     * vowel row of an Indic layout into a matra row while a consonant is pending.
+     *
+     * A string rather than a code point, because a nukta belongs to the base: after क़ the keys have to
+     * preview क़ा, not का.
+     */
+    val devanagariBase: String
+        get() = DevanagariBase.NONE
 
     fun context(): Context?
 
@@ -207,6 +229,15 @@ fun ComputingEvaluator.computeImageVector(data: KeyData): ImageVector? {
         KeyCode.ARROW_DOWN -> {
             Icons.Default.KeyboardArrowDown
         }
+        // Jump to the very start or end of the field (issue #335). Vertical icons on purpose: the jump
+        // is vertical too — it leaves the line — and unlike the horizontal pair these carry no
+        // handedness, so they read the same in a right-to-left script.
+        KeyCode.MOVE_START_OF_PAGE -> {
+            Icons.Default.VerticalAlignTop
+        }
+        KeyCode.MOVE_END_OF_PAGE -> {
+            Icons.Default.VerticalAlignBottom
+        }
         KeyCode.CLIPBOARD_COPY -> {
             Icons.Default.ContentCopy
         }
@@ -219,6 +250,12 @@ fun ComputingEvaluator.computeImageVector(data: KeyData): ImageVector? {
         KeyCode.CLIPBOARD_SELECT_ALL -> {
             Icons.Default.SelectAll
         }
+        // The "Select" toggle of the editing panel (issue #386): after it, the arrows drag a selection
+        // instead of moving the cursor. A marquee with a pointer, because that is the gesture it stands
+        // in for — deliberately not the filled SelectAll square next to it, which means *everything*.
+        KeyCode.CLIPBOARD_SELECT -> {
+            Icons.Default.HighlightAlt
+        }
         KeyCode.CLIPBOARD_CLEAR_PRIMARY_CLIP -> {
             Icons.Default.DeleteSweep
         }
@@ -226,6 +263,26 @@ fun ComputingEvaluator.computeImageVector(data: KeyData): ImageVector? {
         KeyCode.COMPACT_LAYOUT_TO_RIGHT,
         KeyCode.TOGGLE_COMPACT_LAYOUT -> {
             context()?.vectorResource(id = R.drawable.ic_accessibility_one_handed)
+        }
+        // One icon for both directions (issue #362), the way the one-handed toggle does it: the keyboard
+        // right below the button is either split or it is not, and no icon says that better.
+        KeyCode.SPLIT_LAYOUT -> {
+            Icons.Default.VerticalSplit
+        }
+        // One icon for both states on purpose (issue #333), the way the one-handed toggle does it: the
+        // digit row sits directly under this button, so whether it is there is the plainest feedback
+        // available and an icon that also flips would only say it twice.
+        KeyCode.TOGGLE_NUMBER_ROW -> {
+            Icons.Default.Numbers
+        }
+        // The number pad, reachable from the Smartbar since issue #388. Only there: on the keyboard this
+        // key has always worn a 2×2 block of digits as its label — "1 2 / 3 4", which is what the symbol
+        // layer shows and what people recognise — and that label is two lines of tiny text inside a round
+        // Smartbar button. A dial pad rather than the "#" of the number-row toggle right above, because
+        // the two are easy to confuse and do very different things: one folds a row away, the other
+        // replaces the whole keyboard.
+        KeyCode.VIEW_NUMERIC_ADVANCED -> {
+            Icons.Default.Dialpad.takeIf { evaluator.keyboard.mode == KeyboardMode.SMARTBAR_QUICK_ACTIONS }
         }
         KeyCode.TOGGLE_FLOATING_WINDOW -> {
             val enabledIcon = context()?.vectorResource(id = R.drawable.ic_floating_keyboard)
@@ -266,6 +323,11 @@ fun ComputingEvaluator.computeImageVector(data: KeyData): ImageVector? {
                 }
             }
         }
+        // Always the return arrow, whatever the field's own action: this variant never sends, searches or
+        // moves on — it presses Enter, which is what the arrow means on a keyboard.
+        KeyCode.ENTER_KEY_PRESS -> {
+            Icons.AutoMirrored.Filled.KeyboardReturn
+        }
         KeyCode.FORWARD_DELETE -> {
             Icons.AutoMirrored.Default.ForwardDelete
         }
@@ -277,6 +339,18 @@ fun ComputingEvaluator.computeImageVector(data: KeyData): ImageVector? {
         }
         KeyCode.IME_UI_MODE_GIF -> {
             Icons.Outlined.Gif
+        }
+        KeyCode.IME_UI_MODE_STICKER -> {
+            Icons.Outlined.Sticker
+        }
+        KeyCode.IME_UI_MODE_EDITING -> {
+            Icons.Default.EditNote
+        }
+        KeyCode.IME_UI_MODE_SCAN -> {
+            Icons.Outlined.DocumentScanner
+        }
+        KeyCode.TRANSLATE -> {
+            Icons.Outlined.Translate
         }
         KeyCode.IME_UI_MODE_DICTATE -> {
             when (dev.patrickgold.florisboard.dictate.DictateController.state.value) {
@@ -317,6 +391,11 @@ fun ComputingEvaluator.computeImageVector(data: KeyData): ImageVector? {
         KeyCode.DICTATE_REINSERT -> {
             // Re-inserts the last successful dictation; a history glyph signals "bring the last one back".
             Icons.Default.History
+        }
+        KeyCode.DICTATE_SWITCH_PROVIDER -> {
+            // The transcription provider picker (issue #431): a cloud with the swap arrows, the glyph the
+            // request itself sketched.
+            Icons.Outlined.CloudSync
         }
         KeyCode.LANGUAGE_SWITCH -> {
             Icons.Default.Language

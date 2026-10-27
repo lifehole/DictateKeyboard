@@ -19,17 +19,17 @@ import kotlin.test.assertTrue
 /**
  * Covers the dictionary key folding (issue #265).
  *
- * Two things matter here and they pull against each other: an Arabic word must reach its entry however
- * the writer spelled it, and every language that already ships a dictionary must fold exactly the way it
- * did before — a change there would silently re-key 33 word lists.
+ * French and Arabic words must reach their entries from the spellings people can easily type, while every
+ * other language that already ships a dictionary must fold exactly the way it did before — a change there
+ * would silently re-key its word list.
  */
 class DictFoldTest {
 
     // --- the languages that must not change -------------------------------------------------------
 
     @Test
-    fun `latin languages still fold to plain lowercase`() {
-        for (lang in listOf("en", "de", "fr", "tr", "vi", "ru", "el", "he")) {
+    fun `other languages still fold to plain lowercase`() {
+        for (lang in listOf("en", "de", "tr", "vi", "ru", "el", "he")) {
             for (word in listOf("Baum", "STRASSE", "don't", "well-known", "Ärmel", "İstanbul", "мир", "Ελλάδα")) {
                 assertEquals(word.lowercase(), DictFold.foldKey(lang, word), "$lang / $word")
             }
@@ -37,12 +37,118 @@ class DictFoldTest {
     }
 
     @Test
-    fun `only arabic script languages fold non-trivially`() {
+    fun `only french, afrikaans, polish and arabic script languages fold non-trivially`() {
         for (lang in listOf("ar", "fa", "ur", "ckb")) {
             assertTrue(DictFold.hasNonTrivialFold(lang), lang)
+            assertFalse(DictFold.foldsAccents(lang), lang)
         }
-        for (lang in listOf("en", "de", "he", "fa-IR", "", "hi", "bn", "ta")) {
+        for (lang in listOf("fr", "af", "pl")) {
+            assertTrue(DictFold.hasNonTrivialFold(lang), lang)
+            assertTrue(DictFold.foldsAccents(lang), lang)
+        }
+        for (lang in listOf("en", "de", "he", "fa-IR", "", "hi", "bn", "ta", "cs", "sk")) {
             assertFalse(DictFold.hasNonTrivialFold(lang), lang)
+        }
+    }
+
+    // --- polish: the letters behind the long presses (issue #451) --------------------------------
+
+    /**
+     * Every Polish letter reaches its base, `ł` included — the one Unicode does not decompose, and the one
+     * a test of the others alone would never notice missing: `wlasnie` would simply stop finding właśnie.
+     */
+    @Test
+    fun `an unaccented polish spelling reaches its accented entry`() {
+        for ((typed, stored) in listOf(
+            "bedzie" to "będzie",
+            "wlasnie" to "właśnie",
+            "czesc" to "cześć",
+            "dziekuje" to "dziękuję",
+            "rowniez" to "również",
+            "zle" to "źle",
+            "zolw" to "żółw",
+            "lodz" to "Łódź",
+            "ZOLW" to "ŻÓŁW",
+        )) {
+            assertEquals(DictFold.foldKey("pl", stored), DictFold.foldKey("pl", typed), "$typed / $stored")
+        }
+        assertEquals("zazolc gesla jazn", DictFold.foldKey("pl", "zażółć gęślą jaźń"))
+    }
+
+    /** The `ł` rule must not re-key French or Afrikaans: neither writes the letter, so nothing moves. */
+    @Test
+    fun `adding polish leaves french and afrikaans keys alone`() {
+        for (word in listOf("hôte", "œuvre", "wêreld", "naïef", "garçon")) {
+            assertEquals(
+                java.text.Normalizer.normalize(word, java.text.Normalizer.Form.NFD)
+                    .filter { it.category != CharCategory.NON_SPACING_MARK }
+                    .lowercase().replace("œ", "oe").replace("æ", "ae"),
+                DictFold.foldAccents(word),
+                word,
+            )
+        }
+    }
+
+    // --- french: base-letter typing reaches accented spellings -----------------------------------
+
+    @Test
+    fun `french accents fold to their base letters`() {
+        assertEquals("hote", DictFold.foldAccents("hôte"))
+        assertEquals("garcon", DictFold.foldAccents("garçon"))
+        assertEquals("eleve", DictFold.foldAccents("élève"))
+        assertEquals("deja", DictFold.foldAccents("de\u0301ja"))
+    }
+
+    @Test
+    fun `french unaccented prefixes match accented dictionary words`() {
+        val prefix = DictFold.foldKey("fr", "ho")
+        assertTrue(DictFold.foldKey("fr", "hôte").startsWith(prefix))
+        assertTrue(DictFold.foldKey("fr", "hôtel").startsWith(prefix))
+    }
+
+    @Test
+    fun `french ligatures fold to their keyboard spelling`() {
+        assertEquals("oeuvre", DictFold.foldAccents("œuvre"))
+        assertEquals("aether", DictFold.foldAccents("æther"))
+    }
+
+    /**
+     * The property the spelling restoration stands on, and the reason it must stay true.
+     *
+     * `isKnownWord` answers on the fold key, so once French folds, `hote` reads as a known word and the
+     * correction path — gated on `!isKnown` — never sees it. What puts `hôte` back is the restoration
+     * block, and that block finds it by exactly this equality. Break it and the accent silently stops
+     * being offered, with nothing failing anywhere else.
+     */
+    @Test
+    fun `an unaccented french spelling reaches its accented entry`() {
+        for ((typed, stored) in listOf(
+            "hote" to "hôte",
+            "eleve" to "élève",
+            "garcon" to "garçon",
+            "ca" to "ça",
+            "oeuvre" to "œuvre",
+        )) {
+            assertEquals(DictFold.foldKey("fr", stored), DictFold.foldKey("fr", typed), "$typed / $stored")
+        }
+    }
+
+    /**
+     * The same property for Afrikaans, on the spellings typed without their long press. Found on the
+     * emulator: before Afrikaans folded, `wereld` and `reen` were committed as typed and reën was not even
+     * offered.
+     */
+    @Test
+    fun `an unaccented afrikaans spelling reaches its accented entry`() {
+        for ((typed, stored) in listOf(
+            "wereld" to "wêreld",
+            "reen" to "reën",
+            "more" to "môre",
+            "brue" to "brûe",
+            "naief" to "naïef",
+            "se" to "sê",
+        )) {
+            assertEquals(DictFold.foldKey("af", stored), DictFold.foldKey("af", typed), "$typed / $stored")
         }
     }
 

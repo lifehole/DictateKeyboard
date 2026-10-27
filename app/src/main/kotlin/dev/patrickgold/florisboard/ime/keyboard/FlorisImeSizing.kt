@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.dictate.DictatePromptsLayout
+import dev.patrickgold.florisboard.ime.media.emoji.emojiRowVisible
 import dev.patrickgold.florisboard.ime.nlp.NlpInlineAutofill
 import dev.patrickgold.florisboard.ime.smartbar.ExtendedActionsPlacement
 import dev.patrickgold.florisboard.ime.smartbar.InlineSuggestionsChipMargin
@@ -45,6 +46,23 @@ private val LocalKeyboardRowBaseHeight = compositionLocalOf { 65.dp }
 private val LocalSmartbarHeight = compositionLocalOf { 40.dp }
 
 object FlorisImeSizing {
+    /**
+     * The icon inside a media panel's header button — clipboard, stickers, GIFs, dictation history and
+     * the three search bars (issue #317).
+     *
+     * One number, because the panels are meant to read as one family and had drifted to four different
+     * sizes. They also looked far smaller than that: the header buttons used to be styled as
+     * `media-bottom-row-button`, whose `padding: 16dp 0dp` is meant for the emoji panel's bottom row —
+     * a whole key tall — and inside a [smartbarHeight] box that padding leaves the icon about 8 dp.
+     *
+     * **16 dp is the clipboard's size, measured rather than chosen.** `font-size` inherits implicitly
+     * in Snygg, so `clipboard-header`'s `16sp` reaches the button, and an icon with no element name of
+     * its own is sized from it. The clipboard is the panel this family is supposed to match, so the
+     * number is written down here rather than left to inheritance — the search bars hang under
+     * `smartbar-candidates-row`, which carries no font size, and would come out larger than the rest.
+     */
+    val mediaHeaderIconSize: Dp = 16.dp
+
     val keyboardRowBaseHeight: Dp
         @Composable
         @ReadOnlyComposable
@@ -76,7 +94,9 @@ object FlorisImeSizing {
         val context = LocalContext.current
         val keyboardManager by context.keyboardManager()
         val lastCharactersEvaluator by keyboardManager.lastCharactersEvaluator.collectAsState()
-        return remember { derivedStateOf { (lastCharactersEvaluator.keyboard as TextKeyboard).rowCount } }
+        // The same count keyboardUiHeight() draws with, floor included: the resize handles turn a drag into a
+        // height through it, and a count the keyboard is not drawn with makes the handle drift from the finger.
+        return remember { derivedStateOf { (lastCharactersEvaluator.keyboard as TextKeyboard).rowCount.coerceAtLeast(4) } }
     }
 
     @Composable
@@ -136,7 +156,12 @@ object FlorisImeSizing {
             } else {
                 0.dp
             }
-        return keyboardRowBaseHeight * rowCount.coerceAtLeast(4) + smartbarUiHeight() + promptRowHeight
+        // Same reasoning for the recent-emoji row (#340), which sits below the Smartbar and is one
+        // [smartbarHeight] tall. Asked through the very predicate the row itself uses, so the two can
+        // never disagree — a panel one row off is a keyboard that jumps when it opens.
+        val emojiRowHeight = if (emojiRowVisible()) smartbarHeight else 0.dp
+        return keyboardRowBaseHeight * rowCount.coerceAtLeast(4) + smartbarUiHeight() +
+            promptRowHeight + emojiRowHeight
     }
 }
 

@@ -238,7 +238,7 @@
     <string name="pref__input_feedback__any_feat_key_press__summary" comment="Preference summary">ekz. klavojn, butonojn, emoĝiajn langetojn</string>
     <string name="pref__input_feedback__any_feat_key_long_press__summary" comment="Preference summary">ekz. ŝprucmenuo</string>
     <string name="pref__input_feedback__any_feat_key_repeated_action__summary" comment="Preference summary">ekz. forigklavon</string>
-    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">ne efektivigita</string>
+    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">ekz. ŝovo por ŝanĝi lingvon, ŝova tajpado</string>
     <string name="settings__keyboard__title" comment="Title of Keyboard preferences screen">Klavaro</string>
     <string name="pref__keyboard__number_row__label" comment="Preference title">Nombra vico</string>
     <string name="pref__keyboard__number_row__summary" comment="Preference summary">Vidigi nombran vicon supre la signa aranĝo</string>
@@ -283,7 +283,6 @@
     <string name="pref__correction__remember_caps_lock_state__label" comment="Preference title">Memori Fiks. Maj. staton</string>
     <string name="pref__correction__remember_caps_lock_state__summary" comment="Preference summary">Fiksa majuskligo restos aktiva kiam movinte al alia teksta kampo</string>
     <string name="pref__correction__double_space_period__label" comment="Preference title">Duoblan spaceton punkto</string>
-    <string name="pref__correction__double_space_period__summary" comment="Preference summary">Dufoje tuŝi la spacetklavo enigas punkton kaj spaceto sekve</string>
     <string name="pref__spelling__title" comment="Preference group title">Literumado</string>
     <string name="pref__spelling__active_spellchecker__summary_disabled">Malŝaltita en la tuta sistemo. Neniu ruĝa linio aperos sub malĝustaj vortoj en tekstaj kampoj. Tuŝu ĉi tie por ŝanĝi tion.</string>
     <string name="pref__spelling__language_mode__label" comment="Label of Language mode pref">Lingvoj</string>
@@ -310,12 +309,10 @@
     <string name="settings__udm__dialog__title_edit" comment="Label for the title (when in editing mode) in the user dictionary add/edit dialog">Redakti vorton</string>
     <string name="settings__udm__dialog__word_label" comment="Label for the word in the user dictionary add/edit dialog">Vorto</string>
     <string name="settings__udm__dialog__word_error_empty" comment="Error label for the word in the user dictionary add/edit dialog">Bonvolu enigi vorton</string>
-    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog">Bonvolu enigi vorton kongruantan kun {regex}</string>
     <string name="settings__udm__dialog__freq_label" comment="Label for the frequency in the user dictionary add/edit dialog. The two decimal placeholders are the minimum and maximum frequency, both inclusive.">Ofto (inter {f_min} kaj {f_max})</string>
     <string name="settings__udm__dialog__freq_error_empty" comment="Error label for the frequency in the user dictionary add/edit dialog">Bonvolu enigi valoron de ofto</string>
     <string name="settings__udm__dialog__freq_error_invalid" comment="Error label for the frequency in the user dictionary add/edit dialog">Bonvolu enigi validan nombron inter la specifitaj limoj</string>
     <string name="settings__udm__dialog__shortcut_label" comment="Label for the shortcut in the user dictionary add/edit dialog">Ligilo (fakultativa)</string>
-    <string name="settings__udm__dialog__shortcut_error_invalid" comment="Error label for the shortcut in the user dictionary add/edit dialog">Bonvolu enigi ligilon kongruantan kun {regex}</string>
     <string name="settings__udm__dialog__locale_label" comment="Label for the language code in the user dictionary add/edit dialog">Lingva kodo (fakultativa)</string>
     <string name="settings__gestures__title" comment="Title of Gestures screen">Gestoj &amp; Ŝovtajpado</string>
     <string name="pref__glide__title" comment="Preference group title">Ŝovtajpado</string>

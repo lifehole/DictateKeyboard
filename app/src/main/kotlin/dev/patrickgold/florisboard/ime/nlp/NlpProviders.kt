@@ -231,6 +231,37 @@ interface SuggestionProvider : NlpProvider {
         }
     }
 
+    /**
+     * Whether [char] may be written into the word currently being composed without ending it.
+     *
+     * The counterpart to [determineLocalComposing], asked forwards by the input path at the moment a
+     * separator is pressed, where that one is asked backwards by the editor content. The two have to
+     * give the same answer — a keyboard whose halves disagree about where a word ends hands one half's
+     * work to the other (issue #311) — so a provider that overrides this must widen
+     * [determineLocalComposing] to match, and one that overrides neither keeps the behaviour it always
+     * had: every non-letter ends the word.
+     *
+     * Default false, so nothing changes for a provider that has no opinion. Only the Latin provider has
+     * one, and only for e-mail and web addresses (issue #318).
+     *
+     * @param composingWord the word as it stands before [char], not including it.
+     */
+    fun continuesWord(composingWord: String, char: Char): Boolean = false
+
+    /**
+     * The capitalised form of [word] when the language writes this one-word form with a capital
+     * wherever it stands, or null when it does not — the English pronoun "I" and nothing else so far
+     * (issue #333).
+     *
+     * Asked at a word boundary, for a word the dictionary itself cannot answer for: the case-folded
+     * index reports the lowercase spelling as a perfectly good word, which is true of "i" in every
+     * other language on the list. Polish writes "i" for *and* and Italian uses it as a plural article,
+     * so this has to be a per-language statement rather than a dictionary entry.
+     *
+     * Default null, so a provider without an opinion changes nothing.
+     */
+    fun standaloneCapitalization(word: String, subtype: Subtype): String? = null
+
     val forcesSuggestionOn
         get() = false
 
@@ -242,6 +273,121 @@ interface SuggestionProvider : NlpProvider {
      */
     val maxCandidates: Int
         get() = 8
+}
+
+/**
+ * Where a word that just reached the editor came from (issue #318).
+ *
+ * An explicit flag rather than something inferred, because "nothing is learned from dictation" has to be
+ * a guarantee and not a likelihood. The tempting shortcut is to read the tap trace — no taps, not typed —
+ * but a trace is absent for several unrelated reasons (a hardware keyboard, a cursor jump, a glide), so
+ * that rule would learn nothing on a physical keyboard while still being unable to *prove* anything about
+ * dictation. Naming the origin at each commit site costs four lines and answers the question outright.
+ *
+ * Lives here rather than beside the learning rules because it describes an editor event, not a property
+ * of any one language's corrector.
+ */
+enum class WordOrigin {
+    /** Composed character by character from key presses. The only origin that may be learned. */
+    TYPED,
+
+    /** Produced by a glide. One gesture is not evidence about how a word is spelled. */
+    GESTURE,
+
+    /** Taken from the suggestion strip — by definition already in a dictionary. */
+    CANDIDATE,
+
+    /** Dictation, paste, snippet expansion, autofill: not the user's typing at all. */
+    OTHER,
+}
+
+/**
+ * What a provider did with a word the user finished typing (issue #318).
+ *
+ * [readyForPromotion] is answered by the provider but *acted on* by [NlpManager], because promotion means
+ * writing into the personal dictionary and rebuilding the glide index — neither of which a language
+ * provider should reach into. The provider knows the vocabulary; the manager owns the plumbing.
+ */
+data class LearnOutcome(
+    val learned: Boolean,
+    val word: String = "",
+    val lang: String = "",
+    val entryId: Long = 0L,
+    val readyForPromotion: Boolean = false,
+) {
+    companion object {
+        val NOTHING = LearnOutcome(learned = false)
+    }
+}
+
+/**
+ * Optional capability of a [SuggestionProvider]: building a vocabulary out of what the user types
+ * (issue #318).
+ *
+ * Separate from [SuggestionProvider] rather than part of it, because learning is only meaningful where a
+ * word list and spatial evidence exist. A shape-based provider types *through* its candidate list — the
+ * question "was this word meant or mistyped?" has no answer there — and the clipboard and emoji providers
+ * have no vocabulary at all. Making them all implement three empty methods would say the opposite.
+ *
+ * The caller asks; whether anything is remembered is entirely the provider's decision, and every call
+ * here may legitimately do nothing.
+ */
+interface LearningProvider {
+    /**
+     * Offers one finished word for learning and reports what happened.
+     *
+     * @param word the word as typed, with its capitalisation, already stripped of its separator.
+     * @param tapPoints where the fingers landed, `[x0, y0, x1, y1, …]` in key-width units, or null when
+     *  there was no usable trace — a hardware keyboard, or a cursor jump that desynced it. It is passed in
+     *  rather than read here because this runs after the word boundary, by which time the live trace has
+     *  already been reset for the next word.
+     * @param weight how much this sighting counts; more than one when the user took back a correction.
+     * @param trustedByUser the user has said in so many words that this spelling was intended — they took
+     *  a correction back. Skips the "was this a slip?" reasoning entirely, because that reasoning exists
+     *  to guess at what an explicit action has just answered, and it would guess *wrong* here: a word
+     *  restored from a correction is by construction one cheap edit away from a dictionary word.
+     */
+    suspend fun learnTypedWord(
+        subtype: Subtype,
+        word: String,
+        origin: WordOrigin,
+        tapPoints: FloatArray?,
+        isPrivateSession: Boolean,
+        weight: Int = 1,
+        trustedByUser: Boolean = false,
+    ): LearnOutcome
+
+    /** Records that [word] followed [previousWord], both of them typed rather than suggested. */
+    suspend fun learnWordPair(subtype: Subtype, previousWord: String, word: String)
+
+    /**
+     * Counts one sighting of a word the user **tapped in the suggestion strip** (issue #375).
+     *
+     * A tap is the most deliberate thing that happens while typing — the word was on screen, it was read,
+     * it was chosen — and it used to teach the vocabulary nothing at all. The word then stalled at
+     * whatever rung it had reached, because the moment a word starts being offered is the moment people
+     * stop spelling it out: reported as "typed it six times, still says seen 2×".
+     *
+     * Deliberately **only bumps rows that already exist**. This is not a second way into the vocabulary —
+     * there is no tap evidence to judge here, so the entry test cannot run, and a rule that let picks
+     * *create* entries would be a way around it. It is a way of counting use.
+     */
+    suspend fun learnPickedWord(subtype: Subtype, word: String): LearnOutcome
+
+    /**
+     * Drops [word] from the learned vocabulary entirely and reports whether it had already been promoted
+     * into the personal dictionary — in which case the caller has that copy to remove as well.
+     */
+    suspend fun forgetLearnedWord(subtype: Subtype, word: String): Boolean
+
+    /**
+     * The personal dictionary changed underneath the provider — drop whatever it cached from it.
+     *
+     * Needed because the corrector reads the personal words from a cache rather than from the database
+     * (it looks them up by edit distance, hundreds of keys per keystroke). Called from the same places
+     * that already rebuild the glide index.
+     */
+    suspend fun onPersonalVocabularyChanged()
 }
 
 /**
