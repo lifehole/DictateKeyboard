@@ -84,7 +84,14 @@ configure<ApplicationExtension> {
         // account. Real users pay nothing for it — the bundle is split per architecture, so a phone
         // only ever downloads the libraries it can run. See tools/fetch-sherpa-onnx.sh.
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            // -Parm64Only (the CI build that is installed by hand) packages only the phone's own
+            // architecture: the other two ABIs' native libraries are 77 MB it never loads. The
+            // ordinary APK and the Play bundle keep every ABI.
+            abiFilters += if (project.hasProperty("arm64Only")) {
+                listOf("arm64-v8a")
+            } else {
+                listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            }
         }
 
         buildConfigField("String", "BUILD_COMMIT_HASH", "\"${getGitCommitHash().get()}\"")
@@ -146,20 +153,6 @@ configure<ApplicationExtension> {
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
                 keyPassword = "android"
-            }
-        }
-    }
-
-    // A hand-installed build only needs the phone's own architecture: the other two ABIs' native
-    // libraries are 77 MB of the universal APK that a phone never loads. Opt-in (-Parm64Only), so the
-    // ordinary APK and the Play bundle keep every ABI.
-    if (project.hasProperty("arm64Only")) {
-        splits {
-            abi {
-                isEnable = true
-                reset()
-                include("arm64-v8a")
-                isUniversalApk = false
             }
         }
     }
