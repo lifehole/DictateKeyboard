@@ -21,11 +21,33 @@
       "symbolsFollowingAutoSpace": "",
       "symbolsPrecedingPhantomSpace": ".,;:?‽!&%)]}»©®™",
       "symbolsFollowingPhantomSpace": "¿⸘¡([{",
-      "symbolsTerminatingSentence": ".?‽!"
+      "symbolsTerminatingSentence": ".?‽!",
+      "symbolsTighteningSpace": ".,;:?!‽"
+    },
+    {
+      "id": "french",
+      "label": "French",
+      "symbolsPrecedingAutoSpace": ".,?‽!\"&%)]}»",
+      "symbolsFollowingAutoSpace": "",
+      "symbolsPrecedingPhantomSpace": ".,;:?‽!&%)]}»©®™",
+      "symbolsFollowingPhantomSpace": "¿⸘¡([{",
+      "symbolsTerminatingSentence": ".?‽!",
+      "symbolsTighteningSpace": ".,"
+    },
+    {
+      "id": "devanagari",
+      "label": "Devanagari",
+      "symbolsPrecedingAutoSpace": "।॥.,?‽!\"&%)]}»",
+      "symbolsFollowingAutoSpace": "",
+      "symbolsPrecedingPhantomSpace": "।॥.,;:?‽!&%)]}»©®™",
+      "symbolsFollowingPhantomSpace": "¿⸘¡([{",
+      "symbolsTerminatingSentence": "।॥.?‽!",
+      "symbolsTighteningSpace": "।॥.,;:?!‽"
     }
   ],
   "popupMappings": [
     { "id": "default", "authors": [ "patrickgold" ] },
+    { "id": "af", "authors": [ "DevEmperor" ] },
     { "id": "ar", "authors": [ "HeiWiper" ] },
     { "id": "ast", "authors": [ "Softastur" ] },
     { "id": "bg", "authors": [ "iorvethe" ] },
@@ -52,6 +74,7 @@
     { "id": "hr", "authors": [ "hedidnothingwrong" ] },
     { "id": "hu", "authors": [ "zoli111, gabik65" ] },
     { "id": "hy", "authors": [ "PJTSearch" ] },
+    { "id": "hy-am", "authors": [ "GasparAM" ] },
     { "id": "id", "authors": [ "Linerly" ] },
     { "id": "is", "authors": [ "patrickgold" ] },
     { "id": "it", "authors": [ "patrickgold" ] },
@@ -60,7 +83,6 @@
     { "id": "ka-std", "authors": [ "nE" ] },
     { "id": "kab", "authors": [ "yanis867" ] },
     { "id": "ko", "authors": [ "patrickgold", "Hayleia" ] },
-    { "id": "ko-KR", "authors": [ "Shunnuo" ] },
     { "id": "ku", "authors": [ "GoRaN" ] },
     { "id": "lt", "authors": [ "patrickgold" ] },
     { "id": "lv", "authors": [ "patrickgold", "eandersons" ] },
@@ -73,6 +95,7 @@
     { "id": "ru", "authors": [ "williamtheaker", "33kk" ] },
     { "id": "rue", "authors": [ "svvvst" ] },
     { "id": "sk", "authors": [ "stefan-misik", "majso" ] },
+    { "id": "sl-SI", "authors": [ "samolego" ] },
     { "id": "sr", "authors": [ "hedidnothingwrong", "GrbavaCigla" ] },
     { "id": "sv", "authors": [ "patrickgold" ] },
     { "id": "tr", "authors": [ "kisekinopureya", "patrickgold", "dvrnynr" ] },
@@ -160,6 +183,7 @@
     {
       "languageTag": "fr-FR",
       "composer": "org.florisboard.composers:appender",
+      "punctuationRule": "org.florisboard.localization:french",
       "currencySet": "org.florisboard.currencysets:euro",
       "popupMapping": "org.florisboard.localization:fr",
       "preferred": {
@@ -169,6 +193,7 @@
     {
       "languageTag": "fr-CA",
       "composer": "org.florisboard.composers:appender",
+      "punctuationRule": "org.florisboard.localization:french",
       "currencySet": "org.florisboard.currencysets:dollar",
       "popupMapping": "org.florisboard.localization:fr",
       "preferred": {
@@ -178,6 +203,7 @@
     {
       "languageTag": "fr-CH",
       "composer": "org.florisboard.composers:appender",
+      "punctuationRule": "org.florisboard.localization:french",
       "currencySet": "org.florisboard.currencysets:euro",
       "popupMapping": "org.florisboard.localization:fr",
       "preferred": {
@@ -449,6 +475,15 @@
       "popupMapping": "org.florisboard.localization:ru",
       "preferred": {
         "characters": "org.florisboard.layouts:jcuken_russian"
+      }
+    },
+    {
+      "languageTag": "ru",
+      "composer": "org.florisboard.composers:appender",
+      "currencySet": "org.florisboard.currencysets:russian_ruble",
+      "popupMapping": "org.florisboard.localization:ru",
+      "preferred": {
+        "characters": "org.florisboard.layouts:russian_phonetic"
       }
     },
     {
@@ -775,10 +810,21 @@
       "languageTag": "hi-IN",
       "composer": "org.florisboard.composers:appender",
       "currencySet": "org.florisboard.currencysets:indian_rupee",
+      "punctuationRule": "org.florisboard.localization:devanagari",
       "popupMapping": "org.florisboard.localization:hi-IN",
       "preferred": {
-        "characters": "org.florisboard.layouts:hindi_in",
-        "numericRow": "org.florisboard.layouts:devanagari"
+        "characters": "org.florisboard.layouts:hindi_varnamala"
+      },
+      "numberRow": false
+    },
+    {
+      "languageTag": "hi-IN",
+      "composer": "org.florisboard.composers:appender",
+      "currencySet": "org.florisboard.currencysets:indian_rupee",
+      "punctuationRule": "org.florisboard.localization:devanagari",
+      "popupMapping": "org.florisboard.localization:hi-IN",
+      "preferred": {
+        "characters": "org.florisboard.layouts:hindi_in"
       }
     },
     {
@@ -803,6 +849,15 @@
       "composer": "org.florisboard.composers:appender",
       "currencySet": "org.florisboard.currencysets:euro",
       "popupMapping": "org.florisboard.localization:kab",
+      "preferred": {
+        "characters": "org.florisboard.layouts:qwerty"
+      }
+    },
+    {
+      "languageTag": "af-ZA",
+      "composer": "org.florisboard.composers:appender",
+      "currencySet": "org.florisboard.currencysets:south_african_rand",
+      "popupMapping": "org.florisboard.localization:af",
       "preferred": {
         "characters": "org.florisboard.layouts:qwerty"
       }

@@ -44,22 +44,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
+import dev.patrickgold.florisboard.ime.input.LocalInputFeedbackController
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
+import dev.patrickgold.florisboard.ime.keyboard.PanelHeaderButton
 import dev.patrickgold.florisboard.ime.smartbar.KeyboardSearchBar
+import dev.patrickgold.florisboard.ime.text.keyboard.TextKeyData
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.florisboard.keyboardManager
 import dev.patrickgold.jetpref.datastore.model.collectAsState as collectPrefAsState
 import kotlinx.coroutines.launch
 import org.florisboard.lib.compose.stringRes
 import org.florisboard.lib.snygg.ui.SnyggColumn
-import org.florisboard.lib.snygg.ui.SnyggIconButton
 import org.florisboard.lib.snygg.ui.SnyggRow
 import org.florisboard.lib.snygg.ui.SnyggText
 
 /**
- * The GIF search bar shown in the Smartbar's slot while the user is typing a query (the keyboard below
+ * The GIF search bar shown above the Smartbar while the user is typing a query (the keyboard below
  * does the typing; keystrokes are folded into
  * [dev.patrickgold.florisboard.ime.keyboard.KeyboardManager.gifSearchQuery]). Unlike emoji search, GIFs
  * are too small for an inline results strip — so this bar only captures the query; Enter opens a full
@@ -75,6 +78,7 @@ fun GifSearchPanel(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val inputFeedbackController = LocalInputFeedbackController.current
     val keyboardManager by context.keyboardManager()
     val prefs by FlorisPreferenceStore
     val scope = rememberCoroutineScope()
@@ -113,14 +117,22 @@ fun GifSearchPanel(
                                     .clip(RoundedCornerShape(50))
                                     .background(Color(0x22808080))
                                     .combinedClickable(
-                                        onClick = { keyboardManager.submitGifSearch(term) },
-                                        onLongClick = { confirmDeleteTerm = term },
+                                        onClick = {
+                                            inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
+                                            keyboardManager.submitGifSearch(term)
+                                        },
+                                        onLongClick = {
+                                            inputFeedbackController.keyLongPress(TextKeyData.UNSPECIFIED)
+                                            confirmDeleteTerm = term
+                                        },
                                     )
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                             )
+                            // Not focusable: a focusable menu raised by the keyboard hides the keyboard (#284).
                             DropdownMenu(
                                 expanded = confirmDeleteTerm == term,
                                 onDismissRequest = { confirmDeleteTerm = null },
+                                properties = PopupProperties(focusable = false),
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(stringRes(R.string.action__delete)) },
@@ -141,15 +153,14 @@ fun GifSearchPanel(
             placeholder = stringRes(R.string.gif__search_placeholder),
             onClear = { keyboardManager.clearGifSearch() },
             leading = {
-                SnyggIconButton(
-                    elementName = FlorisImeUi.MediaBottomRowButton.elementName,
+                PanelHeaderButton(
                     onClick = { keyboardManager.closeGifSearch() },
                     modifier = Modifier.size(FlorisImeSizing.smartbarHeight),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringRes(R.string.action__back),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(FlorisImeSizing.mediaHeaderIconSize),
                     )
                 }
             },

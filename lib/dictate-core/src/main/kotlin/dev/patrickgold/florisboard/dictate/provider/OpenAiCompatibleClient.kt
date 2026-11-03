@@ -15,9 +15,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Credentials
@@ -27,6 +34,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -49,7 +57,9 @@ import javax.net.ssl.X509TrustManager
  * A single client implementation that talks to any OpenAI Chat Completions / Audio Transcriptions
  * compatible endpoint. This one class covers OpenAI, Groq, OpenRouter, Together, DeepInfra, Mistral,
  * xAI, DeepSeek, local Ollama and arbitrary custom servers – they only differ by base URL, key and
- * a few headers (see [ProviderRegistry] and [ProviderConfig]).
+ * a few headers (see [ProviderRegistry] and [ProviderConfig]). The dedicated speech-to-text services
+ * whose upload is shaped differently — Soniox, ElevenLabs, Deepgram, AssemblyAI, Azure, xAI's `stt` —
+ * each have a function of their own below, picked by [TranscriptionApi].
  *
  * Google Gemini is also handled here: chat/rewording goes through its OpenAI-compatible layer
  * unchanged, while transcription uses the native generateContent endpoint (see
@@ -66,34 +76,102 @@ class OpenAiCompatibleClient(
         sharedClientFor(
             HttpClientKey(
                 timeoutSeconds = config.timeoutSeconds,
+                callTimeoutSeconds = config.callTimeoutSeconds,
                 proxy = config.proxy,
                 trustUserCerts = config.trustUserCerts,
+                connectTimeoutSeconds = connectTimeoutSeconds,
             )
         ) { buildClient() }
     }
 
     override suspend fun complete(request: ChatRequest): ChatResult {
-        // Skip reasoning_effort up-front for endpoint+model pairs already known to reject it, so we don't
-        // waste a doubled request on every rewording (#184/#186).
-        val key = "${config.normalizedBaseUrl}|${request.model}"
-        val effective = if (request.reasoningEffort != null && key in reasoningEffortUnsupported) {
-            request.copy(reasoningEffort = null)
-        } else {
-            request
-        }
-        return try {
+        // Send straight away what an earlier refusal from this endpoint and model taught us to send instead,
+        // so we don't waste a doubled request on every rewording (#184/#186).
+        val effective = request.copy(reasoningEffort = acceptedEffort(request.model, request.reasoningEffort))
+        // What the answer below was actually asked with, which the empty-answer retry has to judge by.
+        var sent = effective.reasoningEffort
+        val first = try {
             completeOnce(effective)
         } catch (e: DictateApiException) {
             // Many models/endpoints reject `reasoning_effort`: it's an unknown option (#184), an
             // unsupported value such as "minimal" on Ollama (#186), or the model "does not support
-            // thinking" (#186). Rather than hard-fail the rewording, remember it and retry once without it.
-            if (effective.reasoningEffort != null && isReasoningEffortRejected(e)) {
-                reasoningEffortUnsupported.add(key)
-                completeOnce(effective.copy(reasoningEffort = null))
+            // thinking" (#186). Rather than hard-fail the rewording, remember it and retry once with what
+            // the provider said it takes, or without the field when it said nothing.
+            val rejected = effective.reasoningEffort
+            if (rejected != null && isReasoningEffortRejected(e)) {
+                sent = rememberRejection(effective.model, rejected, e)
+                completeOnce(effective.copy(reasoningEffort = sent))
             } else {
                 throw e
             }
         }
+        return when (first) {
+            is Completion.Answer -> first.result
+            // A 200 with nothing usable in it. When the model spent its whole answer thinking there is
+            // exactly one remedy on this side of the wire, and it is the one Dictate Cloud applies to
+            // itself: ask again with the thinking turned down. Once, and only while there is something
+            // left to turn down — an answer that came back empty at "low" will not come back fuller at
+            // "low" (issue #304).
+            is Completion.Empty -> {
+                val floor = acceptedEffort(effective.model, THINKING_FLOOR)
+                if (first.thoughtOnly && canLowerThinking(sent) && floor != null) {
+                    // Deliberately not runCatching: that also catches the CancellationException the stop
+                    // button throws (#192), turning a cancelled dictation into a failed one.
+                    val second = try {
+                        completeOnce(effective.copy(reasoningEffort = floor))
+                    } catch (e: DictateApiException) {
+                        if (isReasoningEffortRejected(e)) rememberRejection(effective.model, floor, e)
+                        null
+                    }
+                    if (second is Completion.Answer) return second.result
+                }
+                // Either way the caller hears about the *first* answer: that is the one that describes
+                // what actually went wrong, while a rejected retry is noise about a field we added.
+                throw DictateApiException(DictateApiException.Kind.UNKNOWN, first.message)
+            }
+        }
+    }
+
+    /**
+     * Whether asking again with less thinking could change anything.
+     *
+     * Null means the field was omitted and the provider applied its own default — which, for a model that
+     * has just answered with nothing but thoughts, is demonstrably not "no thinking", so that case is worth
+     * a second try. Anything already at the floor is not.
+     */
+    private fun canLowerThinking(current: String?): Boolean =
+        current == null || current.trim().lowercase() !in THINKING_AT_FLOOR
+
+    /** What one call came back with: an answer, or a 200 with nothing usable in it (issue #304). */
+    private sealed interface Completion {
+        data class Answer(val result: ChatResult) : Completion
+
+        /**
+         * [message] is what the user will be told; [thoughtOnly] says the emptiness came from the model
+         * thinking its answer away rather than from the provider reporting a failure inside a 200 — the
+         * one distinction that decides whether asking again is worth anything.
+         */
+        data class Empty(val message: String, val thoughtOnly: Boolean) : Completion
+    }
+
+    private fun effortKey(model: String, effort: String) =
+        "${config.normalizedBaseUrl}|$model|${effort.trim().lowercase()}"
+
+    /**
+     * What to send for [effort] with [model]: the value itself, or whatever an earlier refusal of it by
+     * this endpoint put in its place — another value, or null for no field at all.
+     */
+    private fun acceptedEffort(model: String, effort: String?): String? {
+        effort ?: return null
+        val key = effortKey(model, effort)
+        return if (reasoningEffortSubstitutes.containsKey(key)) reasoningEffortSubstitutes[key] else effort
+    }
+
+    /** Records what replaces [rejected] from now on (see [nearestSupportedEffort]) and returns it. */
+    private fun rememberRejection(model: String, rejected: String, e: DictateApiException): String? {
+        val substitute = nearestSupportedEffort(rejected, e.message)
+        reasoningEffortSubstitutes[effortKey(model, rejected)] = substitute
+        return substitute
     }
 
     /** True when [e] looks like the provider rejecting the `reasoning_effort` field or its value. */
@@ -105,7 +183,7 @@ class OpenAiCompatibleClient(
             ("does not support" in m && ("thinking" in m || "reasoning" in m))
     }
 
-    private suspend fun completeOnce(request: ChatRequest): ChatResult {
+    private suspend fun completeOnce(request: ChatRequest): Completion {
         val dto = ChatCompletionRequestDto(
             model = request.model,
             messages = request.messages.map { MessageDto(it.role.wire, it.content) },
@@ -120,16 +198,31 @@ class OpenAiCompatibleClient(
             .post(payload.toRequestBody(JSON_MEDIA_TYPE))
             .build()
         val body = executeForBody(httpRequest)
-        val response = json.decodeFromString(ChatCompletionResponseDto.serializer(), body)
-        val text = response.choices.firstOrNull()?.message?.content.orEmpty()
-        // Some OpenAI-compatible gateways (notably OpenRouter) report errors as HTTP 200 with an empty
-        // `choices` array and an `{ "error": { ... } }` envelope. Surface that instead of returning "".
-        if (text.isBlank() && response.choices.isEmpty()) {
-            val message = extractErrorMessage(body)
-            throw DictateApiException(DictateApiException.Kind.UNKNOWN, message ?: "Empty response from provider")
+        val response = decode(ChatCompletionResponseDto.serializer(), body)
+        val choice = response.choices.firstOrNull()
+        val text = choice?.message?.content.orEmpty()
+        // No text is never an answer here — this endpoint only ever runs a rewording, and "" is not one.
+        // Two ways to arrive: some OpenAI-compatible gateways (notably OpenRouter) report errors as HTTP
+        // 200 with an empty `choices` array and an `{ "error": { ... } }` envelope; and a reasoning model
+        // can answer with a choice whose `content` is empty because the thinking used up the whole output
+        // budget. That second case used to return "" quietly — which in the auto-apply chain *replaced the
+        // dictation with nothing* (#284). Which of the two happened decides whether asking again is worth
+        // anything, so it is answered here rather than left for the caller to read out of a message (#304).
+        if (text.isBlank()) {
+            val reason = choice?.finishReason?.let { " (finish_reason=$it)" }.orEmpty()
+            val providerMessage = extractErrorMessage(body)
+            // A provider naming an error outranks everything else: then the emptiness is the symptom and
+            // that is the cause, and no amount of less thinking will fix it.
+            val thoughtOnly = providerMessage == null &&
+                (choice?.message?.thought == true || choice?.finishReason.equals("length", ignoreCase = true))
+            val message = providerMessage ?: when {
+                thoughtOnly -> "The model answered with reasoning only and no text$reason"
+                else -> "Empty response from provider$reason"
+            }
+            return Completion.Empty(message, thoughtOnly)
         }
         val usage = response.usage?.let { TokenUsage(it.promptTokens, it.completionTokens) }
-        return ChatResult(text, usage)
+        return Completion.Answer(ChatResult(text, usage))
     }
 
     /**
@@ -158,6 +251,8 @@ class OpenAiCompatibleClient(
         TranscriptionApi.ELEVENLABS_MULTIPART -> transcribeElevenLabs(request, onRetry)
         TranscriptionApi.DEEPGRAM -> transcribeDeepgram(request, onRetry)
         TranscriptionApi.ASSEMBLYAI_ASYNC -> transcribeAssemblyAi(request, onRetry)
+        TranscriptionApi.AZURE_FAST_TRANSCRIPTION -> transcribeAzure(request, onRetry)
+        TranscriptionApi.XAI_STT -> transcribeXai(request, onRetry)
         // On-device transcription never uses this HTTP client; the dictation flow routes local providers
         // to LocalTranscriptionProvider before one is ever constructed.
         TranscriptionApi.LOCAL_ONDEVICE -> error("LOCAL_ONDEVICE is handled by LocalTranscriptionProvider")
@@ -166,6 +261,23 @@ class OpenAiCompatibleClient(
     override suspend fun transcribe(request: TranscriptionRequest): TranscriptionResult =
         transcribe(request, onRetry = {})
 
+    /**
+     * The audio itself as a request body, counting its bytes on the way out when the caller asked for
+     * that ([TranscriptionRequest.onUpload], issue #337).
+     *
+     * Every format that streams the file itself goes through here. The four that inline it as base64
+     * (chat-audio, OpenRouter's JSON fallback, both Gemini routes) wrap their JSON body with
+     * [withUploadProgress] instead — the count is then of the encoded payload, which is what actually
+     * travels. Where nobody is listening it is the plain body it always was.
+     */
+    private fun TranscriptionRequest.audioBody(): RequestBody =
+        audioFile.asRequestBody(guessAudioMediaType(audioFile)).withUploadProgress(onUpload)
+
+    /** [this] reporting its progress to [onUpload], or [this] untouched when there is nobody to tell. */
+    private fun RequestBody.withUploadProgress(
+        onUpload: ((sent: Long, total: Long) -> Unit)?,
+    ): RequestBody = if (onUpload == null) this else ProgressRequestBody(this, onUpload)
+
     /** OpenAI-style `multipart/form-data` upload (OpenAI, Groq, Mistral, most custom servers). */
     private suspend fun transcribeMultipart(
         request: TranscriptionRequest,
@@ -173,7 +285,7 @@ class OpenAiCompatibleClient(
     ): TranscriptionResult {
         val httpRequest = buildMultipartTranscriptionRequest(request)
         val body = executeForBody(httpRequest, onRetry = onRetry)
-        val response = json.decodeFromString(TranscriptionResponseDto.serializer(), body)
+        val response = decode(TranscriptionResponseDto.serializer(), body)
         return TranscriptionResult(response.text.trim())
     }
 
@@ -182,19 +294,33 @@ class OpenAiCompatibleClient(
         request: TranscriptionRequest,
         temperature: Double? = null,
     ): Request {
-        val fileBody = request.audioFile.asRequestBody(guessAudioMediaType(request.audioFile))
+        val fileBody = request.audioBody()
         val multipart = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", request.audioFile.name, fileBody)
+            // The name, not the part's content type, is what these endpoints read — see
+            // [audioUploadNameOf], which carries the measurement that proves it.
+            .addFormDataPart("file", audioUploadNameOf(request.audioFile), fileBody)
             .addFormDataPart("model", request.model)
             .addFormDataPart("response_format", "json")
             .apply {
-                val lang = request.language
-                if (!lang.isNullOrEmpty() && lang != "detect") {
-                    // gpt-transcribe replaced the singular `language` with `languages`, which also accepts
-                    // several codes for code-switching audio. Sending the old field to it would silently
-                    // drop the user's language choice, so pick the name the model actually reads.
-                    addFormDataPart(if (usesLanguagesField(request.model)) "languages" else "language", lang)
+                val lang = request.language?.takeIf { it.isNotEmpty() && it != "detect" }
+                if (usesLanguagesField(request.model)) {
+                    // gpt-transcribe replaced the singular `language` with `languages`, "a list of
+                    // expected input languages when the recording may contain more than one language".
+                    // A list in multipart is the repeated bracket form the docs use (`-F 'languages[]=en'
+                    // -F 'languages[]=fr'`). Measured against the live endpoint on 2026-08-28: an invalid
+                    // code comes back 400 under `language`, `languages` and `languages[]` alike, so the
+                    // spelling was never what decided whether a language applied — but every entry of the
+                    // bracket list is validated, which is the proof that several languages actually
+                    // arrive rather than only the first.
+                    // A pinned language is that one language; auto-detect passes the languages the user
+                    // actually dictates in, which is what makes a four-language setup work at all (#99).
+                    languageHintsOf(request.language, request.expectedLanguages)
+                        .forEach { addFormDataPart("languages[]", it) }
+                } else if (lang != null) {
+                    // Every older model hints a single language, and the docs are explicit that the two
+                    // fields must never be sent together.
+                    addFormDataPart("language", lang)
                 }
                 if (!request.prompt.isNullOrEmpty()) addFormDataPart("prompt", request.prompt)
                 if (temperature != null) addFormDataPart("temperature", temperature.toString())
@@ -246,7 +372,7 @@ class OpenAiCompatibleClient(
                 diagnosticLabel = label.replace("wire=multipart", "wire=json-fallback"),
             )
         }
-        val response = json.decodeFromString(TranscriptionResponseDto.serializer(), body)
+        val response = decode(TranscriptionResponseDto.serializer(), body)
         return TranscriptionResult(response.text.trim())
     }
 
@@ -265,7 +391,7 @@ class OpenAiCompatibleClient(
         return Request.Builder()
             .url(config.normalizedBaseUrl + "audio/transcriptions")
             .headers(authHeaders())
-            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
+            .post(payload.toRequestBody(JSON_MEDIA_TYPE).withUploadProgress(request.onUpload))
             .tag(HttpCallDiagnostics::class.java, HttpCallDiagnostics(fallbackLabel))
             .build()
     }
@@ -327,10 +453,10 @@ class OpenAiCompatibleClient(
         val httpRequest = Request.Builder()
             .url(config.normalizedBaseUrl + "chat/completions")
             .headers(authHeaders())
-            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
+            .post(payload.toRequestBody(JSON_MEDIA_TYPE).withUploadProgress(request.onUpload))
             .build()
         val body = executeForBody(httpRequest, onRetry = onRetry)
-        val response = json.decodeFromString(ChatCompletionResponseDto.serializer(), body)
+        val response = decode(ChatCompletionResponseDto.serializer(), body)
         val text = response.choices.firstOrNull()?.message?.content.orEmpty()
         if (text.isBlank() && response.choices.isEmpty()) {
             val message = extractErrorMessage(body)
@@ -357,17 +483,17 @@ class OpenAiCompatibleClient(
         val base = config.normalizedBaseUrl
 
         // 1. Upload the audio file.
-        val fileBody = request.audioFile.asRequestBody(guessAudioMediaType(request.audioFile))
+        val fileBody = request.audioBody()
         val uploadBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", request.audioFile.name, fileBody)
+            .addFormDataPart("file", audioUploadNameOf(request.audioFile), fileBody)
             .build()
         val uploadRequest = Request.Builder()
             .url(base + "files")
             .headers(authHeaders())
             .post(uploadBody)
             .build()
-        val fileId = json.decodeFromString(
+        val fileId = decode(
             SonioxFileDto.serializer(),
             executeForBody(uploadRequest, onRetry = onRetry),
         ).id
@@ -388,7 +514,7 @@ class OpenAiCompatibleClient(
                 .headers(authHeaders())
                 .post(json.encodeToString(SonioxCreateDto.serializer(), createDto).toRequestBody(JSON_MEDIA_TYPE))
                 .build()
-            val id = json.decodeFromString(
+            val id = decode(
                 SonioxTranscriptionDto.serializer(),
                 executeForBody(createRequest, onRetry = onRetry),
             ).id
@@ -403,7 +529,7 @@ class OpenAiCompatibleClient(
                     .headers(authHeaders())
                     .get()
                     .build()
-                val status = json.decodeFromString(
+                val status = decode(
                     SonioxTranscriptionDto.serializer(),
                     executeForBody(statusRequest, maxRetries = 2, onRetry = onRetry),
                 )
@@ -439,7 +565,7 @@ class OpenAiCompatibleClient(
                 .headers(authHeaders())
                 .get()
                 .build()
-            val transcript = json.decodeFromString(
+            val transcript = decode(
                 SonioxTranscriptDto.serializer(),
                 executeForBody(transcriptRequest, onRetry = onRetry),
             )
@@ -469,10 +595,10 @@ class OpenAiCompatibleClient(
         request: TranscriptionRequest,
         onRetry: (attempt: Int) -> Unit,
     ): TranscriptionResult {
-        val fileBody = request.audioFile.asRequestBody(guessAudioMediaType(request.audioFile))
+        val fileBody = request.audioBody()
         val multipart = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("file", request.audioFile.name, fileBody)
+            .addFormDataPart("file", audioUploadNameOf(request.audioFile), fileBody)
             .addFormDataPart("model_id", request.model)
             .apply {
                 val lang = request.language
@@ -485,7 +611,7 @@ class OpenAiCompatibleClient(
             .post(multipart)
             .build()
         val body = executeForBody(httpRequest, onRetry = onRetry)
-        val response = json.decodeFromString(TranscriptionResponseDto.serializer(), body)
+        val response = decode(TranscriptionResponseDto.serializer(), body)
         return TranscriptionResult(response.text.trim())
     }
 
@@ -503,14 +629,14 @@ class OpenAiCompatibleClient(
             append("&smart_format=true")
             if (lang != null) append("&language=").append(lang) else append("&detect_language=true")
         }
-        val audioBody = request.audioFile.asRequestBody(guessAudioMediaType(request.audioFile))
+        val audioBody = request.audioBody()
         val httpRequest = Request.Builder()
             .url(url)
             .header("Authorization", "Token ${config.apiKey}")
             .post(audioBody)
             .build()
         val body = executeForBody(httpRequest, onRetry = onRetry)
-        val response = json.decodeFromString(DeepgramResponseDto.serializer(), body)
+        val response = decode(DeepgramResponseDto.serializer(), body)
         val text = response.results?.channels?.firstOrNull()?.alternatives?.firstOrNull()?.transcript.orEmpty()
         return TranscriptionResult(text.trim())
     }
@@ -530,9 +656,9 @@ class OpenAiCompatibleClient(
         val uploadRequest = Request.Builder()
             .url(base + "v2/upload")
             .header("authorization", authHeader)
-            .post(request.audioFile.asRequestBody(guessAudioMediaType(request.audioFile)))
+            .post(request.audioBody())
             .build()
-        val uploadUrl = json.decodeFromString(
+        val uploadUrl = decode(
             AssemblyUploadDto.serializer(),
             executeForBody(uploadRequest, onRetry = onRetry),
         ).uploadUrl
@@ -550,7 +676,7 @@ class OpenAiCompatibleClient(
             .header("authorization", authHeader)
             .post(json.encodeToString(AssemblyCreateDto.serializer(), createDto).toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        val id = json.decodeFromString(
+        val id = decode(
             AssemblyTranscriptDto.serializer(),
             executeForBody(createRequest, onRetry = onRetry),
         ).id
@@ -564,7 +690,7 @@ class OpenAiCompatibleClient(
                 .header("authorization", authHeader)
                 .get()
                 .build()
-            val dto = json.decodeFromString(
+            val dto = decode(
                 AssemblyTranscriptDto.serializer(),
                 executeForBody(pollRequest, maxRetries = 2, onRetry = onRetry),
             )
@@ -589,20 +715,160 @@ class OpenAiCompatibleClient(
     }
 
     /**
-     * Google Gemini transcription. Gemini exposes no speech-to-text endpoint; its multimodal models
-     * transcribe audio sent as base64 `inline_data` to the native `generateContent` endpoint (the
-     * OpenAI-compatible layer used for chat does not accept audio). We give the model a strict instruction
-     * to emit only the verbatim transcript – and nothing at all for silence – so the output can be used
-     * directly and won't echo the style hint or hallucinate on empty audio.
+     * Azure Speech, Fast Transcription with MAI-Transcribe (issue #349): one multipart POST carrying the
+     * audio beside a `definition` part that holds every option as JSON.
+     *
+     * Three of those options are filled in here rather than left to the endpoint:
+     *  - `enhancedMode` is what selects MAI at all, and without it the request quietly runs on Azure's
+     *    ordinary speech model instead — a wrong transcript rather than an error.
+     *  - `transcribeStyle` is set to `clean` for the reason the whole feature was asked for: it drops
+     *    the "ähm"s, the false starts and the self-corrections. Microsoft defaults to `verbatim`
+     *    because their reference customers are compliance and QA; a keyboard's user is writing a
+     *    message, and nobody sends the false start on purpose. This is the same call the app already
+     *    makes for Deepgram's `smart_format`, and it is fixed rather than a setting for the same reason.
+     *  - `phraseList` carries the user's own names and jargon, read out of the style hint by
+     *    [vocabularyFromPrompt] exactly as Google's dedicated model gets it (#292). A dedicated
+     *    speech-to-text model has nowhere to put prose, so the terms are the part of a hint that can
+     *    still do something.
+     */
+    private suspend fun transcribeAzure(
+        request: TranscriptionRequest,
+        onRetry: (attempt: Int) -> Unit,
+    ): TranscriptionResult {
+        // Asked first, because it is the one thing here that can be wrong before a byte moves.
+        val url = azureTranscribeUrl()
+        val definition = AzureDefinitionDto(
+            // Omitted for auto-detect, which is the documented default and the mode MAI is built for —
+            // it detects across 60 languages and follows a switch mid-sentence. Microsoft calls a pinned
+            // locale "a very strong hint" and advises against setting one without cause, so the app's own
+            // auto-detect passes nothing at all rather than guessing.
+            locales = azureLocale(request.language)?.let { listOf(it) },
+            enhancedMode = AzureEnhancedModeDto(
+                enabled = true,
+                model = request.model,
+                modelOptions = if (azureSupportsTranscribeStyle(request.model)) {
+                    AzureModelOptionsDto(transcribeStyle = AZURE_TRANSCRIBE_STYLE_CLEAN)
+                } else {
+                    null
+                },
+            ),
+            phraseList = vocabularyFromPrompt(request.prompt)?.let { AzurePhraseListDto(it) },
+        )
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("audio", audioUploadNameOf(request.audioFile), request.audioBody())
+            .addFormDataPart("definition", json.encodeToString(AzureDefinitionDto.serializer(), definition))
+            .build()
+        val httpRequest = Request.Builder()
+            .url(url)
+            .header("Ocp-Apim-Subscription-Key", config.apiKey)
+            .post(multipart)
+            .build()
+        val body = executeForBody(httpRequest, onRetry = onRetry)
+        return TranscriptionResult(azureTranscriptOf(decode(AzureTranscriptionDto.serializer(), body)))
+    }
+
+    /**
+     * xAI Grok Voice Transcribe (issue #435): one multipart POST to `stt`, a Bearer key, `text` back.
+     *
+     * Three things differ from [transcribeMultipart], and each changes the request rather than its path:
+     *  - **The file goes last.** xAI streams the upload and says fields after the `file` part "may be
+     *    ignored" — so a language or a vocabulary placed where the other builders put them would be
+     *    dropped in silence, not refused.
+     *  - **`language` switches on formatting, not recognition.** The model transcribes any of its
+     *    languages whatever is sent; the code turns spoken numbers, currencies and units into their
+     *    written form, and only beside `format=true` — which without a language is a 400. So the two go
+     *    together or not at all, and auto-detect sends neither. [xaiLanguage] says which codes.
+     *  - **There is no prompt.** The style hint's terms go out as repeated `keyterm` fields instead — the
+     *    same reading of it that Google's and Azure's dedicated models get ([vocabularyFromPrompt]) —
+     *    within xAI's documented 50 characters a term.
+     *
+     * Filler words stay at xAI's default, which removes them: the choice this app makes wherever a
+     * provider offers one (Gemini's `smart`, Azure's `clean`).
+     */
+    private suspend fun transcribeXai(
+        request: TranscriptionRequest,
+        onRetry: (attempt: Int) -> Unit,
+    ): TranscriptionResult {
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .apply {
+                // Omitted rather than sent empty: without the field xAI uses its default model, and what it
+                // makes of a model named "" is not documented.
+                if (request.model.isNotBlank()) addFormDataPart("model", request.model)
+                xaiLanguage(request.language)?.let { language ->
+                    addFormDataPart("language", language)
+                    addFormDataPart("format", "true")
+                }
+                vocabularyFromPrompt(request.prompt).orEmpty()
+                    .filter { it.length <= XAI_KEYTERM_MAX_CHARS }
+                    .forEach { addFormDataPart("keyterm", it) }
+            }
+            .addFormDataPart("file", audioUploadNameOf(request.audioFile), request.audioBody())
+            .build()
+        val httpRequest = Request.Builder()
+            .url(config.normalizedBaseUrl + "stt")
+            .headers(authHeaders())
+            .post(multipart)
+            .build()
+        val body = executeForBody(httpRequest, onRetry = onRetry)
+        return TranscriptionResult(decode(TranscriptionResponseDto.serializer(), body).text.trim())
+    }
+
+    /**
+     * The transcribe URL for this account's own Azure resource — or a refusal that says what to do.
+     *
+     * Every other provider here has one address for everybody; an Azure Speech resource answers on a
+     * hostname of its own, so the preset ships none at all and the settings field stands open. An
+     * empty one has to be caught here, because [ProviderConfig.normalizedBaseUrl] turns it into `"/"`
+     * — a relative path OkHttp would reject much later and much less clearly. The angle brackets are
+     * caught too, for anyone who pastes the placeholder shape or Microsoft's own `<your-resource>`
+     * sample: that resolves to nothing and reads like "no internet".
+     *
+     * Thrown as [DictateApiException.Kind.INVALID_API_KEY] on purpose, and not because a key is
+     * missing: that kind is the one that offers to open the provider's settings, which is the single
+     * screen where the endpoint is edited — right above the key. The headline it carries is a little
+     * off; the action and the detail underneath it are exactly right.
+     */
+    private fun azureTranscribeUrl(): String {
+        if (config.baseUrl.isBlank() ||
+            config.baseUrl.contains('<') ||
+            config.baseUrl.contains('>')
+        ) {
+            throw DictateApiException(
+                DictateApiException.Kind.INVALID_API_KEY,
+                "Set the endpoint of your Azure Speech resource — the URL shown next to the key on the " +
+                    "portal's Keys and Endpoint page, e.g. https://my-speech.cognitiveservices.azure.com/",
+            )
+        }
+        return config.normalizedBaseUrl +
+            "speechtotext/transcriptions:transcribe?api-version=$AZURE_API_VERSION"
+    }
+
+    /**
+     * Google Gemini transcription, which since 2026-08 comes in two shapes and picks by model (#292).
+     *
+     * A dedicated speech-to-text model (`gemini-3.5-transcribe`) is reached over the Interactions API and
+     * is handled by [transcribeGeminiInteractions]. Everything else is a multimodal *chat* model doing
+     * transcription as a side job: audio goes as base64 `inline_data` to the native `generateContent`
+     * endpoint (the OpenAI-compatible layer used for chat does not accept audio), with a strict
+     * instruction to emit only the verbatim transcript – and nothing at all for silence – so the output
+     * can be used directly and won't echo the style hint or hallucinate on empty audio.
+     *
+     * The split is by model rather than by [TranscriptionApi] because both remain valid for this one
+     * provider: which endpoint applies follows from what the user picked in the model field.
      */
     private suspend fun transcribeGeminiGenerateContent(
         request: TranscriptionRequest,
         onRetry: (attempt: Int) -> Unit,
     ): TranscriptionResult {
+        if (ProviderRegistry.isGeminiTranscribeModel(request.model)) {
+            return transcribeGeminiInteractions(request, onRetry)
+        }
         val base64 = withContext(Dispatchers.IO) {
             base64EncodeFile(request.audioFile)
         }
-        val mimeType = guessAudioMediaType(request.audioFile).toString().substringBefore(";").trim()
+        val mimeType = audioMimeTypeOf(request.audioFile)
         val dto = GeminiGenerateRequestDto(
             contents = listOf(
                 GeminiContentDto(
@@ -621,14 +887,128 @@ class OpenAiCompatibleClient(
         val httpRequest = Request.Builder()
             .url(geminiNativeBaseUrl() + "models/" + model + ":generateContent")
             .headers(geminiNativeHeaders())
-            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
+            .post(payload.toRequestBody(JSON_MEDIA_TYPE).withUploadProgress(request.onUpload))
             .build()
         val body = executeForBody(httpRequest, onRetry = onRetry)
-        val response = json.decodeFromString(GeminiGenerateResponseDto.serializer(), body)
+        val response = decode(GeminiGenerateResponseDto.serializer(), body)
         val text = response.candidates.firstOrNull()?.content?.parts.orEmpty()
             .mapNotNull { it.text }
             .joinToString("")
         return TranscriptionResult(text.trim())
+    }
+
+    /**
+     * Google's dedicated speech-to-text models over the Interactions API (`POST {native}/interactions`,
+     * issue #292) — `gemini-3.5-transcribe` and its family.
+     *
+     * Not a chat call in disguise: there is no prompt and no temperature, the audio is the whole input,
+     * and what would be an instruction elsewhere is a `transcription_config` here. Audio travels inline as
+     * base64 like the `generateContent` path, so the same ~15 MB ceiling applies
+     * ([ProviderRegistry.maxUploadBytes]); the Files API would mean a second round trip and a copy of the
+     * dictation living on Google's servers, which is the opposite of what inline audio is for.
+     */
+    private suspend fun transcribeGeminiInteractions(
+        request: TranscriptionRequest,
+        onRetry: (attempt: Int) -> Unit,
+    ): TranscriptionResult {
+        val base64 = withContext(Dispatchers.IO) {
+            base64EncodeFile(request.audioFile)
+        }
+        val dto = GeminiInteractionRequestDto(
+            // The Interactions body names the model itself, without the `models/` prefix the native URL
+            // path carries — strip any the catalog or the user brought along.
+            model = request.model.removePrefix("models/"),
+            input = listOf(
+                GeminiInteractionInputDto(
+                    type = "audio",
+                    data = base64,
+                    mimeType = interactionsAudioMimeType(request.audioFile),
+                ),
+            ),
+            generationConfig = GeminiInteractionConfigDto(
+                transcriptionConfig = GeminiTranscriptionConfigDto(
+                    // "smart" removes fillers, folds spoken self-corrections into the sentence and
+                    // punctuates; "verbatim" would leave all of that to the rewording step.
+                    mode = GeminiTranscriptionModeDto(type = "smart"),
+                    // Omitted entirely for auto-detection — an empty list is not the same request.
+                    languageCodes = request.language
+                        ?.takeIf { it.isNotEmpty() && it != "detect" }
+                        ?.let { listOf(it) },
+                    customVocabulary = vocabularyFromPrompt(request.prompt),
+                ),
+            ),
+        )
+        val payload = json.encodeToString(GeminiInteractionRequestDto.serializer(), dto)
+        val httpRequest = Request.Builder()
+            .url(geminiNativeBaseUrl() + "interactions")
+            .headers(geminiNativeHeaders())
+            .post(payload.toRequestBody(JSON_MEDIA_TYPE).withUploadProgress(request.onUpload))
+            .build()
+        val body = executeForBody(httpRequest, onRetry = onRetry)
+        return TranscriptionResult(transcriptOf(decode(GeminiInteractionResponseDto.serializer(), body)).trim())
+    }
+
+    /**
+     * Digs the transcript out of an Interaction. `output_text` is documented as a *convenience field the
+     * SDKs add*, so it may not be in the raw REST body at all — the steps are what is always there. The
+     * `user_input` step carries the request back, hence the skip: joining every text block would prepend
+     * whatever was sent in.
+     */
+    private fun transcriptOf(response: GeminiInteractionResponseDto): String {
+        val fromSteps = response.steps
+            .filter { it.type != "user_input" }
+            .lastOrNull { step -> step.content.any { !it.text.isNullOrBlank() } }
+            ?.content.orEmpty()
+            .mapNotNull { it.text }
+            .joinToString("")
+        return fromSteps.ifBlank { response.outputText.orEmpty() }
+    }
+
+    /**
+     * The Interactions audio block takes `audio/m4a` where [AudioContainer.M4A] says `audio/mp4` — the
+     * same container, and only one of the two names is in Google's accepted list. Recordings are WAV
+     * (#130); m4a shows up when a long dictation was packed for the wire (#281) or a file was imported.
+     *
+     * The one place a provider still overrides the shared table, and it stays a single expression
+     * rather than a table of its own (issue #322).
+     */
+    private fun interactionsAudioMimeType(file: File): String =
+        when (val container = AudioContainer.of(file)) {
+            AudioContainer.M4A -> "audio/m4a"
+            else -> container.mimeType
+        }
+
+    /**
+     * Turns the transcription style hint into vocabulary terms, or nothing — Google's
+     * `custom_vocabulary` (#292) and Azure's `phraseList.phrases` (#349) ask the same question.
+     *
+     * A dedicated STT model has nowhere to put prose — it takes no instruction. The one part of a hint
+     * that still does something here is the names and jargon in it, which is exactly what custom
+     * vocabulary biases towards. So the hint is read as a list (commas, semicolons, line breaks) and
+     * anything longer than four words is dropped as a sentence rather than a term. Google caps the field
+     * at 1000 entries but recommends staying near 100, which is also far more than a hint ever holds.
+     *
+     * **The sentence in front has to go, and the word-count rule does not remove it.** The app's own
+     * hint is a short sample sentence demonstrating punctuation, with the user's glossary appended
+     * behind it — `"Hallo. Vielen Dank. DevEmperor, Dictate"` — so the first comma-separated piece is
+     * the whole greeting *plus* the first real term, four words in total and therefore kept. As a
+     * bias phrase that is not merely useless: Azure calls this field keyword biasing and would nudge
+     * every dictation towards "Hallo. Vielen Dank."
+     *
+     * Hence [afterLastSentenceEnd]: a term never contains a full stop followed by a space, so cutting
+     * there recovers `DevEmperor` and leaves anything that was already a plain term untouched. The one
+     * thing it costs is the front of a term with a stop inside it — `"Dr. Meier"` biases towards
+     * `Meier` — which still biases towards the right name. With no glossary behind it, the sample's
+     * own last sentence is what is left, and [vocabularyTermOf] turns that away too.
+     */
+    private fun vocabularyFromPrompt(prompt: String?): List<String>? {
+        val terms = prompt.orEmpty()
+            .split(',', ';', '\n')
+            .mapNotNull(::vocabularyTermOf)
+            .filter { term -> term.count { it == ' ' } < 4 }
+            .distinct()
+            .take(100)
+        return terms.ifEmpty { null }
     }
 
     /** Strict transcription prompt for [transcribeGeminiGenerateContent]; folds in the language and style hints. */
@@ -660,13 +1040,23 @@ class OpenAiCompatibleClient(
     }
 
     override suspend fun listModels(): List<ModelInfo> {
-        // Providers without a model-list endpoint (ElevenLabs, AssemblyAI, #143) ship a curated list
-        // instead; return it offline so the picker/connection test work (key validated on first use).
+        // Providers without a usable model-list endpoint (ElevenLabs, AssemblyAI, #143) ship a curated
+        // list instead, and it is returned offline so the picker fills even on a train. That is fine for
+        // a picker and was a lie as a connection test, which is why the test no longer comes through here
+        // at all — see [checkCredentials] (#384).
         if (config.transcriptionApi in NO_MODELS_CATALOG_APIS) {
+            // Azure's address is the user's own, so it is the one whose picker can be opened against an
+            // endpoint that was never filled in. Nothing is fetched either way; this only refuses to
+            // offer model ids for a resource that does not exist yet (#349).
+            if (config.transcriptionApi == TranscriptionApi.AZURE_FAST_TRANSCRIPTION) {
+                azureTranscribeUrl()
+            }
             return config.curatedModels.map { ModelInfo(it) }
         }
         // Deepgram has its own catalog: GET /v1/models with a `Token` header returns `{ stt: [...] }`;
-        // the `canonical_name` is the value for the listen `?model=` param (issue #143).
+        // the `canonical_name` is the value for the listen `?model=` param (issue #143). Each entry also
+        // says which endpoints serve it, and only file uploads are picked here — a streaming-only model
+        // (Deepgram's flux generation, #291) would fail every transcription it was chosen for.
         if (config.transcriptionApi == TranscriptionApi.DEEPGRAM) {
             val request = Request.Builder()
                 .url(config.normalizedBaseUrl + "models")
@@ -674,8 +1064,9 @@ class OpenAiCompatibleClient(
                 .get()
                 .build()
             val body = executeForBody(request, maxRetries = 1)
-            return json.decodeFromString(DeepgramModelsDto.serializer(), body)
+            return decode(DeepgramModelsDto.serializer(), body)
                 .stt
+                .filter { it.batch }
                 .map { ModelInfo(it.canonicalName) }
                 .filter { it.id.isNotBlank() }
                 .sortedBy { it.id.lowercase() }
@@ -693,7 +1084,7 @@ class OpenAiCompatibleClient(
                 .get()
                 .build()
             val body = executeForBody(request, maxRetries = 1)
-            return json.decodeFromString(ModelsResponseDto.serializer(), body)
+            return decode(ModelsResponseDto.serializer(), body)
                 .data
                 .map { ModelInfo(it.id) }
                 .filter { it.id.isNotBlank() }
@@ -716,13 +1107,13 @@ class OpenAiCompatibleClient(
         // Soniox returns `{ models: [ { id, transcription_mode, … } ] }` instead of OpenAI's `{ data: [...] }`,
         // and lists both async and real-time models; only the async ones work with our SONIOX_ASYNC flow.
         if (config.transcriptionApi == TranscriptionApi.SONIOX_ASYNC) {
-            val response = json.decodeFromString(SonioxModelsDto.serializer(), body)
+            val response = decode(SonioxModelsDto.serializer(), body)
             return response.models
                 .filter { it.transcriptionMode == "async" }
                 .map { ModelInfo(it.id) }
                 .sortedBy { it.id.lowercase() }
         }
-        val response = json.decodeFromString(ModelsResponseDto.serializer(), body)
+        val response = decode(ModelsResponseDto.serializer(), body)
         // Gemini's catalog reports ids as `models/gemini-…`; strip that prefix so the picker shows clean
         // ids that also work directly as the `model` field in both chat and generateContent calls.
         val stripPrefix = config.transcriptionApi == TranscriptionApi.GEMINI_GENERATE_CONTENT
@@ -739,6 +1130,90 @@ class OpenAiCompatibleClient(
                 )
             }
             .sortedBy { it.id.lowercase() }
+    }
+
+    /**
+     * One authenticated request, made only to find out whether the key and the endpoint belong together
+     * (issue #384).
+     *
+     * This used to be [listModels] and nothing else, which is why "Test connection" could pass against a
+     * hostname that does not resolve: the three providers whose catalog is curated answer that call from
+     * a list compiled into the app, without a socket being opened. So each of them gets a request of its
+     * own here — one that a wrong key refuses — and none of them reports a model count, because the
+     * number the picker shows was never learned from the network.
+     *
+     * Everything else has a live `/models` catalog, and fetching it *is* an authenticated request; the
+     * count that comes back is real and worth showing. A keyless endpoint (Ollama, a server of one's own)
+     * goes down the same path and gets [ConnectionCheckScope.ENDPOINT]: it answered, and there was no
+     * credential in the request to have been accepted.
+     *
+     * What none of this establishes is that the selected model can transcribe — see [checkTranscription].
+     */
+    suspend fun checkCredentials(): ConnectionCheck {
+        val scope = if (config.apiKey.isBlank()) {
+            ConnectionCheckScope.ENDPOINT
+        } else {
+            ConnectionCheckScope.CREDENTIALS
+        }
+        when (config.transcriptionApi) {
+            // The base-models catalog: the wrong namespace for the picker (per-locale custom-speech
+            // models, none of which `enhancedMode.model` accepts, see [ProviderRegistry.AZURE]) but
+            // exactly the right shape for this — the resource key opens it, so a 401 means the key is
+            // wrong and a DNS failure means the endpoint is. [azureTranscribeUrl] runs first because a
+            // blank or still-templated endpoint deserves the sentence it already writes, not a socket
+            // error. Endpoint and auth header read from Microsoft's REST reference, 2026-09-09.
+            TranscriptionApi.AZURE_FAST_TRANSCRIPTION -> {
+                azureTranscribeUrl()
+                val request = Request.Builder()
+                    .url(config.normalizedBaseUrl + "speechtotext/models/base?api-version=$AZURE_API_VERSION")
+                    .header("Ocp-Apim-Subscription-Key", config.apiKey)
+                    .get()
+                    .build()
+                executeForBody(request, maxRetries = 1)
+                return ConnectionCheck(scope)
+            }
+            // `GET /v1/models` mixes TTS and STT with no clean filter, which is why it is not the picker's
+            // source — but it is authenticated, measured against the live API on 2026-09-16: a wrong key
+            // answers 401 `invalid_api_key`, so it settles the only question asked here.
+            TranscriptionApi.ELEVENLABS_MULTIPART -> {
+                val request = Request.Builder()
+                    .url(config.normalizedBaseUrl + "models")
+                    .header("xi-api-key", config.apiKey)
+                    .get()
+                    .build()
+                executeForBody(request, maxRetries = 1)
+                return ConnectionCheck(scope)
+            }
+            // AssemblyAI publishes no models endpoint at all, so the probe is the cheapest authenticated
+            // GET it does have: one page of the account's own transcript list, capped at a single entry.
+            // Nothing is read out of it — only whether the key was accepted. Measured 2026-09-16: a wrong
+            // key answers 401 "Authentication error, API token missing/invalid".
+            TranscriptionApi.ASSEMBLYAI_ASYNC -> {
+                val request = Request.Builder()
+                    .url(config.normalizedBaseUrl + "v2/transcript?limit=1")
+                    .header("authorization", config.apiKey)
+                    .get()
+                    .build()
+                executeForBody(request, maxRetries = 1)
+                return ConnectionCheck(scope)
+            }
+            else -> return ConnectionCheck(scope, liveModelCount = listModels().size)
+        }
+    }
+
+    /**
+     * The only check that proves dictation works: the app's own transcription path, with the sample
+     * standing in for the recording (issue #384).
+     *
+     * Deliberately [transcribe] itself rather than a lighter imitation of it — the point is that every
+     * step a real dictation depends on has to hold, including the ones a credential check cannot see: the
+     * selected model existing, the resource's region hosting it, the account having quota, and the
+     * provider accepting the container. It is a billed request for the same reason, which is why the UI
+     * asks for it separately instead of folding it into the button next to the key field.
+     */
+    suspend fun checkTranscription(sample: File, model: String, language: String? = null): ConnectionCheck {
+        val result = transcribe(TranscriptionRequest(audioFile = sample, model = model, language = language))
+        return ConnectionCheck(ConnectionCheckScope.TRANSCRIPTION, transcript = result.text.trim())
     }
 
     /**
@@ -787,6 +1262,8 @@ class OpenAiCompatibleClient(
         diagnosticLabel: String? = null,
     ): String {
         var attempt = 0
+        // From the first attempt on, so that the pauses between attempts count as the waiting they are.
+        val firstStartedNanos = System.nanoTime()
         while (true) {
             val startedNanos = System.nanoTime()
             diagnosticLabel?.let {
@@ -817,7 +1294,16 @@ class OpenAiCompatibleClient(
                             "kind=${mapped.kind}",
                     )
                 }
-                if (mapped.kind.isRetryable && attempt < maxRetries) {
+                // Retries are for errors that come back fast: a refused connection, a reset, a 502, each
+                // costing seconds. A request that has already taken as long as one attempt may take has
+                // used up the wait the user agreed to, and another attempt only repeats it. A stalled
+                // connection used to cost four full timeouts that way, eight minutes at the default (#438).
+                // From here the resend chip is the retry, and the user decides whether to wait again.
+                val withinBudget = elapsedMillis(firstStartedNanos) < attemptBudgetMillis
+                // A server nobody could connect to is handed on at once when another provider is waiting for
+                // it (#455): the next attempt would find it just as unreachable, three seconds later.
+                val handedOn = config.handOverUnreachable && mapped.isConnectFailure
+                if (mapped.isRetryable && !handedOn && attempt < maxRetries && withinBudget) {
                     attempt++
                     onRetry(attempt + 1) // report the upcoming attempt (2nd, 3rd, …)
                     delay(RETRY_DELAY_MS)
@@ -869,13 +1355,51 @@ class OpenAiCompatibleClient(
     }
 
     /**
+     * Reads a response that succeeded. Decoding happens *after* [executeForBody], outside the catch that
+     * maps everything else onto [DictateApiException] — so an answer in an unexpected shape (a gateway's
+     * HTML, a field that is suddenly an array) used to leave this client as a raw `SerializationException`
+     * and reach the user as "unknown error" with a kotlinx message that never mentions what actually came
+     * back (issue #284). Now it says so, and carries the beginning of the body as the detail.
+     *
+     * Only for bodies we expect to parse; [parseError] keeps its `runCatching`, since probing a body for
+     * an error envelope is allowed to come up empty.
+     */
+    private fun <T> decode(serializer: DeserializationStrategy<T>, body: String): T =
+        runCatching { json.decodeFromString(serializer, body) }.getOrElse { cause ->
+            throw DictateApiException(
+                DictateApiException.Kind.UNKNOWN,
+                "Unreadable response from provider: ${body.take(300)}",
+                cause,
+            )
+        }
+
+    /**
      * Extracts the error detail from a non-2xx body. Tries the OpenAI-style `{ "error": { … } }` envelope
-     * first, then falls back to Soniox's flat `{ error_type, message, status_code }` shape; null if the body
-     * is neither (e.g. plain-text gateways).
+     * first, then xAI's flat one, where `error` is the sentence itself, then Soniox's flat
+     * `{ error_type, message, status_code }` shape — which also reads Scaleway's gateway errors, flat with
+     * a `message` of their own; null if the body is none of them (e.g. plain-text gateways).
      */
     private fun parseError(body: String): ErrorBodyDto? {
-        runCatching { json.decodeFromString(ErrorEnvelopeDto.serializer(), body).error }
-            .getOrNull()?.let { return it }
+        val root = runCatching { json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+        // The envelope is read field by field rather than into a typed class. Scaleway's model server puts
+        // the HTTP status in `code` as a number (#423), and a String-typed field refused the whole envelope
+        // over it — so the user was shown the raw JSON instead of the provider's sentence, and the sentence
+        // that said "file size" never reached the classifier as one.
+        (root?.get("error") as? JsonObject)?.let { error ->
+            fun field(name: String) = (error[name] as? JsonPrimitive)?.contentOrNull
+            return ErrorBodyDto(message = field("message"), code = field("code"), type = field("type"))
+        }
+        // xAI (#435): `{"code":"invalid-argument","error":"Incorrect API key provided. …"}`, the same on
+        // `stt`, `models` and `chat/completions` (measured 2026-09-29). Unread, the user was shown that JSON
+        // as the detail; the classifier found "api key" in it all the same, which is the only reason a
+        // wrong key — a 400 here, not a 401 — was still reported as one. AssemblyAI answers in the same
+        // shape without the `code` and gains its sentence too. Scaleway's gateway has a string `error` as
+        // well, but it is a label ("FORBIDDEN") next to a `message` of its own, read further down.
+        (root?.get("error") as? JsonPrimitive)
+            ?.takeIf { it.isString && it.content.isNotBlank() && root["message"] == null }
+            ?.let { sentence ->
+                return ErrorBodyDto(message = sentence.content, code = (root["code"] as? JsonPrimitive)?.contentOrNull)
+            }
         return runCatching {
             val soniox = json.decodeFromString(SonioxErrorDto.serializer(), body)
             if (soniox.message.isNullOrBlank() && soniox.errorType.isNullOrBlank()) {
@@ -888,13 +1412,30 @@ class OpenAiCompatibleClient(
 
     private fun extractErrorMessage(body: String): String? = parseError(body)?.message
 
+    /**
+     * The longest one attempt may take: the same whole-call budget [buildClient] gives OkHttp. It is the
+     * user's Request timeout for a dictation and the import's own, longer one for a shared file (#337).
+     * [executeForBody] starts no further attempt once a request has been going for this long (#438).
+     */
+    private val attemptBudgetMillis: Long
+        get() = TimeUnit.SECONDS.toMillis(config.callTimeoutSeconds ?: config.timeoutSeconds)
+
+    private val connectTimeoutSeconds: Long
+        get() = if (config.handOverUnreachable) {
+            ProviderConfig.UNREACHABLE_CONNECT_TIMEOUT_SECONDS
+        } else {
+            NETWORK_CONNECT_TIMEOUT_SECONDS
+        }
+
     internal fun buildClient(): OkHttpClient {
         val timeout = Duration.ofSeconds(config.timeoutSeconds)
         val builder = OkHttpClient.Builder()
-            .callTimeout(timeout)
+            // The only budget that covers the whole journey, so the only one a long upload can exhaust
+            // while everything is working perfectly (issue #337). Per-operation limits stay below.
+            .callTimeout(Duration.ofMillis(attemptBudgetMillis))
             // Connection establishment needs a short budget per route. Uploading a long recording and
             // waiting for the model keep the full configured call/read/write timeout below.
-            .connectTimeout(NETWORK_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
             // OkHttp 5 Happy Eyeballs races IPv6/IPv4 routes 250 ms apart and keeps the first winner.
             .fastFallback(true)
             .readTimeout(timeout)
@@ -940,32 +1481,14 @@ class OpenAiCompatibleClient(
         }
     }
 
-    private fun guessAudioMediaType(file: File): MediaType {
-        val type = when (file.extension.lowercase()) {
-            "mp3", "mpeg", "mpga" -> "audio/mpeg"
-            "mp4", "m4a" -> "audio/mp4"
-            "wav" -> "audio/wav"
-            "webm" -> "audio/webm"
-            "ogg", "oga" -> "audio/ogg"
-            "flac" -> "audio/flac"
-            "amr" -> "audio/amr"
-            else -> "application/octet-stream"
-        }
-        return type.toMediaType()
-    }
-
     /**
-     * Maps a file to one of OpenRouter's accepted `format` strings (wav, mp3, flac, m4a, ogg, webm,
-     * aac). Dictate records m4a; other extensions come from picked files. Unknown extensions are passed
-     * through as-is so a still-valid container isn't rejected client-side.
+     * What to call [file] on the wire. Both of these used to be extension keyed tables of their own,
+     * disagreeing with each other and with a third one below; [AudioContainer] reads the actual bytes
+     * and answers all three (issue #322).
      */
-    private fun guessAudioFormat(file: File): String = when (val ext = file.extension.lowercase()) {
-        "mp4", "m4a", "aac" -> "m4a"
-        "mpeg", "mpga", "mp3" -> "mp3"
-        "oga", "ogg" -> "ogg"
-        "wav", "flac", "webm" -> ext
-        else -> ext
-    }
+    private fun guessAudioMediaType(file: File): MediaType = audioMimeTypeOf(file).toMediaType()
+
+    private fun guessAudioFormat(file: File): String = audioFormatOf(file)
 
     private fun base64EncodeFile(file: File): String {
         val out = Base64StringOutput(base64Capacity(file.length()))
@@ -1022,10 +1545,42 @@ class OpenAiCompatibleClient(
     )
 
     @Serializable
-    private data class ChoiceDto(val message: ResponseMessageDto? = null)
+    private data class ChoiceDto(
+        val message: ResponseMessageDto? = null,
+        /** Why the model stopped — `length` names a truncated (and therefore empty) answer (#284). */
+        @SerialName("finish_reason") val finishReason: String? = null,
+    )
 
     @Serializable
-    private data class ResponseMessageDto(val content: String? = null)
+    private data class ResponseMessageDto(
+        val content: String? = null,
+        /**
+         * The model's thinking, when the gateway hands it over. OpenRouter and most OpenAI-compatible
+         * gateways call it `reasoning`, the DeepSeek-shaped ones `reasoning_content`.
+         *
+         * **Looked at, never used.** Thinking is not an answer and must never reach the user's text field;
+         * it is here for one job only, telling apart the two ways a completion comes back empty (#304).
+         * Hence [thought], a yes/no — the text is deliberately never extracted, so there is nothing to
+         * accidentally commit.
+         *
+         * Typed as [JsonElement] and not [String] for the same reason it is only ever read as a boolean: a
+         * gateway that answers with a *structured* reasoning (an array of blocks, say) would otherwise fail
+         * the parse of the whole response, including every perfectly good answer that carries one.
+         */
+        val reasoning: JsonElement? = null,
+        @SerialName("reasoning_content") val reasoningContent: JsonElement? = null,
+    ) {
+        /** Whether the model thought out loud, whatever shape the gateway put that in. */
+        val thought: Boolean
+            get() = reasoning.hasContent() || reasoningContent.hasContent()
+
+        private fun JsonElement?.hasContent(): Boolean = when (this) {
+            null, JsonNull -> false
+            is JsonPrimitive -> content.isNotBlank()
+            is JsonArray -> isNotEmpty()
+            is JsonObject -> isNotEmpty()
+        }
+    }
 
     @Serializable
     private data class UsageDto(
@@ -1089,7 +1644,11 @@ class OpenAiCompatibleClient(
     private data class DeepgramModelsDto(val stt: List<DeepgramModelDto> = emptyList())
 
     @Serializable
-    private data class DeepgramModelDto(@SerialName("canonical_name") val canonicalName: String = "")
+    private data class DeepgramModelDto(
+        @SerialName("canonical_name") val canonicalName: String = "",
+        /** Whether the model serves file uploads. Defaults to true so a changed catalog can't empty the list. */
+        val batch: Boolean = true,
+    )
 
     @Serializable
     private data class AssemblyUploadDto(@SerialName("upload_url") val uploadUrl: String)
@@ -1110,6 +1669,62 @@ class OpenAiCompatibleClient(
         val text: String? = null,
         val error: String? = null,
     )
+
+    // --- Azure Fast Transcription DTOs (issue #349, see transcribeAzure) ---
+
+    /**
+     * The `definition` form part. Everything optional is nullable so `encodeDefaults = false` leaves it
+     * out entirely; `enabled` and `model` carry no default precisely so they are always written.
+     */
+    @Serializable
+    private data class AzureDefinitionDto(
+        val locales: List<String>? = null,
+        val enhancedMode: AzureEnhancedModeDto,
+        val phraseList: AzurePhraseListDto? = null,
+    )
+
+    @Serializable
+    private data class AzureEnhancedModeDto(
+        val enabled: Boolean,
+        val model: String,
+        val modelOptions: AzureModelOptionsDto? = null,
+    )
+
+    @Serializable
+    private data class AzureModelOptionsDto(val transcribeStyle: String)
+
+    @Serializable
+    private data class AzurePhraseListDto(val phrases: List<String>)
+
+    /**
+     * `combinedPhrases` is the whole transcript, and `phrases` the same words cut into timed pieces —
+     * so the second is a fallback for a response shaped in a way the first does not cover, never an
+     * addition to it.
+     */
+    @Serializable
+    private data class AzureTranscriptionDto(
+        val combinedPhrases: List<AzurePhraseTextDto> = emptyList(),
+        val phrases: List<AzurePhraseTextDto> = emptyList(),
+    )
+
+    @Serializable
+    private data class AzurePhraseTextDto(val text: String = "")
+
+    /**
+     * The transcript out of an Azure response.
+     *
+     * `combinedPhrases` is not one entry per response: Azure returns one per channel, and with
+     * diarization or a language switch one per speaker or language too. A dictation is mono and
+     * undiarized, so in practice there is exactly one — but reading `first()` would silently drop
+     * half of a code-switched sentence, which is a thing MAI is specifically good at.
+     */
+    private fun azureTranscriptOf(response: AzureTranscriptionDto): String {
+        val combined = response.combinedPhrases.joinToTranscript()
+        return combined.ifEmpty { response.phrases.joinToTranscript() }
+    }
+
+    private fun List<AzurePhraseTextDto>.joinToTranscript(): String =
+        mapNotNull { it.text.trim().takeIf(String::isNotEmpty) }.joinToString(" ")
 
     // --- Gemini native generateContent DTOs (see transcribeGeminiGenerateContent) ---
 
@@ -1149,6 +1764,57 @@ class OpenAiCompatibleClient(
 
     @Serializable
     private data class GeminiCandidateDto(val content: GeminiContentDto? = null)
+
+    // --- Gemini Interactions DTOs (dedicated STT models, see transcribeGeminiInteractions) ---
+    // REST speaks snake_case in both directions here, unlike the camelCase generateContent surface above.
+
+    @Serializable
+    private data class GeminiInteractionRequestDto(
+        val model: String,
+        val input: List<GeminiInteractionInputDto>,
+        @SerialName("generation_config") val generationConfig: GeminiInteractionConfigDto? = null,
+    )
+
+    @Serializable
+    private data class GeminiInteractionInputDto(
+        val type: String,
+        val data: String,
+        @SerialName("mime_type") val mimeType: String,
+    )
+
+    @Serializable
+    private data class GeminiInteractionConfigDto(
+        @SerialName("transcription_config") val transcriptionConfig: GeminiTranscriptionConfigDto,
+    )
+
+    @Serializable
+    private data class GeminiTranscriptionConfigDto(
+        val mode: GeminiTranscriptionModeDto,
+        @SerialName("language_codes") val languageCodes: List<String>? = null,
+        @SerialName("custom_vocabulary") val customVocabulary: List<String>? = null,
+    )
+
+    @Serializable
+    private data class GeminiTranscriptionModeDto(val type: String)
+
+    @Serializable
+    private data class GeminiInteractionResponseDto(
+        val steps: List<GeminiInteractionStepDto> = emptyList(),
+        // Convenience field the SDKs synthesize; treated as a bonus, never as the source (see [transcriptOf]).
+        @SerialName("output_text") val outputText: String? = null,
+    )
+
+    @Serializable
+    private data class GeminiInteractionStepDto(
+        val type: String? = null,
+        val content: List<GeminiInteractionContentDto> = emptyList(),
+    )
+
+    @Serializable
+    private data class GeminiInteractionContentDto(
+        val type: String? = null,
+        val text: String? = null,
+    )
 
     @Serializable
     private data class ModelsResponseDto(val data: List<ModelEntryDto> = emptyList())
@@ -1217,14 +1883,10 @@ class OpenAiCompatibleClient(
         val message: String? = null,
     )
 
-    @Serializable
-    private data class ErrorEnvelopeDto(val error: ErrorBodyDto? = null)
-
-    @Serializable
     private data class ErrorBodyDto(
         val message: String? = null,
         // OpenAI-style machine-readable hints (e.g. code = "invalid_api_key", type = "insufficient_quota").
-        // Decoded as strings; providers that send a non-string code simply fall back to status/keywords.
+        // Whatever primitive the provider sent, as text — Scaleway's `400` arrives here as "400".
         val code: String? = null,
         val type: String? = null,
     )
@@ -1239,8 +1901,15 @@ class OpenAiCompatibleClient(
 
         private data class HttpClientKey(
             val timeoutSeconds: Long,
+            // Part of the key, not an afterthought: clients are cached and shared, so leaving it out
+            // would hand the import the two-minute client the keyboard built first — or the other way
+            // round (issue #337).
+            val callTimeoutSeconds: Long?,
             val proxy: ProxyConfig?,
             val trustUserCerts: Boolean,
+            // Shorter while another provider waits to take over (#455); a shared client would otherwise
+            // keep whichever connect timeout the first request happened to build it with.
+            val connectTimeoutSeconds: Long,
         )
 
         private fun sharedClientFor(key: HttpClientKey, build: () -> OkHttpClient): OkHttpClient {
@@ -1256,11 +1925,52 @@ class OpenAiCompatibleClient(
             value.replace('\r', '_').replace('\n', '_').take(160)
 
         /**
-         * Endpoint+model pairs known to reject `reasoning_effort` (#184/#186). Remembered for the process
-         * lifetime so we omit the field up-front and don't waste a doubled request on every rewording.
+         * Endpoint+model+effort triples a provider refused (#184/#186), each with what goes out in its
+         * place — a value the provider named, or null for no field. Remembered for the process lifetime so
+         * the substitute goes out up-front and a rewording does not cost a doubled request every time.
          */
-        private val reasoningEffortUnsupported =
-            java.util.Collections.synchronizedSet(HashSet<String>())
+        private val reasoningEffortSubstitutes =
+            java.util.Collections.synchronizedMap(HashMap<String, String?>())
+
+        /** Every effort value this client knows of, least thinking first. */
+        private val EFFORT_SCALE = listOf("none", "minimal", "low", "medium", "high", "xhigh", "max")
+
+        /**
+         * The value to ask again with after [rejected] was refused: the one nearest to it among those the
+         * refusal names as supported, the lower one on a tie. Null when the refusal names none, or when
+         * [rejected] is a value of the user's own that sits nowhere on [EFFORT_SCALE] — then the field is
+         * left out, as it always was.
+         *
+         * The list is the provider's own answer, which is why it is read rather than assumed. Asked on
+         * 2026-10-16, OpenAI refused `minimal` on gpt-6-luna with "Supported values are: 'none', 'low',
+         * 'medium', 'high', and 'xhigh'.", and `none` as well as `minimal` on gpt-6.1-sol, whose list starts
+         * at 'low'. Leaving the field out instead had turned a request for the least thinking into the
+         * model's default, medium — the opposite of what was asked for.
+         */
+        internal fun nearestSupportedEffort(rejected: String, message: String?): String? {
+            val want = EFFORT_SCALE.indexOf(rejected.trim().lowercase())
+            // Only what follows the phrase: the refusal quotes the field and the rejected value first.
+            val at = message?.indexOf("supported values", ignoreCase = true) ?: -1
+            if (want < 0 || at < 0) return null
+            val supported = Regex("""'([A-Za-z]+)'""").findAll(message!!.substring(at))
+                .map { EFFORT_SCALE.indexOf(it.groupValues[1].lowercase()) }
+                .filter { it >= 0 && it != want }
+                .toList()
+            val nearest = supported.minWithOrNull(compareBy({ kotlin.math.abs(it - want) }, { it }))
+            return nearest?.let { EFFORT_SCALE[it] }
+        }
+
+        /**
+         * The effort a retry asks for after a model answered with nothing but thinking (#304).
+         *
+         * "low" and not "minimal": minimal is effectively a gpt-5 word — Ollama rejected it outright in
+         * #186 — while every model that speaks this dialect at all understands "low". A floor that the
+         * provider refuses would turn the one useful retry into a second failure.
+         */
+        private const val THINKING_FLOOR = "low"
+
+        /** Efforts with nothing left below them, so a retry would only repeat the same request. */
+        private val THINKING_AT_FLOOR = setOf("low", "minimal", "none", "off")
 
         /** Soniox / AssemblyAI async polling: interval between status checks and the overall budget. */
         private const val SONIOX_POLL_INTERVAL_MS = 1500L
@@ -1270,7 +1980,119 @@ class OpenAiCompatibleClient(
         private val NO_MODELS_CATALOG_APIS = setOf(
             TranscriptionApi.ELEVENLABS_MULTIPART,
             TranscriptionApi.ASSEMBLYAI_ASYNC,
+            // Azure has a models endpoint the resource key opens, but it lists the wrong namespace —
+            // per-locale custom-speech base models, none of which `enhancedMode.model` accepts. See
+            // [ProviderRegistry.AZURE], which carries the measurement (#349).
+            TranscriptionApi.AZURE_FAST_TRANSCRIPTION,
         )
+
+        /**
+         * The Azure Speech API version that introduced `enhancedMode` — the switch that selects MAI —
+         * so it is not a version to keep current but the one this wire format is (read 2026-09-09).
+         */
+        private const val AZURE_API_VERSION = "2025-10-15"
+
+        /** Azure's readable style: fillers, false starts and self-corrections dropped. See [transcribeAzure]. */
+        private const val AZURE_TRANSCRIBE_STYLE_CLEAN = "clean"
+
+        /**
+         * Sentence-ending marks in the scripts this app dictates in — Latin, CJK, Arabic and Devanagari
+         * — plus the ellipsis, which ends one just as firmly.
+         */
+        private val SENTENCE_END = Regex("[.!?。！？؟।…]+\\s+")
+
+        /** The marks of [SENTENCE_END] one by one, for asking how a piece of text closes. */
+        private const val SENTENCE_MARKS = ".!?。！？؟।…"
+
+        /** The full-width marks among them: CJK punctuation that ends a sentence and never sits in a name. */
+        private const val FULL_WIDTH_SENTENCE_MARKS = "。！？"
+
+        /**
+         * [text] from after the last sentence that ended inside it, or all of [text] when none did.
+         *
+         * The rule a term obeys and a sentence does not: a name has no full stop with a space behind
+         * it. See [vocabularyFromPrompt], which is the only caller and carries the reasoning.
+         */
+        internal fun afterLastSentenceEnd(text: String): String =
+            SENTENCE_END.findAll(text).lastOrNull()?.let { text.substring(it.range.last + 1) } ?: text
+
+        /**
+         * The bias term one comma-separated [piece] of a style hint holds, or null when it holds a
+         * sentence instead. See [vocabularyFromPrompt], the only caller.
+         *
+         * [afterLastSentenceEnd] finds a term *behind* a sentence, which is where the glossary sits. It
+         * cannot help when nothing is behind it: with no custom words the whole hint is the sample
+         * sentence, `"Hallo. Vielen Dank."`, and its last sentence came through as the two-word term
+         * `Vielen Dank.` — a bias phrase on every dictation with a pinned language and an empty glossary,
+         * for Azure and Google before xAI's `keyterm` (#435) would have made it three. So what is left is
+         * a sentence when it closes with a sentence mark and either followed one (the cut happened —
+         * Thai and Lao write their thanks as one "word") or runs to several words, and whenever it holds
+         * a full-width mark, which no name does. `Dr.` and `z.B.` stay terms; a name of several words
+         * ending in a stop — `Acme Inc.` — is the price, and the rest of the glossary is not.
+         */
+        internal fun vocabularyTermOf(piece: String): String? {
+            val whole = piece.trim()
+            val term = afterLastSentenceEnd(whole).trim()
+            if (term.isEmpty() || term.any { it in FULL_WIDTH_SENTENCE_MARKS }) return null
+            val closes = term.last() in SENTENCE_MARKS
+            val followedOne = term.length < whole.length
+            return term.takeUnless { closes && (followedOne || term.contains(' ')) }
+        }
+
+        /**
+         * The code to send xAI as `language`, or null to send none (issue #435).
+         *
+         * On xAI the field does not steer recognition — "the model transcribes speech in any of these
+         * languages regardless of the language parameter" — it switches on number formatting, for the
+         * 25 languages listed in [XAI_FORMATTING_LANGUAGES]. A code outside that list is not sent: nobody
+         * has measured whether it is refused or ignored, and the transcript is the same either way, so
+         * there is nothing to win by finding out on somebody's dictation. The region goes (`pt-BR` is
+         * `pt`), and the app's Tagalog, `tl` in Whisper's catalog, is the Filipino xAI calls `fil`.
+         */
+        internal fun xaiLanguage(language: String?): String? {
+            val base = language
+                ?.takeIf { it.isNotEmpty() && it != "detect" }
+                ?.substringBefore('-')
+                ?.lowercase()
+                ?: return null
+            return (if (base == "tl") "fil" else base).takeIf { it in XAI_FORMATTING_LANGUAGES }
+        }
+
+        /** xAI's formatting languages, from the speech-to-text guide's table (read 2026-09-29). */
+        private val XAI_FORMATTING_LANGUAGES = setOf(
+            "ar", "cs", "da", "nl", "en", "fil", "fr", "de", "hi", "id", "it", "ja", "ko",
+            "mk", "ms", "fa", "pl", "pt", "ro", "ru", "es", "sv", "th", "tr", "vi",
+        )
+
+        /** xAI's documented limit per `keyterm` (up to 100 of them, which [vocabularyFromPrompt] already caps). */
+        private const val XAI_KEYTERM_MAX_CHARS = 50
+
+        /**
+         * The single language to pin for Azure, or null to let MAI detect it.
+         *
+         * MAI's language table is written in bare codes (`de`, `zh`, `yue`) and its own example pins
+         * `["en"]`, while the app offers `zh-CN`/`zh-TW`/`yue-CN`/`yue-HK` for the providers that tell
+         * those apart. Sending a code the table does not hold is worse than sending none, so the region
+         * is dropped rather than passed on — MAI transcribes Chinese either way, and the script it
+         * writes is not something this field decides.
+         */
+        internal fun azureLocale(language: String?): String? = language
+            ?.takeIf { it.isNotEmpty() && it != "detect" }
+            ?.substringBefore('-')
+            ?.takeIf { it.isNotEmpty() }
+
+        /**
+         * Whether [model] takes `modelOptions.transcribeStyle`.
+         *
+         * Microsoft documents the option for MAI-Transcribe-2 alone, and says nothing about the 1.5
+         * generation either way. Phrased as "everything except the older generations" rather than a
+         * list of one, so a future MAI-Transcribe-3 inherits it instead of quietly losing the clean
+         * transcript that is the point of this provider.
+         */
+        internal fun azureSupportsTranscribeStyle(model: String): Boolean {
+            val normalized = model.trim().lowercase()
+            return !normalized.startsWith("mai-transcribe-1")
+        }
 
         /** Builds a client from a registry [preset] plus the user's key/proxy. */
         fun from(
@@ -1280,16 +2102,25 @@ class OpenAiCompatibleClient(
             proxy: ProxyConfig? = null,
             useChatAudio: Boolean = false,
             trustUserCerts: Boolean = false,
+            /** Per-read/write limit, which also caps how long the model may stay silent — see [ProviderConfig.timeoutSeconds]. */
+            timeoutSeconds: Long = ProviderConfig.DEFAULT_TIMEOUT_SECONDS,
+            /** Whole-call budget where the default two minutes is too short — see [ProviderConfig.callTimeoutSeconds]. */
+            callTimeoutSeconds: Long? = null,
+            /** Another provider takes over if this one cannot be reached — see [ProviderConfig.handOverUnreachable]. */
+            handOverUnreachable: Boolean = false,
         ): OpenAiCompatibleClient = OpenAiCompatibleClient(
             ProviderConfig(
                 baseUrl = baseUrlOverride ?: preset.baseUrl,
                 apiKey = apiKey,
                 extraHeaders = preset.extraHeaders,
                 proxy = proxy,
+                timeoutSeconds = timeoutSeconds,
+                callTimeoutSeconds = callTimeoutSeconds,
                 transcriptionApi = preset.transcriptionApi,
                 useChatAudio = useChatAudio,
                 trustUserCerts = trustUserCerts,
                 curatedModels = (preset.curatedTranscriptionModels + preset.curatedChatModels).distinct(),
+                handOverUnreachable = handOverUnreachable,
             )
         )
     }

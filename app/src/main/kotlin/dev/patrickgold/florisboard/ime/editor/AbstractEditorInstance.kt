@@ -300,8 +300,20 @@ abstract class AbstractEditorInstance(context: Context) {
     protected open fun determinePhantomSpacePending(): Boolean = false
 
     protected open fun shouldDetermineComposingRegion(editorInfo: FlorisEditorInfo): Boolean {
-        return editorInfo.isRichInputEditor && !editorInfo.inputAttributes.flagTextNoSuggestions
+        return editorInfo.isRichInputEditor &&
+            (!editorInfo.inputAttributes.flagTextNoSuggestions || ignoresNoSuggestionsFlag(editorInfo))
     }
+
+    /**
+     * Whether an editor's request to suppress suggestions may be disregarded (issue #296).
+     *
+     * `TYPE_TEXT_FLAG_NO_SUGGESTIONS` was meant for fields where a dictionary is nonsense — codes,
+     * identifiers — but plenty of apps set it on ordinary prose, and there the flag reads less as a
+     * property of the field than as somebody else's opinion about the user's keyboard. Whose opinion
+     * wins is a decision for the subclass that can see the user's settings; the base class refuses on
+     * its own account.
+     */
+    protected open fun ignoresNoSuggestionsFlag(editorInfo: FlorisEditorInfo): Boolean = false
 
     private suspend fun determineLocalComposing(
         textBeforeSelection: CharSequence, localLastCommitPosition: Int
@@ -422,23 +434,39 @@ abstract class AbstractEditorInstance(context: Context) {
     }
 
     open fun finalizeComposingText(text: String): Boolean {
+        val content = activeContent
+        return finalizeComposingText(text, content.composing, content.composingText)
+    }
+
+    /**
+     * Replaces [range] — which currently reads [rangeText] — with [text], ending composing.
+     *
+     * [range] is usually the composing region, and then this is what it always was. It may also be a
+     * range that is *not* being composed (the current word, issue #298): the region is then set inside
+     * the same batch edit before it is replaced, so the editor never gets a chance to draw it underlined.
+     * Going through the composing region rather than a selection keeps the bookkeeping — the expected
+     * content and the last commit position — on the one path that is known to be right.
+     */
+    open fun finalizeComposingText(text: String, range: EditorRange, rangeText: String): Boolean {
         val ic = currentInputConnection() ?: return false
         val content = activeContent
-        val composing = content.composing
         ic.beginBatchEdit()
-        if (activeInfo.isRawInputEditor || composing.isNotValid) {
+        if (activeInfo.isRawInputEditor || range.isNotValid) {
             return false
         } else runBlocking {
-            val newSelection = EditorRange.cursor(composing.end + (text.length - content.composingText.length))
+            val newSelection = EditorRange.cursor(range.end + (text.length - rangeText.length))
             val newContent = content.generateCopy(
                 selection = newSelection,
                 textBeforeSelection = buildString {
-                    append(content.textBeforeSelection.removeSuffix(content.composingText))
+                    append(content.textBeforeSelection.removeSuffix(rangeText))
                     append(text)
                 },
                 selectedText = "",
             )
             expectedContentQueue.push(newContent)
+            if (content.composing != range) {
+                ic.setComposingRegion(range)
+            }
             ic.setComposingText(text, 1)
             ic.finishComposingText()
             _lastCommitPosition.handleCommit(newContent.selection)

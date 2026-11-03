@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.FormatClear
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material3.Card
@@ -38,8 +40,10 @@ import dev.patrickgold.florisboard.app.settings.search.settingsSearchAnchor
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.app.enumDisplayEntriesOf
+import dev.patrickgold.florisboard.ime.keyboard.DoubleSpaceAction
 import dev.patrickgold.florisboard.ime.keyboard.IncognitoMode
 import dev.patrickgold.florisboard.ime.nlp.SpellingLanguageMode
+import dev.patrickgold.florisboard.ime.nlp.latin.AutoCorrectStrength
 import dev.patrickgold.florisboard.lib.compose.FlorisHyperlinkText
 import dev.patrickgold.florisboard.lib.compose.FlorisScreen
 import dev.patrickgold.jetpref.datastore.model.collectAsState
@@ -60,6 +64,18 @@ fun TypingScreen() = FlorisScreen {
     val navController = LocalNavController.current
 
     content {
+        // First on this screen rather than last (issue #375): the personal dictionary and the words the
+        // keyboard picks up are what make it yours, and they were at the bottom of the longest settings
+        // page in the app — reported as "too hidden under Typing".
+        PreferenceGroup(title = stringRes(R.string.settings__dictionary__title)) {
+            Preference(
+                icon = Icons.AutoMirrored.Filled.LibraryBooks,
+                modifier = Modifier.settingsSearchAnchor("settings__dictionary__title"),
+                title = stringRes(R.string.settings__dictionary__title),
+                onClick = { navController.navigate(Routes.Settings.Dictionary) },
+            )
+        }
+
         PreferenceGroup(title = stringRes(R.string.pref__suggestion__title)) {
             SwitchPreference(
                 prefs.suggestion.enabled,
@@ -74,6 +90,19 @@ fun TypingScreen() = FlorisScreen {
                 summary = stringRes(R.string.pref__suggestion__auto_correct__summary),
                 enabledIf = { prefs.suggestion.enabled isEqualTo true },
             )
+            ListPreference(
+                prefs.correction.autoCorrectStrength,
+                modifier = Modifier.settingsSearchAnchor("pref__correction__auto_correct_strength__label"),
+                title = stringRes(R.string.pref__correction__auto_correct_strength__label),
+                entries = enumDisplayEntriesOf(AutoCorrectStrength::class),
+                // Sits with autocorrect rather than in the Correction group below, because it changes
+                // nothing else — and it is greyed out when autocorrect is off, where it genuinely does
+                // nothing (issue #297: a disabled child preference must actually stop applying).
+                enabledIf = {
+                    prefs.suggestion.enabled isEqualTo true &&
+                        prefs.suggestion.autoCorrect isEqualTo true
+                },
+            )
             SwitchPreference(
                 prefs.suggestion.multilingualTyping,
                 modifier = Modifier.settingsSearchAnchor("pref__suggestion__multilingual_typing__label"),
@@ -87,6 +116,20 @@ fun TypingScreen() = FlorisScreen {
                 title = stringRes(R.string.pref__suggestion__next_word_prediction__label),
                 summary = stringRes(R.string.pref__suggestion__next_word_prediction__summary),
                 enabledIf = { prefs.suggestion.enabled isEqualTo true },
+            )
+            SwitchPreference(
+                prefs.suggestion.ignoreAppSuggestionBlock,
+                modifier = Modifier.settingsSearchAnchor("pref__suggestion__ignore_app_suggestion_block__label"),
+                title = stringRes(R.string.pref__suggestion__ignore_app_suggestion_block__label),
+                summary = stringRes(R.string.pref__suggestion__ignore_app_suggestion_block__summary),
+                enabledIf = { prefs.suggestion.enabled isEqualTo true },
+            )
+            SwitchPreference(
+                prefs.suggestion.mathSuggestions,
+                icon = Icons.Default.Calculate,
+                modifier = Modifier.settingsSearchAnchor("pref__suggestion__math_suggestions__label"),
+                title = stringRes(R.string.pref__suggestion__math_suggestions__label),
+                summary = stringRes(R.string.pref__suggestion__math_suggestions__summary),
             )
             SwitchPreference(
                 prefs.suggestion.api30InlineSuggestionsEnabled,
@@ -136,17 +179,31 @@ fun TypingScreen() = FlorisScreen {
                     }
                 }
             }
+            // The other half of auto-space (issue #329), and its own switch on purpose: auto-space adds
+            // a character, this one takes one the user already typed away.
+            SwitchPreference(
+                prefs.correction.tightenPunctuationSpacing,
+                icon = Icons.Default.FormatClear,
+                modifier = Modifier.settingsSearchAnchor("pref__correction__tighten_punctuation_spacing__label"),
+                title = stringRes(R.string.pref__correction__tighten_punctuation_spacing__label),
+                summary = stringRes(R.string.pref__correction__tighten_punctuation_spacing__summary),
+            )
             SwitchPreference(
                 prefs.correction.rememberCapsLockState,
                 modifier = Modifier.settingsSearchAnchor("pref__correction__remember_caps_lock_state__label"),
                 title = stringRes(R.string.pref__correction__remember_caps_lock_state__label),
                 summary = stringRes(R.string.pref__correction__remember_caps_lock_state__summary),
             )
-            SwitchPreference(
-                prefs.correction.doubleSpacePeriod,
+            // Switch and choice in one row, the way the hinted number row and the feedback modes do it:
+            // whether the shortcut runs and what it writes are one question, and splitting them left a
+            // second row standing around saying nothing whenever the first was off (issue #333).
+            ListPreference(
+                listPref = prefs.correction.doubleSpaceAction,
+                switchPref = prefs.correction.doubleSpacePeriod,
                 modifier = Modifier.settingsSearchAnchor("pref__correction__double_space_period__label"),
                 title = stringRes(R.string.pref__correction__double_space_period__label),
-                summary = stringRes(R.string.pref__correction__double_space_period__summary),
+                summarySwitchDisabled = stringRes(R.string.state__disabled),
+                entries = enumDisplayEntriesOf(DoubleSpaceAction::class),
             )
         }
 
@@ -181,12 +238,5 @@ fun TypingScreen() = FlorisScreen {
             )
         }
 
-        PreferenceGroup(title = stringRes(R.string.settings__dictionary__title)) {
-            Preference(
-                icon = Icons.AutoMirrored.Filled.LibraryBooks,
-                title = stringRes(R.string.settings__dictionary__title),
-                onClick = { navController.navigate(Routes.Settings.Dictionary) },
-            )
-        }
     }
 }

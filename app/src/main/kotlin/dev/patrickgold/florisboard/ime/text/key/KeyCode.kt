@@ -49,6 +49,9 @@ object KeyCode {
     const val FORWARD_DELETE_WORD =          -10
     const val SHIFT =                        -11
     const val CAPS_LOCK =                    -13
+    // Enter sent as a key press in every field, offered on a long press of Enter (see
+    // EditorInstance.performEnterKeyPress). -14 was free between the modifiers and the arrows.
+    const val ENTER_KEY_PRESS =              -14
 
     const val ARROW_LEFT =                   -21
     const val ARROW_RIGHT =                  -22
@@ -75,6 +78,7 @@ object KeyCode {
     const val SPLIT_LAYOUT =                -113
     const val MERGE_LAYOUT =                -114
     const val TOGGLE_RESIZE_MODE =          -115
+    const val TOGGLE_NUMBER_ROW =           -116
 
     const val UNDO =                        -131
     const val REDO =                        -132
@@ -100,6 +104,10 @@ object KeyCode {
     const val DICTATE_REINSERT =            -217
     // Opens the GIF search panel (KLIPY).
     const val IME_UI_MODE_GIF =             -218
+    // Opens the local sticker panel (a folder the user picked, issue #280).
+    const val IME_UI_MODE_STICKER =         -219
+    // Opens the text editing panel: cursor pad, select toggle, clipboard actions (issue #386).
+    const val IME_UI_MODE_EDITING =         -220
 
     const val SYSTEM_INPUT_METHOD_PICKER =  -221
     const val SYSTEM_PREV_INPUT_METHOD =    -222
@@ -110,8 +118,20 @@ object KeyCode {
     const val LANGUAGE_SWITCH =             -227
     const val SHOW_SUBTYPE_PICKER =         -228
 
+    // Opens the scan panel: photograph printed text and tap the part of it to insert (issue #390).
+    // Out of the -211…-220 run of panel openers because that run is full; -229 and -230 were the two
+    // free numbers left in this block. Not -245, which is in QuickActionArrangement.REMOVED_ACTION_CODES
+    // and would be stripped out of every stored arrangement.
+    const val IME_UI_MODE_SCAN =            -229
+    // Opens or closes the on-device translate bar (issue #424). -230 is the last free number of this block,
+    // see IME_UI_MODE_SCAN above.
+    const val TRANSLATE =                   -230
+
     const val IME_SHOW_UI =                 -231
     const val IME_HIDE_UI =                 -232
+    // Dictate: opens the transcription provider picker over the keyboard (issue #431). -233 is the first
+    // free number after the -211…-230 block, which is full.
+    const val DICTATE_SWITCH_PROVIDER =     -233
 
     const val TOGGLE_SMARTBAR_VISIBILITY =  -241
     const val TOGGLE_ACTIONS_OVERFLOW =     -242
@@ -130,6 +150,12 @@ object KeyCode {
     const val CURRENCY_SLOT_6 =             -806
 
     const val MULTIPLE_CODE_POINTS =        -902
+    /**
+     * A key whose label previews text that is already in the editor, so pressing it must write nothing
+     * (issue #315: the अ key wearing the pending consonant). Distinct from [NOOP], which draws a cross
+     * over the label to say "this key is dead".
+     */
+    const val PREVIEW_ONLY =                -903
     const val DRAG_MARKER =                 -991
     const val NOOP =                        -999
 

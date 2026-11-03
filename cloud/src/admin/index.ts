@@ -3,11 +3,12 @@ import type { Env } from '../config';
 import { sendDigest } from '../notify/digest';
 import { durableObjectPlacement } from '../meter';
 import { evaluateRules } from '../notify/rules';
-import { RULE_KEYS, alertSettings, changedKeys, resetSettings, saveSettings } from '../settings';
+import { RULE_KEYS, SETTING_KEYS, alertSettings, changedKeys, resetSettings, saveSettings } from '../settings';
 import { NO_STORE, json } from '../util';
 import {
   giftCredit,
   mergeWallets,
+  refreshOrder,
   resetRecoveryCode,
   revokeToken,
   setBlocked,
@@ -17,7 +18,7 @@ import {
 } from './actions';
 import { adminConfigured, authenticateAdmin } from './auth';
 import { adminLog, overview, recentRequests, walletDetail, wallets } from './data';
-import { finance, history, months, plans, summary } from './finance';
+import { finance, history, months, plans, summary, reconciliation } from './finance';
 import { DASHBOARD_HTML } from './page';
 import { addExpense, deleteExpense, taxReport } from './tax';
 
@@ -65,15 +66,25 @@ export async function handleAdmin(request: Request, env: Env, ctx: ExecutionCont
             url.searchParams.get('deleted') === '1',
           ),
         });
-      case '/admin/api/requests':
-        return json(await recentRequests(env, {
-          limit: clamp(url.searchParams.get('limit'), 50, 200),
-          offset: Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0),
-          kind: url.searchParams.get('kind') ?? '',
-          failuresOnly: url.searchParams.get('failures') === '1',
-          walletId: url.searchParams.get('wallet') ?? '',
-          includeTest: url.searchParams.get('test') !== '0',
-        }));
+      case '/admin/api/requests': {
+        // Die Schwelle für „Kurze Diktate langsam ab" reist mit den Zeilen, damit die Liste die
+        // langsamen markieren kann, ohne dafür eine zweite Anfrage zu stellen — und damit sie
+        // dieselbe Zahl benutzt, die auch die Regel benutzt, statt einer im Browser gemerkten
+        // Kopie, die nach einer Änderung noch eine Weile eine andere Wahrheit anzeigt.
+        // `alertSettings` ist je Isolat eine Minute lang gemerkt und kostet hier nichts.
+        const [list, settings] = await Promise.all([
+          recentRequests(env, {
+            limit: clamp(url.searchParams.get('limit'), 50, 200),
+            offset: Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0),
+            kind: url.searchParams.get('kind') ?? '',
+            failuresOnly: url.searchParams.get('failures') === '1',
+            walletId: url.searchParams.get('wallet') ?? '',
+            includeTest: url.searchParams.get('test') !== '0',
+          }),
+          alertSettings(env),
+        ]);
+        return json({ ...list, slowShortMs: settings.slowShortMs });
+      }
       case '/admin/api/log':
         return json(await adminLog(env, {
           limit: clamp(url.searchParams.get('limit'), 50, 200),
@@ -91,12 +102,8 @@ export async function handleAdmin(request: Request, env: Env, ctx: ExecutionCont
       case '/admin/api/plans':
         return json(await plans(env));
       // One endpoint for the money, where there used to be two. `summary` and `finance` each
-      // fetched OpenAI's billing separately, so opening the page paged through it twice.
       case '/admin/api/money': {
-        const [sum, fin] = await Promise.all([
-          summary(env, ctx),
-          finance(env, clamp(url.searchParams.get('days'), 30, 180), ctx),
-        ]);
+        const [sum, fin] = await Promise.all([summary(env), finance(env)]);
         return json({ summary: sum, ...fin });
       }
       case '/admin/api/settings':
@@ -115,6 +122,8 @@ export async function handleAdmin(request: Request, env: Env, ctx: ExecutionCont
           // mystery.
           pinnedRecipient: env.ALERT_EMAIL_TO ?? null,
         });
+      case '/admin/api/reconcile':
+        return json(await reconciliation(env));
       case '/admin/api/tax':
         return json(await taxReport(env, ctx));
       case '/admin/api/history':
@@ -169,6 +178,10 @@ export async function handleAdmin(request: Request, env: Env, ctx: ExecutionCont
         return json(await mergeWallets(env, admin, walletId, String(body.targetId ?? ''), note));
       case 'note':
         return json(await setNote(env, admin, walletId, note));
+      // No note required: this decides nothing, it asks Google what the order was worth and writes
+      // down the answer. See `refreshOrder`.
+      case 'refetch_order':
+        return json(await refreshOrder(env, admin, walletId, String(body.purchaseToken ?? '')));
       case 'mark_test':
         return json(await setTestAccount(env, admin, walletId, true, note));
       case 'unmark_test':
@@ -181,13 +194,7 @@ export async function handleAdmin(request: Request, env: Env, ctx: ExecutionCont
         const patch: Record<string, string> = {};
         // Only known keys, so a typo in a request body cannot quietly create a setting that
         // nothing reads and that then looks like it is doing something.
-        const allowed = [
-          'enabled', 'mail', 'digest', 'digestHourUtc', 'emailTo', 'emailFrom',
-          'budgetSteps', 'fastBurnPercent', 'fastBurnHours', 'refundUsedPercent',
-          'walletBudgetSharePercent', 'devicesPerWallet', 'costDriftPercent',
-          'errorRatePercent', 'minLossHome', 'dailyBudgetUsd', 'maxDevices',
-          ...RULE_KEYS.map((k) => `rule.${k}`),
-        ];
+        const allowed: string[] = [...SETTING_KEYS, ...RULE_KEYS.map((k) => `rule.${k}`)];
         for (const key of allowed) {
           if (body[key] !== undefined) patch[key] = String(body[key]);
         }
@@ -202,7 +209,7 @@ export async function handleAdmin(request: Request, env: Env, ctx: ExecutionCont
       case 'add_expense':
         return json(await addExpense(env, admin, {
           paidAt: Date.parse(String(body.paidAt ?? '')),
-          kind: String(body.kind ?? 'openai_topup'),
+          kind: String(body.kind ?? 'cloudflare'),
           amount: Number(body.amount),
           currency: String(body.currency ?? 'USD'),
           // Empty means "work it out from the day's rate". Zero would mean "it cost nothing",

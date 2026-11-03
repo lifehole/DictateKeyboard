@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -56,10 +57,12 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.toSize
 import dev.patrickgold.florisboard.FlorisImeService
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
+import dev.patrickgold.florisboard.dictate.provider.ProviderListing
 import dev.patrickgold.florisboard.dictate.ui.LegacyLayoutState
 import dev.patrickgold.florisboard.editorInstance
 import dev.patrickgold.florisboard.glideTypingManager
@@ -74,10 +77,15 @@ import dev.patrickgold.florisboard.ime.keyboard.KeyboardMode
 import dev.patrickgold.florisboard.ime.keyboard.SpaceBarMode
 import dev.patrickgold.florisboard.ime.popup.ExceptionsForKeyCodes
 import dev.patrickgold.florisboard.ime.popup.PopupUiController
+import dev.patrickgold.florisboard.ime.popup.LONG_LABEL_MAX_LINES
+import dev.patrickgold.florisboard.ime.popup.LONG_LABEL_ONE_LINE_RATIO
+import dev.patrickgold.florisboard.ime.popup.labelShrinkRatio
 import dev.patrickgold.florisboard.ime.popup.rememberPopupUiController
 import dev.patrickgold.florisboard.ime.text.gestures.GlideTypingGesture
 import dev.patrickgold.florisboard.ime.text.gestures.SwipeAction
 import dev.patrickgold.florisboard.ime.text.gestures.SwipeGesture
+import dev.patrickgold.florisboard.ime.text.gestures.SWIPE_COMMIT_UNITS
+import dev.patrickgold.florisboard.ime.text.gestures.swipeCommitDirection
 import dev.patrickgold.florisboard.ime.text.key.KeyCode
 import dev.patrickgold.florisboard.ime.text.key.KeyType
 import dev.patrickgold.florisboard.ime.text.key.KeyVariation
@@ -231,14 +239,23 @@ fun TextKeyboardLayout(
         val windowSpec by windowController.activeWindowSpec.collectAsState()
         val keyMarginH by remember { derivedStateOf { windowSpec.keyMarginH.toPx() } }
         val keyMarginV by remember { derivedStateOf { windowSpec.keyMarginV.toPx() } }
+        // Keyed on the keyboard and its width, unlike the margins above: whether there is a gap at all
+        // depends on which keyboard this is — a number pad has nothing to split (issue #362).
+        val splitGap by remember(keyboard, keyboardWidth) {
+            derivedStateOf { keyboard.effectiveSplitGap(keyboardWidth, windowSpec.splitGap.toPx()) }
+        }
 
         val desiredKey = remember(
             keyboard, keyboardWidth, keyboardHeight, keyMarginH, keyMarginV,
-            keyboardRowBaseHeight, evaluator
+            keyboardRowBaseHeight, evaluator, splitGap,
         ) {
             TextKey(data = TextKeyData.UNSPECIFIED).also { desiredKey ->
                 desiredKey.touchBounds.apply {
-                    width = keyboardWidth / 10f
+                    // The gap belongs to no key, so the reference width is a tenth of what the two halves
+                    // share, not of the whole window (issue #362): every key asks for its width in
+                    // multiples of this, and a half laid out from a width it does not have gets keys that
+                    // shrink into each other.
+                    width = (keyboardWidth - splitGap) / 10f
                     height = when (keyboard.mode) {
                         KeyboardMode.CHARACTERS,
                         KeyboardMode.NUMERIC_ADVANCED,
@@ -251,9 +268,15 @@ fun TextKeyboardLayout(
                     }
                 }
                 desiredKey.visibleBounds.applyFrom(desiredKey.touchBounds).deflateBy(keyMarginH, keyMarginV)
-                keyboard.layout(keyboardWidth, keyboardHeight, desiredKey, true)
+                keyboard.layout(keyboardWidth, keyboardHeight, desiredKey, true, splitGap)
             }
         }
+
+        // The momentary layer (issue #366) asked for this keyboard while a finger was already down, and
+        // has been holding that finger's re-binding back until it arrived. Reported from here rather than
+        // where `controller.keyboard` is assigned, because only now has `keyboard.layout(...)` run above
+        // and the new keys have bounds to be found by.
+        SideEffect { controller.onKeyboardSettled() }
 
         val desiredKeyHack = rememberUpdatedState(desiredKey) // TODO quick'n'dirty hack
         val popupUiController = rememberPopupUiController(
@@ -287,7 +310,7 @@ fun TextKeyboardLayout(
                     val numeric = keyboard.mode == KeyboardMode.NUMERIC ||
                         keyboard.mode == KeyboardMode.PHONE || keyboard.mode == KeyboardMode.PHONE2 ||
                         keyboard.mode == KeyboardMode.NUMERIC_ADVANCED && keyType == KeyType.NUMERIC
-                    keyCode > KeyCode.SPACE && keyCode != KeyCode.CJK_SPACE && !numeric
+                    keyCode > KeyCode.SPACE && keyCode != KeyCode.CJK_SPACE && !numeric || key.isOwnMultiTextKey()
                 } else {
                     true
                 }
@@ -295,7 +318,8 @@ fun TextKeyboardLayout(
             isSuitableForExtendedPopup = { key ->
                 if (key is TextKey) {
                     val keyCode = key.computedData.code
-                    keyCode > KeyCode.SPACE && keyCode != KeyCode.CJK_SPACE || ExceptionsForKeyCodes.contains(keyCode)
+                    keyCode > KeyCode.SPACE && keyCode != KeyCode.CJK_SPACE || ExceptionsForKeyCodes.contains(keyCode) ||
+                        key.isOwnMultiTextKey()
                 } else {
                     true
                 }
@@ -335,6 +359,7 @@ private fun TextKeyButton(
         FlorisImeUi.Attr.Code to key.computedData.code,
         FlorisImeUi.Attr.Mode to evaluator.keyboard.mode.toString(),
         FlorisImeUi.Attr.ShiftState to evaluator.state.inputShiftState.toString(),
+        FlorisImeUi.Attr.Composing to (key.computedData is ComposedMatraKeyData),
     )
     val selector = when {
         !key.isEnabled -> SnyggSelector.DISABLED
@@ -362,16 +387,34 @@ private fun TextKeyButton(
                     SpaceBarMode.NOTHING -> return@let
                     SpaceBarMode.CURRENT_LANGUAGE -> {}
                     SpaceBarMode.SPACE_BAR_KEY -> customLabel = "␣"
+                    // Collected here rather than in the evaluator, so switching the provider — from the
+                    // keyboard's own picker as much as from the settings — relabels the key at once.
+                    SpaceBarMode.TRANSCRIPTION_PROVIDER -> {
+                        val providerId by prefs.dictate.transcriptionProviderId.collectAsState()
+                        val accounts by prefs.dictate.providerAccounts.collectAsState()
+                        customLabel = ProviderListing.displayNameOf(providerId, accounts)
+                    }
                 }
+            }
+            // Only a character key's label: the space bar's language name keeps ellipsizing as before.
+            val shrink = if (key.computedData.type == KeyType.CHARACTER && key.computedData.code != KeyCode.SPACE) {
+                labelShrinkRatio(customLabel)
+            } else {
+                null
             }
             SnyggText(
                 modifier = Modifier
                     .wrapContentSize()
                     .align(if (isTelPadKey) BiasAlignment(-0.5f, 0f) else Alignment.Center),
+                maxLines = shrink?.let { LONG_LABEL_MAX_LINES },
+                autoSizeMinRatio = shrink,
+                autoSizeOneLineRatio = shrink?.let { LONG_LABEL_ONE_LINE_RATIO },
+                textAlign = shrink?.let { TextAlign.Center },
                 text = customLabel,
             )
         }
         key.hintedLabel?.let { hintedLabel ->
+            val shrink = labelShrinkRatio(hintedLabel)
             SnyggText(
                 elementName = FlorisImeUi.KeyHint.elementName,
                 attributes = attributes,
@@ -379,6 +422,8 @@ private fun TextKeyButton(
                 modifier = Modifier
                     .wrapContentSize()
                     .align(if (isTelPadKey) BiasAlignment(0.5f, 0f) else Alignment.TopEnd),
+                maxLines = shrink?.let { 1 },
+                autoSizeMinRatio = shrink,
                 text = hintedLabel,
             )
         }
@@ -411,6 +456,15 @@ private fun isTouchExplorationEnabled(context: Context): Boolean {
     return am?.isTouchExplorationEnabled == true
 }
 
+/**
+ * A key of the user's own symbol pages that types more than one code point — `->`, an emoji with its
+ * variation selector, an e-mail address (issue #342). Its code is [KeyCode.MULTIPLE_CODE_POINTS], below
+ * the space bar's, which the popup checks read as "not a character" and so gave it neither the preview
+ * nor its long presses. The built-in layouts' multi-code-point keys keep that behaviour.
+ */
+private fun TextKey.isOwnMultiTextKey(): Boolean =
+    ownPopupsOnly && computedData.code == KeyCode.MULTIPLE_CODE_POINTS
+
 private class TextKeyboardLayoutController(
     context: Context,
 ) : SwipeGesture.Listener, GlideTypingGesture.Listener {
@@ -424,6 +478,19 @@ private class TextKeyboardLayoutController(
     private val keyHintConfiguration = prefs.keyboard.keyHintConfiguration()
     private val pointerMap: PointerMap<TouchPointer> = PointerMap { TouchPointer() }
     lateinit var popupUiController: PopupUiController
+
+    /** The layer a finger is currently holding open, if any (issue #366). */
+    private val momentary = MomentaryLayer()
+
+    /**
+     * The key the finger sits on in the *new* layer, highlighted for looks only.
+     *
+     * While the finger has not left the layer key, [TouchPointer.activeKey] deliberately stays pointed at
+     * the old layer's key object — its up event is what latches the layer, exactly as a tap always has.
+     * That object is no longer rendered though, so without this the highlight would vanish out from under
+     * a finger that has not moved.
+     */
+    private var momentaryPressedKey: TextKey? = null
 
     private var initSelectionStart: Int = 0
     private var initSelectionEnd: Int = 0
@@ -442,6 +509,27 @@ private class TextKeyboardLayoutController(
         !dev.patrickgold.florisboard.dictate.ui.LegacyLayoutState.suppressGlide.value &&
         editorInstance.activeInfo.isRichInputEditor &&
         keyboardManager.activeState.keyVariation != KeyVariation.PASSWORD && !isTouchExplorationEnabled(appContext)
+
+    /**
+     * Reported from composition once the keyboard a momentary layer asked for has been laid out
+     * (issue #366). Until then the finger's re-binding is held back, because the keys still under it
+     * belong to the layer that is on its way out.
+     */
+    fun onKeyboardSettled() {
+        if (!momentary.isPending) return
+        momentary.onKeyboardSettled(keyboard.mode)
+        if (momentary.isPending) return
+        val heldKey = pointerMap.findById(momentary.ownerPointerId)?.activeKey ?: return
+        val bounds = heldKey.visibleBounds
+        momentaryPressedKey = keyboard
+            .getKeyForPos(bounds.left + bounds.width / 2f, bounds.top + bounds.height / 2f)
+            ?.also { it.isPressed = true }
+    }
+
+    private fun clearMomentaryHighlight() {
+        momentaryPressedKey?.isPressed = false
+        momentaryPressedKey = null
+    }
 
     fun onTouchEventInternal(event: MotionEvent) {
         flogDebug { "event=$event" }
@@ -528,9 +616,13 @@ private class TextKeyboardLayoutController(
                     pointer.index = pointerIndex
                     if (swipeGestureDetector.onTouchUp(event, pointer) || pointer.hasTriggeredGestureMove) {
                         if (pointer.hasTriggeredGestureMove && pointer.initialKey?.computedData?.code == KeyCode.DELETE) {
-                            val selection = editorInstance.activeContent.selection
-                            if (selection.isSelectionMode) {
-                                editorInstance.deleteBackwards(OperationUnit.CHARACTERS)
+                            if (keyboardManager.fieldTakesKeys) {
+                                keyboardManager.finishFieldSwipeDelete()
+                            } else {
+                                val selection = editorInstance.activeContent.selection
+                                if (selection.isSelectionMode) {
+                                    editorInstance.deleteBackwards(OperationUnit.CHARACTERS)
+                                }
                             }
                         }
                         onTouchCancelInternal(event, pointer)
@@ -551,9 +643,14 @@ private class TextKeyboardLayoutController(
                                 pointer.initialKey?.computedData?.code == KeyCode.DELETE &&
                                 prefs.gestures.deleteKeySwipeLeft.get() != SwipeAction.SELECT_CHARACTERS_PRECISELY &&
                                 prefs.gestures.deleteKeySwipeLeft.get() != SwipeAction.SELECT_WORDS_PRECISELY) {
-                                val selection = editorInstance.activeContent.selection
-                                if (selection.isSelectionMode) {
-                                    editorInstance.deleteBackwards(OperationUnit.CHARACTERS)
+                                // The keyboard's own fields have their own marked stretch (issue #424).
+                                if (keyboardManager.fieldTakesKeys) {
+                                    keyboardManager.finishFieldSwipeDelete()
+                                } else {
+                                    val selection = editorInstance.activeContent.selection
+                                    if (selection.isSelectionMode) {
+                                        editorInstance.deleteBackwards(OperationUnit.CHARACTERS)
+                                    }
                                 }
                             }
                             onTouchCancelInternal(event, pointer)
@@ -579,6 +676,10 @@ private class TextKeyboardLayoutController(
 
     private fun onTouchDownInternal(event: MotionEvent, pointer: TouchPointer) {
         flogDebug(LogTopic.TEXT_KEYBOARD_VIEW) { "pointer=$pointer" }
+
+        // Only the key the finger actually landed on may open a layer — this runs again on every re-bind
+        // within the same gesture, and sliding onto `ABC` inside the symbols must not open a second one.
+        val isFirstDown = pointer.initialKey == null
 
         val key = keyboard.getKeyForPos(event.getX(pointer.index), event.getY(pointer.index))
         if (key != null && key.isEnabled) {
@@ -647,12 +748,24 @@ private class TextKeyboardLayoutController(
             pointer.activeKey = key
             initSelectionStart = editorInstance.activeContent.selection.start
             initSelectionEnd = editorInstance.activeContent.selection.end
+            // A layer key opens its layer right here, under the finger, instead of waiting for the lift
+            // (issue #366). Nothing is lost for anyone who only taps: what happens on the way up still
+            // depends on whether another key was pressed in between, and a plain tap latches as before.
+            val downCode = key.computedData.code
+            if (isFirstDown && momentary.isIdle && prefs.gestures.momentaryLayer.get()) {
+                MomentaryLayer.modeFor(downCode)?.takeIf { it != keyboard.mode }?.let { target ->
+                    momentary.begin(pointer.id, from = keyboard.mode, to = target)
+                    keyboardManager.activeState.keyboardMode = target
+                }
+            }
             // Space/backspace own a horizontal swipe (cursor move / delete). Flag it (and clear it for any
             // other key, so it never gets stuck) so the legacy SWIPE-mode toggle doesn't hijack that swipe
             // on the modern keyboard (issue #188). A long-press accent popup raises the same flag later (#221).
-            val downCode = key.computedData.code
+            // A held-open layer owns its slide for the same reason — and has to keep owning it across the
+            // re-binds that carry the finger from the layer key to the symbol it is reaching for (#366).
             LegacyLayoutState.keyOwnsSwipe.value =
-                downCode == KeyCode.SPACE || downCode == KeyCode.CJK_SPACE || downCode == KeyCode.DELETE
+                downCode == KeyCode.SPACE || downCode == KeyCode.CJK_SPACE || downCode == KeyCode.DELETE ||
+                    !momentary.isIdle
         } else {
             pointer.activeKey = null
         }
@@ -661,6 +774,10 @@ private class TextKeyboardLayoutController(
     private fun onTouchMoveInternal(event: MotionEvent, pointer: TouchPointer) {
         flogDebug(LogTopic.TEXT_KEYBOARD_VIEW) { "pointer=$pointer" }
 
+        // The layer this finger asked for has not been laid out yet (issue #366). Re-binding now would
+        // press a key of the layer that is leaving — one the user cannot see any more.
+        if (momentary.owns(pointer.id) && momentary.isPending) return
+
         val initialKey = pointer.initialKey
         val activeKey = pointer.activeKey
         if (initialKey != null && activeKey != null) {
@@ -668,7 +785,8 @@ private class TextKeyboardLayoutController(
                 val x = event.getX(pointer.index)
                 val y = event.getY(pointer.index)
                 if (!popupUiController.propagateMotionEvent(activeKey, x, y)) {
-                    onTouchCancelInternal(event, pointer)
+                    clearMomentaryHighlight()
+                    onTouchCancelInternal(event, pointer, isRebind = true)
                     onTouchDownInternal(event, pointer)
                 }
             } else {
@@ -677,7 +795,8 @@ private class TextKeyboardLayoutController(
                     || (event.getY(pointer.index) < activeKey.visibleBounds.top - 0.35f * activeKey.visibleBounds.height)
                     || (event.getY(pointer.index) > activeKey.visibleBounds.bottom + 0.35f * activeKey.visibleBounds.height)
                 ) {
-                    onTouchCancelInternal(event, pointer)
+                    clearMomentaryHighlight()
+                    onTouchCancelInternal(event, pointer, isRebind = true)
                     onTouchDownInternal(event, pointer)
                 }
             }
@@ -686,6 +805,9 @@ private class TextKeyboardLayoutController(
 
     private fun onTouchUpInternal(event: MotionEvent, pointer: TouchPointer) {
         flogDebug(LogTopic.TEXT_KEYBOARD_VIEW) { "pointer=$pointer" }
+        // Read before the key is released below, which clears `activeKey` (issue #366).
+        val landedCode = pointer.activeKey?.computedData?.code
+        val layerData = pointer.initialKey?.computedData
         LegacyLayoutState.keyOwnsSwipe.value = false // clear the legacy-swipe guard (#188 / #221)
         pointer.pressedKeyInfo?.cancelJobs()
         pointer.pressedKeyInfo = null
@@ -736,10 +858,37 @@ private class TextKeyboardLayoutController(
             pointer.activeKey = null
         }
         pointer.hasTriggeredGestureMove = false
+
+        // After the key has been sent, never before: a layer key's own up event puts the keyboard where a
+        // tap would leave it, and only then is there something to undo (issue #366).
+        if (momentary.owns(pointer.id)) {
+            clearMomentaryHighlight()
+            val restore = momentary.end(
+                landedCode = landedCode,
+                wasUninterrupted = layerData != null &&
+                    inputEventDispatcher.isUninterruptedEventSequence(layerData),
+            )
+            restore?.let { keyboardManager.activeState.keyboardMode = it }
+        }
     }
 
-    private fun onTouchCancelInternal(event: MotionEvent, pointer: TouchPointer) {
+    /**
+     * @param isRebind whether this is the release half of a slide onto another key rather than the end of
+     *   the gesture. A held-open layer (issue #366) has to survive that — sliding onto the symbol is the
+     *   whole point of it — but must not survive a real cancel.
+     */
+    private fun onTouchCancelInternal(event: MotionEvent, pointer: TouchPointer, isRebind: Boolean = false) {
         flogDebug(LogTopic.TEXT_KEYBOARD_VIEW) { "pointer=$pointer" }
+        // How far real thumbs stray while they scrub, which is what SIDEWAYS_FIRST_LINE_TRAVEL_DP has to
+        // clear (issue #428). Read with `adb logcat -d | grep "Space glide"`.
+        val glideAxis = pointer.glideAxis
+        if (glideAxis != null && !isRebind) {
+            flogDebug(LogTopic.GESTURES) {
+                val unitDp = prefs.gestures.swipeDistanceThreshold.get() / 4.0
+                "Space glide: set out $glideAxis, strayed ${pointer.glideDriftUnits * unitDp} dp, " +
+                    "ended ${pointer.glideLine} lines away"
+            }
+        }
         LegacyLayoutState.keyOwnsSwipe.value = false // clear the legacy-swipe guard (#188 / #221)
         pointer.pressedKeyInfo?.cancelJobs()
         pointer.pressedKeyInfo = null
@@ -759,6 +908,14 @@ private class TextKeyboardLayoutController(
             pointer.activeKey = null
         }
         pointer.hasTriggeredGestureMove = false
+
+        // A press the system took away is not a choice: the keyboard goes back to the layer the gesture
+        // started in rather than staying in one nobody confirmed (issue #366). This is also the path
+        // `resetAllKeys` takes when the keyboard is dismissed mid-press.
+        if (!isRebind && momentary.owns(pointer.id)) {
+            clearMomentaryHighlight()
+            momentary.endCancelled()?.let { keyboardManager.activeState.keyboardMode = it }
+        }
     }
 
     override fun onSwipe(event: SwipeGesture.Event): Boolean {
@@ -784,14 +941,18 @@ private class TextKeyboardLayoutController(
                 }
                 initialKey.computedData.code > KeyCode.SPACE && !popupUiController.isShowingExtendedPopup -> when {
                     !isGlideEnabled && !pointer.hasTriggeredGestureMove -> when (event.type) {
-                        SwipeGesture.Type.TOUCH_UP -> {
-                            val swipeAction = when (event.direction) {
-                                SwipeGesture.Direction.UP -> prefs.gestures.swipeUp.get()
-                                SwipeGesture.Direction.DOWN -> prefs.gestures.swipeDown.get()
-                                SwipeGesture.Direction.LEFT -> prefs.gestures.swipeLeft.get()
-                                SwipeGesture.Direction.RIGHT -> prefs.gestures.swipeRight.get()
-                                else -> SwipeAction.NO_ACTION
-                            }
+                        // Under the finger, the moment the travel is unmistakable (issue #327). Waiting
+                        // for lift-off is what made these feel dead: the accepting rule sampled speed as
+                        // the finger left the glass, so a swipe you *end* — decelerating onto a target,
+                        // which is what "swipe down to hide" is — measured as stationary and was dropped
+                        // however far it had gone.
+                        //
+                        // Returning true here has the caller cancel the key press for this pointer and
+                        // set hasTriggeredGestureMove, which this same branch checks — so the action can
+                        // fire only once per gesture and the lift-off path below is skipped afterwards.
+                        SwipeGesture.Type.TOUCH_MOVE -> {
+                            val direction = swipeCommitDirection(event.absUnitCountX, event.absUnitCountY)
+                            val swipeAction = direction?.let { swipeActionFor(it) } ?: SwipeAction.NO_ACTION
                             if (swipeAction != SwipeAction.NO_ACTION) {
                                 keyboardManager.executeSwipeAction(swipeAction)
                                 true
@@ -799,13 +960,32 @@ private class TextKeyboardLayoutController(
                                 false
                             }
                         }
-                        else -> false
+                        // The short-but-fast half of the rule: a flick that lifts before covering the
+                        // distance above still counts, and there speed is the evidence of intent.
+                        SwipeGesture.Type.TOUCH_UP -> {
+                            val swipeAction = swipeActionFor(event.direction)
+                            if (swipeAction != SwipeAction.NO_ACTION) {
+                                keyboardManager.executeSwipeAction(swipeAction)
+                                true
+                            } else {
+                                false
+                            }
+                        }
                     }
                     else -> false
                 }
                 else -> false
             }
         }
+    }
+
+    /** The action bound to a swipe direction on an ordinary character key. Diagonals carry none. */
+    private fun swipeActionFor(direction: SwipeGesture.Direction): SwipeAction = when (direction) {
+        SwipeGesture.Direction.UP -> prefs.gestures.swipeUp.get()
+        SwipeGesture.Direction.DOWN -> prefs.gestures.swipeDown.get()
+        SwipeGesture.Direction.LEFT -> prefs.gestures.swipeLeft.get()
+        SwipeGesture.Direction.RIGHT -> prefs.gestures.swipeRight.get()
+        else -> SwipeAction.NO_ACTION
     }
 
     private fun handleDeleteSwipe(event: SwipeGesture.Event): Boolean {
@@ -816,6 +996,15 @@ private class TextKeyboardLayoutController(
                 SwipeAction.DELETE_CHARACTERS_PRECISELY, SwipeAction.SELECT_CHARACTERS_PRECISELY -> {
                     if (abs(event.relUnitCountX) > 0) {
                         inputFeedbackController?.gestureMovingSwipe(TextKeyData.DELETE)
+                    }
+                    // While one of the keyboard's own fields has the keys, the swipe marks its text, not the app's (#424).
+                    if (keyboardManager.fieldTakesKeys) {
+                        keyboardManager.selectInField(
+                            units = -event.absUnitCountX - 1,
+                            words = false,
+                            forward = inputEventDispatcher.isPressed(KeyCode.SHIFT),
+                        )
+                        return true
                     }
                     val activeSelection = editorInstance.activeContent.selection
                     if (activeSelection.isValid) {
@@ -840,6 +1029,14 @@ private class TextKeyboardLayoutController(
                 SwipeAction.DELETE_WORDS_PRECISELY, SwipeAction.SELECT_WORDS_PRECISELY -> {
                     if (abs(event.relUnitCountX) > 0) {
                         inputFeedbackController?.gestureMovingSwipe(TextKeyData.DELETE)
+                    }
+                    if (keyboardManager.fieldTakesKeys) {
+                        keyboardManager.selectInField(
+                            units = -event.absUnitCountX / 2 - 1,
+                            words = true,
+                            forward = inputEventDispatcher.isPressed(KeyCode.SHIFT),
+                        )
+                        return true
                     }
                     val activeSelection = editorInstance.activeContent.selection
                     if (activeSelection.isValid) {
@@ -880,90 +1077,160 @@ private class TextKeyboardLayoutController(
         val pointer = pointerMap.findById(event.pointerId) ?: return false
 
         return when (event.type) {
-            SwipeGesture.Type.TOUCH_MOVE -> when (event.direction) {
-                SwipeGesture.Direction.LEFT -> {
-                    val action = prefs.gestures.spaceBarSwipeLeft.get()
-                    if (action == SwipeAction.MOVE_CURSOR_LEFT) {
-                        abs(event.relUnitCountX).let {
-                            val count = if (!pointer.hasTriggeredGestureMove) it - 1 else it
-                            if (count > 0) {
-                                inputFeedbackController?.gestureMovingSwipe(TextKeyData.SPACE)
-                                if (!pointer.hasTriggeredMassSelection) {
-                                    pointer.hasTriggeredMassSelection = true
-                                    editorInstance.massSelection.begin()
-                                }
-                                keyboardManager.handleArrow(KeyCode.ARROW_LEFT, count)
-                            }
-                        }
-                        true
-                    } else {
-                        action != SwipeAction.NO_ACTION
-                    }
-                }
-                SwipeGesture.Direction.RIGHT -> {
-                    val action = prefs.gestures.spaceBarSwipeRight.get()
-                    if (action == SwipeAction.MOVE_CURSOR_RIGHT) {
-                        abs(event.relUnitCountX).let {
-                            val count = if (!pointer.hasTriggeredGestureMove) it - 1 else it
-                            if (count > 0) {
-                                inputFeedbackController?.gestureMovingSwipe(TextKeyData.SPACE)
-                                if (!pointer.hasTriggeredMassSelection) {
-                                    pointer.hasTriggeredMassSelection = true
-                                    editorInstance.massSelection.begin()
-                                }
-                                keyboardManager.handleArrow(KeyCode.ARROW_RIGHT, count)
-                            }
-                        }
-                        true
-                    } else {
-                        action != SwipeAction.NO_ACTION
-                    }
-                }
-                else -> false
+            // Both axes on every report, rather than one of four directions (issue #364). The gesture is
+            // a trackpad: the cursor is meant to end up where the finger points, and a diagonal is the
+            // ordinary way to reach a spot three lines up and a few words in. Reading `event.direction`
+            // here would make the two axes take turns, so it is not consulted at all any more.
+            SwipeGesture.Type.TOUCH_MOVE -> {
+                pointer.glideDriftUnits = maxOf(pointer.glideDriftUnits, abs(event.absUnitCountY))
+                val movedAcross = glideAcross(event, pointer)
+                val movedDown = glideDown(event, pointer)
+                val fired = commitSpaceAction(event, pointer, SWIPE_COMMIT_UNITS)
+                // Claiming the gesture is not only about having moved the cursor. Returning false leaves
+                // the press with the ordinary key dispatch, which re-binds it to whatever the finger has
+                // reached — and starts that key's long-press timer, so an upward slide off the space bar
+                // opened the accent popup of the letter above it. Any configured space-bar gesture owns
+                // the finger for the whole glide; only turning all of them off gives the keys back.
+                movedAcross || movedDown || fired ||
+                    horizontalAction(event) != SwipeAction.NO_ACTION ||
+                    prefs.gestures.spaceBarSwipeUp.get() != SwipeAction.NO_ACTION ||
+                    prefs.gestures.spaceBarSwipeDown.get() != SwipeAction.NO_ACTION
             }
-            SwipeGesture.Type.TOUCH_UP -> when (event.direction) {
-                SwipeGesture.Direction.LEFT -> {
-                    prefs.gestures.spaceBarSwipeLeft.get().let {
-                        when {
-                            it == SwipeAction.NO_ACTION -> {
-                                false
-                            }
-                            it != SwipeAction.MOVE_CURSOR_LEFT -> {
-                                keyboardManager.executeSwipeAction(it)
-                                true
-                            }
-                            else -> {
-                                false
-                            }
-                        }
-                    }
-                }
-                SwipeGesture.Direction.RIGHT -> {
-                    prefs.gestures.spaceBarSwipeRight.get().let {
-                        when {
-                            it == SwipeAction.NO_ACTION -> {
-                                false
-                            }
-                            it != SwipeAction.MOVE_CURSOR_RIGHT -> {
-                                keyboardManager.executeSwipeAction(it)
-                                true
-                            }
-                            else -> {
-                                false
-                            }
-                        }
-                    }
-                }
-                else -> {
-                    if (event.absUnitCountY < -6) {
-                        keyboardManager.executeSwipeAction(prefs.gestures.spaceBarSwipeUp.get())
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
+            // The lift-off half of the same rule, for every direction. It asks for no distance of its
+            // own — the detector has already required real travel and real speed to report at all.
+            SwipeGesture.Type.TOUCH_UP -> commitSpaceAction(event, pointer, commitUnits = 1)
         }
+    }
+
+    /** The preference governing this sample's sideways travel — the axis has one pref per direction. */
+    private fun horizontalAction(event: SwipeGesture.Event): SwipeAction = when {
+        event.relUnitCountX < 0 -> prefs.gestures.spaceBarSwipeLeft.get()
+        event.relUnitCountX > 0 -> prefs.gestures.spaceBarSwipeRight.get()
+        // A sample with no sideways travel still has to name an action, or a purely vertical glide would
+        // read as "nothing configured" and hand the finger back to the keys.
+        event.absUnitCountX < 0 -> prefs.gestures.spaceBarSwipeLeft.get()
+        else -> prefs.gestures.spaceBarSwipeRight.get()
+    }
+
+    /** One character per detector unit of sideways travel. Returns whether the cursor actually moved. */
+    private fun glideAcross(event: SwipeGesture.Event, pointer: TouchPointer): Boolean {
+        val rel = event.relUnitCountX
+        if (rel == 0) return false
+        val wanted = if (rel < 0) SwipeAction.MOVE_CURSOR_LEFT else SwipeAction.MOVE_CURSOR_RIGHT
+        if (horizontalAction(event) != wanted) return false
+        // The opening report is the one that crossed the threshold; its first unit is the price of
+        // starting the glide, not a character the finger asked to pass.
+        val count = abs(rel).let { if (!pointer.hasTriggeredGestureMove) it - 1 else it }
+        if (count <= 0) return false
+        if (pointer.glideAxis == null) pointer.glideAxis = SpaceGlide.Axis.SIDEWAYS
+        beginGlideStep(pointer)
+        keyboardManager.handleArrow(if (rel < 0) KeyCode.ARROW_LEFT else KeyCode.ARROW_RIGHT, count)
+        return true
+    }
+
+    /**
+     * One line per [SpaceGlide.LINE_TRAVEL_DP] of vertical travel (issue #364), with the first line
+     * further off when the glide set out sideways and a slack on the way back (issue #428).
+     *
+     * A preference per direction, like the sideways half — so either can be given some other job without
+     * taking the opposite one with it. [SpaceGlide.allowedLine] is what keeps a refused direction from
+     * moving the count anyway.
+     */
+    private fun glideDown(event: SwipeGesture.Event, pointer: TouchPointer): Boolean {
+        val upAllowed = prefs.gestures.spaceBarSwipeUp.get() == SwipeAction.MOVE_CURSOR_UP
+        val downAllowed = prefs.gestures.spaceBarSwipeDown.get() == SwipeAction.MOVE_CURSOR_DOWN
+        if (!upAllowed && !downAllowed) return false
+        val steps = SpaceGlide.lineSteps(
+            swipeDistanceThresholdDp = prefs.gestures.swipeDistanceThreshold.get(),
+            beganSideways = pointer.glideAxis == SpaceGlide.Axis.SIDEWAYS,
+        )
+        val target = SpaceGlide.nextLine(pointer.glideLine, event.absUnitCountY, steps)
+        val line = SpaceGlide.allowedLine(pointer.glideLine, target, upAllowed, downAllowed)
+        val delta = line - pointer.glideLine
+        if (delta == 0) return false
+        if (pointer.glideAxis == null) pointer.glideAxis = SpaceGlide.Axis.VERTICAL
+        pointer.glideLine = line
+        beginGlideStep(pointer)
+        keyboardManager.handleArrow(if (delta < 0) KeyCode.ARROW_UP else KeyCode.ARROW_DOWN, abs(delta))
+        return true
+    }
+
+    /** The preference a space-bar swipe in this direction answers to. */
+    private fun spaceActionFor(direction: SwipeGesture.Direction?): SwipeAction? = when (direction) {
+        SwipeGesture.Direction.UP -> prefs.gestures.spaceBarSwipeUp.get()
+        SwipeGesture.Direction.DOWN -> prefs.gestures.spaceBarSwipeDown.get()
+        SwipeGesture.Direction.LEFT -> prefs.gestures.spaceBarSwipeLeft.get()
+        SwipeGesture.Direction.RIGHT -> prefs.gestures.spaceBarSwipeRight.get()
+        // An ambiguous diagonal is nobody's.
+        else -> null
+    }
+
+    /** The cursor move the glide itself consumes in this direction, and so the one-shot must not. */
+    private fun glideActionFor(direction: SwipeGesture.Direction?): SwipeAction? = when (direction) {
+        SwipeGesture.Direction.UP -> SwipeAction.MOVE_CURSOR_UP
+        SwipeGesture.Direction.DOWN -> SwipeAction.MOVE_CURSOR_DOWN
+        SwipeGesture.Direction.LEFT -> SwipeAction.MOVE_CURSOR_LEFT
+        SwipeGesture.Direction.RIGHT -> SwipeAction.MOVE_CURSOR_RIGHT
+        else -> null
+    }
+
+    /**
+     * The one-shot bound to a swipe on the space bar, fired once per gesture (issue #364).
+     *
+     * Called twice with different distances, which is the whole point. [SWIPE_COMMIT_UNITS] under the
+     * finger, and on release whatever the detector was already willing to report — because the detector
+     * only reports a lift-off swipe that was still moving at 1900 dp/s, and a downward swipe on the space
+     * bar cannot be. There are about 77 dp between the middle of that key and the bottom of the screen,
+     * so the finger is braking against the edge by the time it leaves the glass and measures as
+     * stationary. Upwards has the whole screen to fling into and always worked, which is exactly how the
+     * asymmetry showed up. `SwipeCommit` names this failure and issue #327 fixed it for the character
+     * keys; the space bar was left on the lift-off path alone.
+     *
+     * Sideways has 411 dp of runway and a flick clears that speed easily, so it never looked broken — but
+     * it is the same bug, and a swipe that is *ended* rather than flicked was dropped there too. All four
+     * directions go through the one rule.
+     *
+     * The direction comes from [swipeCommitDirection] on both paths rather than the detector's
+     * eight-sector reading, so a swipe 30° off an axis counts the same on release as it does mid-gesture.
+     */
+    private fun commitSpaceAction(
+        event: SwipeGesture.Event,
+        pointer: TouchPointer,
+        commitUnits: Int,
+    ): Boolean {
+        if (pointer.hasCommittedSpaceAction) return false
+        val direction = swipeCommitDirection(event.absUnitCountX, event.absUnitCountY, commitUnits)
+        val action = spaceActionFor(direction) ?: return false
+        // A cursor move is what the glide has been doing all along; firing it again here would add a step
+        // nobody asked for.
+        if (action == SwipeAction.NO_ACTION || action == glideActionFor(direction)) return false
+        pointer.hasCommittedSpaceAction = true
+        keyboardManager.executeSwipeAction(action)
+        return true
+    }
+
+    /**
+     * The tick and the selection latch every cursor step shares. The latch is opened once per glide and
+     * closed again by [onTouchUpInternal] / [onTouchCancelInternal], which is why it is a pointer flag
+     * rather than something either axis owns.
+     */
+    private fun beginGlideStep(pointer: TouchPointer) {
+        inputFeedbackController?.gestureMovingSwipe(TextKeyData.SPACE)
+        if (!pointer.hasTriggeredMassSelection) {
+            pointer.hasTriggeredMassSelection = true
+            editorInstance.massSelection.begin()
+        }
+    }
+
+    /**
+     * The tick that says a glide has begun — the same moment Gboard marks (issue #325).
+     *
+     * It runs off the "gesture swipe" preference rather than one of its own: a glide is the other thing
+     * a swipe across the keys can turn into, and the alternative was a new setting whose only job is to
+     * split a hair the finger cannot feel. Worth knowing when reading that switch's name.
+     */
+    override fun onGlideStart() {
+        inputFeedbackController?.gestureSwipe(TextKeyData.UNSPECIFIED)
     }
 
     override fun onGlideAddPoint(point: GlideTypingGesture.Detector.Position) {
@@ -1036,6 +1303,21 @@ private class TextKeyboardLayoutController(
         var hasTriggeredGestureMove: Boolean = false
         var hasTriggeredLongPress: Boolean = false
         var hasTriggeredMassSelection: Boolean = false
+        /** Lines travelled by a space-bar glide so far, counted from where it began (issue #364). */
+        var glideLine: Int = 0
+        /**
+         * The axis that moved the cursor first in this glide, null until one has (issue #428). A glide
+         * that set out sideways has to push much further before its first line.
+         */
+        var glideAxis: SpaceGlide.Axis? = null
+        /** The furthest the glide has strayed from its starting height, in detector units — debug log only. */
+        var glideDriftUnits: Int = 0
+        /**
+         * Whether this gesture has already fired a space-bar one-shot. `hasTriggeredGestureMove` cannot
+         * serve as that latch here the way it does for character keys: the glide claims the gesture on
+         * its first report, so the flag is already set long before the action is decided.
+         */
+        var hasCommittedSpaceAction: Boolean = false
         var pressedKeyInfo: InputEventDispatcher.PressedKeyInfo? = null
 
         override fun reset() {
@@ -1045,6 +1327,10 @@ private class TextKeyboardLayoutController(
             hasTriggeredGestureMove = false
             hasTriggeredLongPress = false
             hasTriggeredMassSelection = false
+            glideLine = 0
+            glideAxis = null
+            glideDriftUnits = 0
+            hasCommittedSpaceAction = false
             pressedKeyInfo = null
         }
 

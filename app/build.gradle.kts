@@ -84,7 +84,14 @@ configure<ApplicationExtension> {
         // account. Real users pay nothing for it — the bundle is split per architecture, so a phone
         // only ever downloads the libraries it can run. See tools/fetch-sherpa-onnx.sh.
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            // -Parm64Only (the CI build that is installed by hand) packages only the phone's own
+            // architecture: the other two ABIs' native libraries are 77 MB it never loads. The
+            // ordinary APK and the Play bundle keep every ABI.
+            abiFilters += if (project.hasProperty("arm64Only")) {
+                listOf("arm64-v8a")
+            } else {
+                listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            }
         }
 
         buildConfigField("String", "BUILD_COMMIT_HASH", "\"${getGitCommitHash().get()}\"")
@@ -134,6 +141,20 @@ configure<ApplicationExtension> {
                 keyPassword = props.getProperty("keyPassword")
             }
         }
+        // A fixed debug key. Every GitHub Actions runner would otherwise mint its own, so two debug APKs
+        // built there could not install over each other: each update demanded an uninstall first, which
+        // took the settings, keys and prompts with it. Same alias and passwords as Android's standard
+        // debug key, and it signs nothing that ships. Tracked despite the *.keystore ignore rule for
+        // exactly this reason; a checkout without it keeps the default per-machine debug key.
+        val ciDebugKeystore = layout.projectDirectory.file("ci-debug.keystore").asFile
+        if (ciDebugKeystore.exists()) {
+            getByName("debug") {
+                storeFile = ciDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
@@ -175,11 +196,26 @@ configure<ApplicationExtension> {
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
         }
+
+        // The build the GitHub Actions workflow ships: the release build's shrinking and optimisation,
+        // under the debug package name and the tracked debug key, so it installs over a debug build and
+        // the next build installs over it. A debug build does none of R8's work and runs every flog*
+        // call, a log line per field change and keystroke, which is a load the phone carries all day.
+        create("optimized") {
+            initWith(getByName("release"))
+
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-opt+${getGitCommitHash(short = true).get()}"
+
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
-    lint {
-        baseline = file("lint.xml")
-    }
+    // No `baseline` here on purpose: app/lint.xml is lint's *configuration* file, which lint picks up
+    // from the module directory on its own. Naming it as a baseline made lint read the severity
+    // overrides as recorded findings and left every real issue unbaselined, so any fatal one failed
+    // the release build (issue #332).
 
     testOptions {
         unitTests {
@@ -207,6 +243,12 @@ tasks.withType<Test> {
     testLogging {
         events = setOf(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED)
     }
+    // Gradle hands a test JVM 512 MB unless told otherwise, and the property tests in
+    // ImeWindowControllerEditorMoveTest build a datastore and a controller per iteration — with the
+    // coverage agent attached that runs out of heap partway through the suite. On a memory-tight
+    // machine it surfaces as an OutOfMemoryError, on a roomier one as a test worker that never
+    // finishes shutting down (issue #331).
+    maxHeapSize = "2g"
     useJUnitPlatform()
 }
 
@@ -252,6 +294,19 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.mikepenz.aboutlibraries.core)
     implementation(libs.mikepenz.aboutlibraries.compose)
+    // Scan text (issue #390): on-device OCR for the printed IBAN/serial/address nobody wants to retype.
+    // Deliberately the BUNDLED model rather than com.google.android.gms:play-services-mlkit-text-
+    // recognition, which fetches the model over the network on first use — #390 promises that nothing
+    // about this feature talks to a network, and a first tap that says "still downloading" would break
+    // that twice over. Measured in the built APK (2026-09-16), arm64-v8a, which is the only number that
+    // matters once the bundle splits per ABI:
+    //   download  ~5.7 MB — libmlkit_google_ocr_pipeline.so compresses to 4.41 MB, the tflite models
+    //                       under assets/mlkit-google-ocr-models/ to 1.28 MB
+    //   installed ~12.6 MB — the .so is stored uncompressed and page-aligned (11.06 MB) plus 1.49 MB
+    //                       of models. armeabi-v7a is 6.78 MB, x86_64 11.63 MB.
+    // Next to the 26 MB of libonnxruntime.so this app already ships, and play-services-base/-basement
+    // already come in via play-services-wearable.
+    implementation(libs.mlkit.text.recognition)
     implementation(libs.okhttp)
     implementation(libs.patrickgold.compose.tooltip)
     implementation(libs.patrickgold.jetpref.datastore.model)
@@ -320,6 +375,21 @@ val verifySherpaOnnxLibs by tasks.registering {
     }
 }
 tasks.named("preBuild").configure { dependsOn(verifySherpaOnnxLibs) }
+
+// On-device translation (issue #424): libdictate_bergamot.so is built from Mozilla's sources by
+// tools/bergamot/build-android.sh and not committed. arm64 only: Marian's x86 path does not compile
+// against the NDK (faiss finds no SSE headers) and 32-bit ARM is untried. On those the translate bar
+// says the device is not supported, so a missing arm64 build is the one that must stop the build —
+// otherwise it ships a feature that cannot run on any phone at all.
+val verifyBergamotLib by tasks.registering {
+    val library = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libdictate_bergamot.so").asFile
+    doLast {
+        if (!library.exists()) {
+            throw GradleException("Missing libdictate_bergamot.so for arm64-v8a.\n\nRun:  tools/bergamot/build-android.sh")
+        }
+    }
+}
+tasks.named("preBuild").configure { dependsOn(verifyBergamotLib) }
 
 fun getGitCommitHash(short: Boolean = false): Provider<String> {
     if (!File(".git").exists()) {

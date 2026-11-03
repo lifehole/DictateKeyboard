@@ -43,7 +43,7 @@ class PromptsDatabaseHelper private constructor(
         db.execSQL(
             "CREATE TABLE PROMPTS (ID INTEGER PRIMARY KEY, POS INTEGER, NAME TEXT, PROMPT TEXT, " +
                 "REQUIRES_SELECTION BOOLEAN, AUTO_APPLY BOOLEAN DEFAULT 0, REASONING_EFFORT TEXT, " +
-                "REASONING_EFFORT_CUSTOM TEXT)"
+                "REASONING_EFFORT_CUSTOM TEXT, TRIGGER_WORD TEXT, LIBRARY_ID TEXT)"
         )
         // Seed the example prompts for fresh installs only (existing users skip onCreate). These are
         // the same defaults the legacy Dictate app shipped, resolved from string resources so they are
@@ -72,6 +72,17 @@ class PromptsDatabaseHelper private constructor(
         if (oldVersion < 4) {
             // Custom wire value used when REASONING_EFFORT is CUSTOM (issue #186).
             db.execSQL("ALTER TABLE PROMPTS ADD COLUMN REASONING_EFFORT_CUSTOM TEXT")
+        }
+        if (oldVersion < 5) {
+            // Typed shortcut that expands a snippet while typing (issue #283). Named TRIGGER_WORD
+            // because TRIGGER is a reserved SQLite keyword and would break the statement.
+            db.execSQL("ALTER TABLE PROMPTS ADD COLUMN TRIGGER_WORD TEXT")
+        }
+        if (oldVersion < 6) {
+            // The community-library entry this prompt was imported from (issue #303). Lives on the row
+            // so that deleting the prompt deletes the mark with it — the SharedPreferences set it
+            // replaces had no remove(), which left library entries marked "Added" forever.
+            db.execSQL("ALTER TABLE PROMPTS ADD COLUMN LIBRARY_ID TEXT")
         }
     }
 
@@ -174,6 +185,8 @@ class PromptsDatabaseHelper private constructor(
         put("AUTO_APPLY", if (autoApply) 1 else 0)
         put("REASONING_EFFORT", reasoningEffort?.name)
         put("REASONING_EFFORT_CUSTOM", reasoningEffortCustom?.takeIf { it.isNotBlank() })
+        put("TRIGGER_WORD", trigger?.takeIf { it.isNotBlank() })
+        put("LIBRARY_ID", libraryId?.takeIf { it.isNotBlank() })
     }
 
     private fun android.database.Cursor.toPromptModel(): PromptModel {
@@ -184,15 +197,32 @@ class PromptsDatabaseHelper private constructor(
         } else null
         val customIdx = getColumnIndex("REASONING_EFFORT_CUSTOM")
         val reasoningCustom = if (customIdx >= 0 && !isNull(customIdx)) getString(customIdx) else null
+        // TRIGGER_WORD (v5) is read the same defensive way, so a database that predates it just reads null.
+        val triggerIdx = getColumnIndex("TRIGGER_WORD")
+        val trigger = if (triggerIdx >= 0 && !isNull(triggerIdx)) getString(triggerIdx) else null
+        // LIBRARY_ID (v6) likewise: a database that predates the column reads null = "not from the
+        // library", which is the safe answer — the content fallback still catches old imports.
+        val libraryIdx = getColumnIndex("LIBRARY_ID")
+        val libraryId = if (libraryIdx >= 0 && !isNull(libraryIdx)) getString(libraryIdx) else null
+        val prompt = getString(getColumnIndexOrThrow("PROMPT"))
+        val autoApply = getInt(getColumnIndexOrThrow("AUTO_APPLY")) == 1
         return PromptModel(
             id = getInt(getColumnIndexOrThrow("ID")),
             pos = getInt(getColumnIndexOrThrow("POS")),
             name = getString(getColumnIndexOrThrow("NAME")),
-            prompt = getString(getColumnIndexOrThrow("PROMPT")),
-            requiresSelection = getInt(getColumnIndexOrThrow("REQUIRES_SELECTION")) == 1,
-            autoApply = getInt(getColumnIndexOrThrow("AUTO_APPLY")) == 1,
+            prompt = prompt,
+            // Read through the rule rather than as stored: an automatic prompt saved with the switch off
+            // has to reach every reader (keyboard, watch sync, list, export) already switched on.
+            requiresSelection = promptRequiresSelection(
+                prompt,
+                requiresSelection = getInt(getColumnIndexOrThrow("REQUIRES_SELECTION")) == 1,
+                autoApply = autoApply,
+            ),
+            autoApply = autoApply,
             reasoningEffort = reasoning,
             reasoningEffortCustom = reasoningCustom,
+            trigger = trigger,
+            libraryId = libraryId,
         )
     }
 
@@ -200,7 +230,9 @@ class PromptsDatabaseHelper private constructor(
 
     companion object {
         const val DATABASE_NAME = "prompts.db"
-        const val DATABASE_VERSION = 4
+        // Bump this with EVERY new column, or onUpgrade never runs and the very next write dies with
+        // "no such column" on an existing user's database (that is exactly what v5 shipped broken as).
+        const val DATABASE_VERSION = 6
 
         @Volatile
         private var instance: PromptsDatabaseHelper? = null

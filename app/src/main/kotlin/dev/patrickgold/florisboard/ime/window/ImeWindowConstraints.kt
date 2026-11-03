@@ -83,6 +83,12 @@ sealed class ImeWindowConstraints(rootInsets: ImeInsets.Root) {
     }
     open val dockToFixedBorder: Dp = 2.dp
 
+    /**
+     * The width of the gap between the two halves of a split keyboard (issue #362). Zero for every mode
+     * but thumbs, which is the only one that splits.
+     */
+    open val defSplitGap: Dp = 0.dp
+
     abstract val defaultProps: ImeWindowProps
 
     protected fun <T> calculation(initializer: () -> T) = lazy(LazyThreadSafetyMode.PUBLICATION, initializer)
@@ -231,6 +237,27 @@ sealed class ImeWindowConstraints(rootInsets: ImeInsets.Root) {
                     paddingBottom = 0.dp,
                 )
             }
+
+            // The gap is what is left over, not what is asked for: a split keyboard is two halves under
+            // the thumbs at the edges, so the half decides and the middle gets the rest. Sized off the
+            // window rather than the baseline screen for that reason — the wider the screen, the further
+            // apart the hands are, while the halves stay the size two thumbs can cover. On a window too
+            // narrow for two full halves they shrink instead, and a gap of at least 64dp is kept so the
+            // split still reads as one; the mode is offered from 600dp on, where that is comfortable.
+            override val defSplitGap by calculation {
+                val targetHalfWidth = when (formFactor.typeGuess) {
+                    ImeFormFactor.Type.DESKTOP,
+                    ImeFormFactor.Type.LARGE_TABLET -> 380.dp
+                    ImeFormFactor.Type.TABLET_LANDSCAPE -> 360.dp
+                    ImeFormFactor.Type.TABLET_PORTRAIT -> 340.dp
+                    ImeFormFactor.Type.PHONE_LANDSCAPE -> 320.dp
+                    ImeFormFactor.Type.PHONE_PORTRAIT -> 300.dp
+                }
+                (rootBounds.width - targetHalfWidth * 2)
+                    .coerceAtLeast(64.dp)
+                    .coerceAtMost(rootBounds.width / 2)
+                    .coerceAtLeast(0.dp)
+            }
         }
     }
 
@@ -345,7 +372,13 @@ sealed class ImeWindowConstraints(rootInsets: ImeInsets.Root) {
             ImeFormFactor.Type.TABLET_PORTRAIT to DpSize(width = 800.dp, height = 1310.dp),
             ImeFormFactor.Type.TABLET_LANDSCAPE to DpSize(width = 850.dp, height = 800.dp),
             ImeFormFactor.Type.LARGE_TABLET to DpSize(width = 1335.dp, height = 775.dp),
-            ImeFormFactor.Type.DESKTOP to DpSize(width = 0.dp, height = 0.dp),
+            // Every keyboard dimension is a fraction of the baseline, so a zero here is not an untuned
+            // form factor but an invisible keyboard: the window collapses to no height, the app never
+            // moves up, and nothing at all is drawn (issue #114 — a 14.6" tablet in landscape, where
+            // this class starts). 1600 x 900 is the extra-large breakpoint itself, at which the class
+            // is chosen in the first place. Deliberately diverges from FlorisBoard upstream, which
+            // still carries the zero.
+            ImeFormFactor.Type.DESKTOP to DpSize(width = 1600.dp, height = 900.dp),
         )
 
         /**

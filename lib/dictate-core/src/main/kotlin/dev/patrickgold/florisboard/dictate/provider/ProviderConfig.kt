@@ -26,7 +26,31 @@ data class ProviderConfig(
     val apiKey: String,
     val extraHeaders: Map<String, String> = emptyMap(),
     val proxy: ProxyConfig? = null,
-    val timeoutSeconds: Long = 120,
+    /**
+     * How long a single read or write may take no bytes at all before the connection counts as dead.
+     *
+     * **Not a budget for the whole request.** It is the gap between bytes, which is why it also decides
+     * how long a model may think: while the server works on the audio it sends nothing, and that
+     * silence is one long read. Two minutes suits a dictation; an import raises it, because a piece of
+     * one can be ten minutes of speech for the model to get through.
+     */
+    val timeoutSeconds: Long = DEFAULT_TIMEOUT_SECONDS,
+    /**
+     * Budget for a whole call — connect, upload, wait, read — where it must differ from
+     * [timeoutSeconds] (issue #337).
+     *
+     * The two were the same number until a shared file went up. A whole call is a different question
+     * from a stalled socket, and for an import it can honestly take longer than two minutes: 25 MB of
+     * audio on a mobile connection, and then a model reading ten minutes of speech. Worse, a timeout
+     * counts as retryable, so the same bytes went up four times before the failure appeared.
+     *
+     * It is also how long a request goes on being retried: once it has been going for one call's budget,
+     * no further attempt starts (#438).
+     *
+     * Null keeps the old behaviour: the call budget is [timeoutSeconds]. Only the file import raises
+     * it, and only because it runs on a screen with visible progress and a cancel button.
+     */
+    val callTimeoutSeconds: Long? = null,
     val transcriptionApi: TranscriptionApi = TranscriptionApi.OPENAI_MULTIPART,
     /**
      * Single-call multimodal transcription (issue #130): when true, audio is sent to `chat/completions`
@@ -47,13 +71,39 @@ data class ProviderConfig(
     /**
      * Curated model ids for providers without an OpenAI-style `/models` catalog (ElevenLabs, Deepgram,
      * AssemblyAI, issue #143): [OpenAiCompatibleClient.listModels] returns these offline so the model
-     * picker and connection test work without a live `/models` call.
+     * picker fills without a live `/models` call. Not a connection test — that has its own authenticated
+     * request per provider, because a list compiled into the app can never fail (#384).
      */
     val curatedModels: List<String> = emptyList(),
+    /**
+     * Another provider is waiting to take over if this one cannot be reached (#455): give up on a server
+     * that does not answer the connection after a short [UNREACHABLE_CONNECT_TIMEOUT_SECONDS], and do not
+     * retry a connection that could not be made at all ([DictateApiException.isConnectFailure]).
+     *
+     * Without this the hand-over came too late to be of use. A home server seen from mobile data is a
+     * private address nothing routes to, so each attempt runs the full connect timeout, and three retries
+     * three seconds apart made every dictation away from home wait up to forty seconds before the other
+     * provider was even asked. Everything after a connection was made keeps its retries: there the
+     * provider has the audio, and the answer is still worth waiting for.
+     */
+    val handOverUnreachable: Boolean = false,
 ) {
     /** Base URL guaranteed to end with a single trailing slash. */
     val normalizedBaseUrl: String
         get() = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+
+    companion object {
+        /** Two minutes per read or write, which is the app's answer to "is this connection alive?". */
+        const val DEFAULT_TIMEOUT_SECONDS = 120L
+
+        /**
+         * The connect timeout while another provider is waiting ([handOverUnreachable]). A server on the
+         * same network answers in milliseconds and a cloud provider on a usable mobile link in well under a
+         * second; four seconds still allows two lost connection attempts (TCP resends after one second,
+         * then after two more) before the dictation moves on.
+         */
+        const val UNREACHABLE_CONNECT_TIMEOUT_SECONDS = 4L
+    }
 }
 
 /**
@@ -102,6 +152,33 @@ enum class TranscriptionApi {
      * `api.assemblyai.com/v2` upload/transcript endpoints with a raw `authorization: <key>` header.
      */
     ASSEMBLYAI_ASYNC,
+
+    /**
+     * Azure Speech, Fast Transcription with MAI-Transcribe (issue #349): one `multipart/form-data` POST
+     * to `speechtotext/transcriptions:transcribe?api-version=…` carrying an `audio` file part and a
+     * `definition` part holding the options as JSON, authenticated with `Ocp-Apim-Subscription-Key`.
+     *
+     * The `definition` part is what makes this its own wire format rather than another multipart
+     * variant: every option — the model, the language, the vocabulary — lives inside one JSON string
+     * instead of beside the file as its own form field. Selecting MAI is itself two of those options
+     * (`enhancedMode.enabled` and `enhancedMode.model`), not a value the endpoint takes on its own.
+     *
+     * The transcript comes back as `combinedPhrases[].text`, one entry per channel, speaker or
+     * language rather than one per response. See [OpenAiCompatibleClient].
+     */
+    AZURE_FAST_TRANSCRIPTION,
+
+    /**
+     * xAI Grok Voice Transcribe (issue #435): one `multipart/form-data` POST to `stt` with a Bearer key,
+     * the transcript in `text`.
+     *
+     * Not [OPENAI_MULTIPART] under another path, for three reasons that each change the request: the
+     * vocabulary travels as repeated `keyterm` fields rather than a free-text `prompt`, which the
+     * endpoint does not have; `language` only switches on number formatting — recognition is
+     * multilingual regardless — and needs `format=true` beside it; and the `file` part has to come
+     * **last**, because xAI streams the upload and may ignore fields that arrive after it.
+     */
+    XAI_STT,
 
     /**
      * On-device transcription (issue #104): no network call at all. Handled by

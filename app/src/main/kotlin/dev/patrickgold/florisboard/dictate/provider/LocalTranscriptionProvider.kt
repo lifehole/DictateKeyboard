@@ -13,6 +13,7 @@ package dev.patrickgold.florisboard.dictate.provider
 import android.content.Context
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineCanaryModelConfig
+import com.k2fsa.sherpa.onnx.OfflineDolphinModelConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
@@ -22,6 +23,7 @@ import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
+import dev.patrickgold.florisboard.dictate.TranscriptJoin
 import dev.patrickgold.florisboard.dictate.audio.AudioDecode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -53,10 +55,76 @@ import java.util.concurrent.TimeUnit
 class LocalTranscriptionProvider(
     private val modelDir: File,
     private val numThreads: Int = 2,
+    /**
+     * How long the whole decode may take before it counts as failed, in milliseconds; 0 means no limit
+     * (issue #354). Fed from the same "Request timeout" setting the cloud providers use, so the user has
+     * one number for "how long am I willing to wait" whichever engine happens to be doing the work.
+     *
+     * Enforced cooperatively rather than with [kotlinx.coroutines.withTimeout]: a sherpa-onnx decode is a
+     * blocking native call with no suspension point inside it, so a coroutine timeout would only land
+     * once the pass it was meant to interrupt had finished anyway — and its
+     * [kotlinx.coroutines.TimeoutCancellationException] is a `CancellationException`, which the dictation
+     * flow deliberately reads as "the user pressed stop, discard quietly". A checked deadline instead
+     * ends in a [DictateApiException] the existing failure handling already understands: the error chip,
+     * the kept recording, the resend button, the history entry that still holds the audio.
+     */
+    private val timeoutMillis: Long = 0L,
+    /**
+     * The marks that bind to the word in front of them, used when a multi-pass decode joins its pieces
+     * back together (issue #356). Handed in rather than looked up: which marks those are belongs to the
+     * active punctuation rule, and a provider has no keyboard to ask. The default is the conservative
+     * one, which is what the callers with no field in sight (Wear, tests) want anyway.
+     */
+    private val tighteningSymbols: String = TranscriptJoin.DEFAULT_TIGHTENING_SYMBOLS,
 ) : TranscriptionProvider {
+
+    /** When the current decode started, as a [System.nanoTime] stamp. Set once per [transcribe] call. */
+    private var startedNanos: Long = 0L
+
+    /**
+     * How long a stretch this model may be given in one decode — see [LocalModelSpec.maxSegmentSeconds].
+     *
+     * This used to be 28 s for everything, which is Whisper's ceiling and nobody else's: Parakeet
+     * documents twenty minutes in a single pass, Canary forty seconds, GigaAM twenty-five. Cutting them
+     * all at Whisper's number cost punctuation at every seam for no reason, and in GigaAM's case was
+     * *above* what it says it handles.
+     *
+     * Unknown id (a leftover pref) falls back to the conservative default, like [kindOf] does.
+     */
+    private val maxSegmentSeconds: Int by lazy {
+        LocalModelCatalog.byId(modelDir.name)?.maxSegmentSeconds ?: DEFAULT_MAX_SEGMENT_SECONDS
+    }
+
+    /** Audio below this goes through in one piece, with no VAD and no seams. */
+    private val singlePassSamples: Int get() = maxSegmentSeconds * AudioDecode.TARGET_SAMPLE_RATE
+
+    /**
+     * Hard ceiling per decode. One second above [maxSegmentSeconds] so a segment the VAD cut at its
+     * limit still passes whole, and only gap-less speech past that gets chopped mid-sentence.
+     */
+    private val maxSegmentSamples: Int
+        get() = (maxSegmentSeconds + 1) * AudioDecode.TARGET_SAMPLE_RATE
+
+    /**
+     * Throws once the budget is spent. Called between decode passes — never inside one, because a native
+     * pass cannot be interrupted — so the effective granularity is a single piece of at most
+     * [maxSegmentSamples], which is the unit this engine works in regardless.
+     *
+     * Compares elapsed time rather than a precomputed deadline: `nanoTime`'s origin is arbitrary, so
+     * adding to it is the one form of this that can overflow.
+     */
+    private fun checkDeadline() {
+        if (timeoutMillis <= 0L) return
+        if (System.nanoTime() - startedNanos < timeoutMillis * 1_000_000L) return
+        throw DictateApiException(
+            DictateApiException.Kind.TIMEOUT,
+            "On-device transcription exceeded the ${timeoutMillis / 1000} s budget",
+        )
+    }
 
     override suspend fun transcribe(request: TranscriptionRequest): TranscriptionResult =
         withContext(Dispatchers.Default) {
+            startedNanos = System.nanoTime()
             // What "installed" means depends on the model: Whisper wants an encoder/decoder pair, a
             // transducer adds a joiner, SenseVoice has a single model file. The catalog entry says which.
             val missing = requiredFiles(modelDir.name).filterNot { File(modelDir, it).exists() }
@@ -86,7 +154,7 @@ class LocalTranscriptionProvider(
             val language = request.language?.substringBefore('-')?.takeIf { it.isNotBlank() }.orEmpty()
 
             if (streaming) {
-                return@withContext TranscriptionResult(transcribeStreaming(samples).trim())
+                return@withContext TranscriptionResult(tightened(transcribeStreaming(samples)))
             }
 
             val text = try {
@@ -95,9 +163,10 @@ class LocalTranscriptionProvider(
                 // it safely (never mid-decode) — see [RecognizerCache].
                 try {
                     val vadFile = File(modelDir, VAD)
-                    // Whisper handles ~30 s per pass; segment longer audio at speech pauses (VAD) so the
-                    // tail isn't dropped. Short clips take the simple single-pass path (no VAD overhead).
-                    if (vadFile.exists() && samples.size > VAD_MIN_SAMPLES) {
+                    // Past what this model takes in one go, segment at speech pauses (VAD) so the tail
+                    // isn't dropped. Anything shorter takes the single-pass path — no VAD overhead, and
+                    // no seam for punctuation to fall through. See [maxSegmentSeconds].
+                    if (vadFile.exists() && samples.size > singlePassSamples) {
                         transcribeSegmented(recognizer, vadFile, samples)
                     } else {
                         decodeOnce(recognizer, samples)
@@ -115,8 +184,21 @@ class LocalTranscriptionProvider(
                 )
             }
 
-            TranscriptionResult(text.trim())
+            TranscriptionResult(tightened(text))
         }
+
+    /**
+     * The last thing every on-device transcript passes through: trimmed, and with the space taken back
+     * out from in front of a mark that binds backwards.
+     *
+     * A no-op for most of the catalog — Whisper, Parakeet English and GigaAM write their marks against
+     * the word already. It exists for the models whose vocabulary spells a mark as "space plus mark",
+     * which NVIDIA's German FastConformer does, and it is applied here rather than per model so the next
+     * export with the same habit needs no code at all. Which marks bind backwards is the caller's
+     * [tighteningSymbols] to say, so a French keyboard keeps the space it wants before `?` and `!`.
+     */
+    private fun tightened(text: String): String =
+        TranscriptJoin.tighten(text, tighteningSymbols).trim()
 
     /**
      * Batch decode with a *streaming* model (#233): the whole recording is pushed through the online
@@ -130,15 +212,12 @@ class LocalTranscriptionProvider(
             val stream = recognizer.createStream()
             val parts = StringBuilder()
             fun collect() {
-                val text = recognizer.getResult(stream).text.trim()
-                if (text.isNotEmpty()) {
-                    if (parts.isNotEmpty()) parts.append(' ')
-                    parts.append(text)
-                }
+                TranscriptJoin.appendPiece(parts, recognizer.getResult(stream).text, tighteningSymbols)
             }
             try {
                 var offset = 0
                 while (offset < samples.size) {
+                    checkDeadline()
                     val end = minOf(offset + STREAM_CHUNK, samples.size)
                     stream.acceptWaveform(samples.copyOfRange(offset, end), AudioDecode.TARGET_SAMPLE_RATE)
                     offset = end
@@ -193,7 +272,8 @@ class LocalTranscriptionProvider(
                     minSilenceDuration = 0.25f,
                     minSpeechDuration = 0.25f,
                     windowSize = VAD_WINDOW,
-                    maxSpeechDuration = 28f, // keep every segment safely inside Whisper's 30 s window
+                    // Keep every segment inside what this model actually takes, not inside Whisper's.
+                    maxSpeechDuration = maxSegmentSeconds.toFloat(),
                 )
                 sampleRate = AudioDecode.TARGET_SAMPLE_RATE
                 numThreads = 1
@@ -204,6 +284,7 @@ class LocalTranscriptionProvider(
             val window = FloatArray(VAD_WINDOW)
             var i = 0
             while (i < samples.size) {
+                checkDeadline()
                 val end = minOf(i + VAD_WINDOW, samples.size)
                 val chunk = if (end - i == VAD_WINDOW) {
                     samples.copyInto(window, destinationOffset = 0, startIndex = i, endIndex = end)
@@ -231,31 +312,27 @@ class LocalTranscriptionProvider(
     }
 
     /**
-     * Decodes [samples], hard-capping each piece below Whisper's 30 s window. VAD normally keeps segments
-     * short, but on gap-less continuous speech a segment can still exceed 30 s — without this cap Whisper
-     * would silently drop everything past 30 s (the original bug).
+     * Decodes [samples], hard-capping each piece at [maxSegmentSamples]. The VAD normally keeps segments
+     * short, but gap-less continuous speech can still produce one past the limit — and without this cap
+     * sherpa-onnx silently drops everything beyond a Whisper decode's 30 s (the original bug).
      */
     private fun appendDecoded(recognizer: OfflineRecognizer, samples: FloatArray, out: StringBuilder) {
         var offset = 0
         while (offset < samples.size) {
-            val end = minOf(offset + MAX_SEGMENT_SAMPLES, samples.size)
+            checkDeadline()
+            val end = minOf(offset + maxSegmentSamples, samples.size)
             val piece = if (offset == 0 && end == samples.size) samples else samples.copyOfRange(offset, end)
-            val text = decodeOnce(recognizer, piece).trim()
-            if (text.isNotEmpty()) {
-                if (out.isNotEmpty()) out.append(' ')
-                out.append(text)
-            }
+            TranscriptJoin.appendPiece(out, decodeOnce(recognizer, piece), tighteningSymbols)
             offset = end
         }
     }
 
     companion object {
         /** Audio longer than this (~28 s at 16 kHz) is VAD-segmented; shorter takes the single pass. */
-        private const val VAD_MIN_SAMPLES = 28 * AudioDecode.TARGET_SAMPLE_RATE
+        /** Whisper's ceiling, and the fallback for an id the catalog no longer knows. */
+        private const val DEFAULT_MAX_SEGMENT_SECONDS = 28
         private const val VAD_WINDOW = 512
 
-        /** Hard ceiling per Whisper pass (~29 s) — above VAD's 28 s cut so normal segments pass whole. */
-        private const val MAX_SEGMENT_SAMPLES = 29 * AudioDecode.TARGET_SAMPLE_RATE
 
         /** Feed size for the streaming batch path (~100 ms), matching what the live session sees. */
         private const val STREAM_CHUNK = AudioDecode.TARGET_SAMPLE_RATE / 10
@@ -372,9 +449,10 @@ private object RecognizerCache {
 
         // Language is baked into the Whisper and Canary configs at build time, so it is part of the cache
         // key (switching the input language rebuilds the recognizer; ~1s). A transducer decodes the audio
-        // as-is and ignores the language, so it stays out of the key for those.
-        val cacheKey = modelDir.absolutePath + "|" +
-            (if (kind == LocalModelKind.NEMO_TRANSDUCER) "" else language)
+        // as-is and ignores the language, and Dolphin's config has no language field at all, so it stays
+        // out of the key for those — otherwise switching languages would throw the model away for nothing.
+        val languageless = kind == LocalModelKind.NEMO_TRANSDUCER || kind == LocalModelKind.DOLPHIN
+        val cacheKey = modelDir.absolutePath + "|" + (if (languageless) "" else language)
         val existing = recognizer
         val rec = if (existing != null && cacheKey == key) {
             existing
@@ -485,6 +563,15 @@ private object RecognizerCache {
                     // keyboard should paste into a text field.
                     useInverseTextNormalization = true,
                 ),
+                tokens = tokens.absolutePath,
+                numThreads = numThreads,
+            )
+            // Dolphin (issue #406): the same single-file shape as SenseVoice, but its config has no
+            // language field at all — it neither detects on request nor can be told, it simply decodes.
+            // So unlike Canary there is no way to hand it the wrong language, and unlike SenseVoice
+            // there is nothing to pass through; the input language is irrelevant here.
+            LocalModelKind.DOLPHIN -> OfflineModelConfig(
+                dolphin = OfflineDolphinModelConfig(model = model.absolutePath),
                 tokens = tokens.absolutePath,
                 numThreads = numThreads,
             )

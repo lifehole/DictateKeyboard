@@ -18,6 +18,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -29,11 +30,12 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * Opens real-time transcription sessions (issue #128). Implements all seven [RealtimeApi] wire formats:
- * OpenAI and ElevenLabs/Gemini send audio as base64 in JSON; Deepgram/Soniox/AssemblyAI/Mistral stream
+ * Opens real-time transcription sessions (issue #128). Implements all eight [RealtimeApi] wire formats:
+ * OpenAI and ElevenLabs/Gemini send audio as base64 in JSON; Deepgram/Soniox/AssemblyAI/Mistral/xAI stream
  * raw binary PCM. Mistral is experimental (its raw protocol is SDK-only/unverified). On any error the
  * caller falls back to batch transcription.
  *
@@ -66,9 +68,16 @@ object RealtimeClient {
      * is fed PCM at [sampleRateFor] and finished/cancelled by the caller.
      */
     /**
-     * [baseUrl] redirects the OpenAI-shaped session at a server of the user's own (#249) — several
-     * self-hosted transcription servers expose exactly this protocol under `/v1/realtime`. Null, and every
-     * session goes to its vendor's fixed address as before.
+     * [baseUrl] is the address this session should use instead of its vendor's fixed one. Two things ask
+     * for that, and they hand over different shapes: a server of the user's own passes the HTTP base URL
+     * its batch requests already use and the OpenAI-shaped session derives `/realtime` from it (#249),
+     * while a provider that runs one streaming host per data-residency region passes that host's
+     * WebSocket address outright (Soniox, #403) — it is a sibling of the REST host, not a path under it,
+     * so there is nothing to derive. Null, and every session goes where it always went.
+     *
+     * [expectedLanguages] is read only by the providers whose language field is a list (OpenAI's
+     * gpt-transcribe generation, Soniox, Gemini, AssemblyAI's Pro model), and only when no language is
+     * pinned: it turns auto-detect into detection among the languages the user dictates in (issue #99).
      */
     fun open(
         api: RealtimeApi,
@@ -77,15 +86,24 @@ object RealtimeClient {
         language: String?,
         callbacks: RealtimeCallbacks,
         baseUrl: String? = null,
+        expectedLanguages: List<String> = emptyList(),
     ): RealtimeSession = when (api) {
         RealtimeApi.OPENAI ->
-            OpenAiRealtimeSession(wsClient, apiKey, model, language, callbacks, baseUrl).also { it.connect() }
+            OpenAiRealtimeSession(wsClient, apiKey, model, language, callbacks, baseUrl, expectedLanguages)
+                .also { it.connect() }
         RealtimeApi.DEEPGRAM -> DeepgramRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
-        RealtimeApi.SONIOX -> SonioxRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
-        RealtimeApi.ASSEMBLYAI -> AssemblyAiRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
+        RealtimeApi.SONIOX ->
+            SonioxRealtimeSession(wsClient, apiKey, model, language, callbacks, baseUrl, expectedLanguages)
+                .also { it.connect() }
+        RealtimeApi.ASSEMBLYAI ->
+            AssemblyAiRealtimeSession(wsClient, apiKey, model, language, callbacks, expectedLanguages)
+                .also { it.connect() }
         RealtimeApi.ELEVENLABS -> ElevenLabsRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
-        RealtimeApi.GEMINI -> GeminiRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
+        RealtimeApi.GEMINI ->
+            GeminiRealtimeSession(wsClient, apiKey, model, language, callbacks, expectedLanguages)
+                .also { it.connect() }
         RealtimeApi.MISTRAL_VOXTRAL -> MistralRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
+        RealtimeApi.XAI -> XaiRealtimeSession(wsClient, apiKey, model, language, callbacks).also { it.connect() }
     }
 }
 
@@ -103,7 +121,10 @@ private class OpenAiRealtimeSession(
     private val language: String?,
     private val callbacks: RealtimeCallbacks,
     private val baseUrl: String? = null,
+    expectedLanguages: List<String> = emptyList(),
 ) : RealtimeSession {
+
+    private val languageHints = languageHintsOf(language, expectedLanguages)
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var ws: WebSocket? = null
@@ -199,16 +220,16 @@ private class OpenAiRealtimeSession(
                     })
                     put("transcription", buildJsonObject {
                         put("model", model)
-                        if (!language.isNullOrBlank() && language != "detect") {
-                            // The gpt-transcribe generation takes `languages` as an array (it can hint
-                            // several for code-switching audio); the older models take a single
-                            // `language` string. Sending the wrong one is not an error, it is simply
-                            // ignored — the user's language choice would quietly stop applying (#248).
-                            if (usesLanguagesField(model)) {
-                                put("languages", buildJsonArray { add(JsonPrimitive(language)) })
-                            } else {
-                                put("language", language)
+                        // The gpt-transcribe generation takes `languages` as an array (it can hint
+                        // several for code-switching audio); the older models take a single
+                        // `language` string. Sending the wrong one is not an error, it is simply
+                        // ignored — the user's language choice would quietly stop applying (#248).
+                        if (usesLanguagesField(model)) {
+                            if (languageHints.isNotEmpty()) {
+                                put("languages", buildJsonArray { languageHints.forEach { add(JsonPrimitive(it)) } })
                             }
+                        } else if (!language.isNullOrBlank() && language != "detect") {
+                            put("language", language)
                         }
                     })
                     // No server-side turn detection: Dictate decides when a dictation ends and commits the
@@ -278,6 +299,9 @@ private class OpenAiRealtimeSession(
  * frames. Each `tokens[]` message carries `is_final` tokens (permanent) plus a replaceable tail; the full
  * text (permanent + tail) is emitted as the partial, and the permanent text as the final on flush. An
  * empty frame flushes; the server replies `finished:true` and closes.
+ *
+ * [wsUrl] is the streaming host of the account's data-residency region (#403), taken as given: Soniox
+ * publishes it per region alongside the REST one, and a key is only a credential inside its own region.
  */
 private class SonioxRealtimeSession(
     private val client: OkHttpClient,
@@ -285,7 +309,11 @@ private class SonioxRealtimeSession(
     private val model: String,
     private val language: String?,
     private val callbacks: RealtimeCallbacks,
+    private val wsUrl: String? = null,
+    expectedLanguages: List<String> = emptyList(),
 ) : RealtimeSession {
+
+    private val languageHints = languageHintsOf(language, expectedLanguages)
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var ws: WebSocket? = null
@@ -296,7 +324,8 @@ private class SonioxRealtimeSession(
     private companion object { const val URL = "wss://stt-rt.soniox.com/transcribe-websocket" }
 
     fun connect() {
-        ws = client.newWebSocket(Request.Builder().url(URL).build(), listener)
+        val url = wsUrl?.takeIf { it.isNotBlank() } ?: URL
+        ws = client.newWebSocket(Request.Builder().url(url).build(), listener)
     }
 
     private val listener = object : WebSocketListener() {
@@ -337,8 +366,9 @@ private class SonioxRealtimeSession(
         put("audio_format", "pcm_s16le")
         put("sample_rate", 16_000)
         put("num_channels", 1)
-        if (!language.isNullOrBlank() && language != "detect") {
-            put("language_hints", buildJsonArray { add(language) })
+        // Soniox hints a list, so auto-detect can still name the languages the user dictates in (#99).
+        if (languageHints.isNotEmpty()) {
+            put("language_hints", buildJsonArray { languageHints.forEach { add(it) } })
         }
     }.toString()
 
@@ -381,30 +411,85 @@ private class SonioxRealtimeSession(
 }
 
 /**
- * AssemblyAI Universal Streaming over `wss://streaming.assemblyai.com/v3/ws` (config in query params, raw
- * key in the `Authorization` header — no "Bearer"). Streams 16 kHz mono PCM16 as raw binary frames. `Turn`
- * messages carry the current turn text in `transcript`; `end_of_turn` finalizes it. `format_turns` is off
- * (our rewording stage formats), so each turn produces one clean final. `finish()` sends `Terminate`.
+ * AssemblyAI streaming over `wss://streaming.assemblyai.com/v3/ws` (config in query params, raw key in the
+ * `Authorization` header — no "Bearer"). Streams 16 kHz mono PCM16 as raw binary frames. `Turn` messages
+ * carry the whole turn so far in `transcript`; `end_of_turn` finalizes it. `finish()` sends `Terminate`,
+ * which settles the turn in progress before `Termination` (measured 2026-10-20: the final lands ~0.15 s
+ * after it, so no `ForceEndpoint` is needed).
+ *
+ * The model is always named. Until it was, the server picked — English-only Universal-Streaming when this
+ * was written, Universal-3.6 Pro since AssemblyAI moved its default — and the realtime field in the
+ * provider dialog changed nothing at all.
  */
-private class AssemblyAiRealtimeSession(
+internal class AssemblyAiRealtimeSession(
     private val client: OkHttpClient,
     private val apiKey: String,
-    private val model: String,
-    private val language: String?,
+    model: String,
+    language: String?,
     private val callbacks: RealtimeCallbacks,
+    expectedLanguages: List<String> = emptyList(),
+    /** The socket address without its query — AssemblyAI's own, except in tests. */
+    private val endpoint: String = URL,
 ) : RealtimeSession {
+
+    // Blank, or the id this preset used to show: neither is a value the server accepts (it refuses the
+    // session with error 3006), and both meant "the provider's default".
+    private val speechModel = model.trim().takeUnless { it.isEmpty() || it == LEGACY_MODEL_ID }
+        ?: ProviderRegistry.ASSEMBLYAI.defaultRealtimeModel.orEmpty()
+
+    // One code the model does not know fails the whole session, so the list is cut to the ones it does.
+    private val languageCodes = if (speechModel in MULTILINGUAL_PRO_MODELS) {
+        languageHintsOf(language, expectedLanguages)
+            .map { it.substringBefore('-').lowercase() }
+            .filter { it in PRO_LANGUAGE_CODES }
+            .distinct()
+    } else {
+        emptyList()
+    }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var ws: WebSocket? = null
     @Volatile private var done = false
 
-    private companion object {
-        const val URL = "wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le"
+    internal companion object {
+        const val URL = "wss://streaming.assemblyai.com/v3/ws"
+
+        /** What this preset listed before it named a model; never a valid `speech_model`. */
+        const val LEGACY_MODEL_ID = "universal-streaming"
+
+        /** The models that take `language_codes` with exactly [PRO_LANGUAGE_CODES]. */
+        val MULTILINGUAL_PRO_MODELS = setOf("universal-3-6-pro")
+
+        /**
+         * Universal-3.6 Pro's languages, as the endpoint lists them when it refuses an unknown one
+         * (2026-10-20). Its docs say 32; the list is 32 plus `multi`, which means nothing to us.
+         */
+        val PRO_LANGUAGE_CODES = setOf(
+            "en", "es", "de", "fr", "it", "pt", "tr", "nl", "sv", "no", "da", "fi", "hi", "vi", "ar", "he",
+            "ja", "ur", "zh", "ru", "ko", "ca", "gl", "ro", "et", "fa", "yue", "af", "mr", "zu", "xh", "nn",
+        )
+
+        /**
+         * The older Universal-Streaming models return lower case without punctuation unless asked; the Pro
+         * models always format and refuse the switch. Measured: one formatted final per turn, not two.
+         */
+        val FORMAT_TURNS_MODELS = setOf("universal-streaming-english", "universal-streaming-multilingual")
+    }
+
+    /** The socket URL with the session's configuration in its query. */
+    internal fun url(): String = buildString {
+        append(endpoint).append("?sample_rate=16000&encoding=pcm_s16le")
+        if (speechModel.isNotEmpty()) append("&speech_model=").append(URLEncoder.encode(speechModel, "UTF-8"))
+        // A JSON array: "fr,de" would be read as one code and refused.
+        if (languageCodes.isNotEmpty()) {
+            val list = buildJsonArray { languageCodes.forEach { add(it) } }.toString()
+            append("&language_codes=").append(URLEncoder.encode(list, "UTF-8"))
+        }
+        if (speechModel in FORMAT_TURNS_MODELS) append("&format_turns=true")
     }
 
     fun connect() {
-        // Universal Streaming is selected by the /v3/ws endpoint itself; the raw key goes in Authorization.
-        val request = Request.Builder().url(URL).header("Authorization", apiKey).build()
+        val request = Request.Builder().url(url()).header("Authorization", apiKey).build()
         ws = client.newWebSocket(request, listener)
     }
 
@@ -422,13 +507,30 @@ private class AssemblyAiRealtimeSession(
                     }
                 }
                 "Termination" -> finishClosed(webSocket)
+                // A refused session (unknown model or language, no credit) says why here and then closes
+                // with a 3xxx code. Unheard, the dictation sat on an empty stream until stop.
+                "Error" -> emitError(
+                    RuntimeException("AssemblyAI realtime error: ${obj["error"]?.jsonPrimitive?.contentOrNull ?: obj}"),
+                )
             }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (done) return   // our own cancel() after an error or a stop
             android.util.Log.w("DictateRT", "assemblyai realtime WS failed (http=${response?.code}): ${t.message}")
             emitError(t)
         }
+
+        // The server ends a session it refuses with its own close frame; OkHttp waits for ours before it
+        // reports onClosed, so without this a close that came without an Error message went unnoticed too.
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            if (code == 1000) {
+                finishClosed(webSocket)
+            } else {
+                emitError(RuntimeException("AssemblyAI closed the realtime stream ($code): $reason"))
+            }
+        }
+
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = finishClosed(webSocket)
     }
 
@@ -571,10 +673,17 @@ private class ElevenLabsRealtimeSession(
 }
 
 /**
- * Google Gemini Live over the BidiGenerateContent WebSocket (`?key=` auth). A `setup` message enables
- * input-audio transcription (TEXT response modality); 16 kHz mono PCM16 is sent base64 as `realtimeInput`.
- * Input transcript chunks arrive in `serverContent.inputTranscription.text` and are concatenated. `finish()`
- * sends `audioStreamEnd`; the last chunks flush and `turnComplete`/`generationComplete` closes the session.
+ * Google Gemini Live over the BidiGenerateContent WebSocket (`?key=` auth), driving the dedicated
+ * streaming model `gemini-3.5-transcribe-live` (issue #292). A `setup` message enables input-audio
+ * transcription (TEXT response modality); 16 kHz mono PCM16 is sent base64 as `realtimeInput`.
+ * `finish()` sends `audioStreamEnd`; the last chunks flush and `turnComplete`/`generationComplete`
+ * closes the session.
+ *
+ * The transcription model answers in two fields where the conversational live models had one:
+ * `interimInputTranscription` is a speculative hypothesis that keeps changing while someone speaks,
+ * `inputTranscription` is what stands once they pause. That maps exactly onto the
+ * [RealtimeCallbacks] contract — interim replaces the partial, final appends a segment — so text
+ * settles as it is spoken instead of all at once when the session ends.
  */
 private class GeminiRealtimeSession(
     private val client: OkHttpClient,
@@ -582,11 +691,17 @@ private class GeminiRealtimeSession(
     private val model: String,
     private val language: String?,
     private val callbacks: RealtimeCallbacks,
+    expectedLanguages: List<String> = emptyList(),
 ) : RealtimeSession {
+
+    private val languageHints = languageHintsOf(language, expectedLanguages)
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var ws: WebSocket? = null
-    private val transcript = StringBuilder()
+    /** The latest speculative text, cleared by every final. What is left at close was heard but never settled. */
+    @Volatile private var pendingInterim = ""
+    /** Audio has been sent that no settled transcription covers yet — words are still owed to us. */
+    @Volatile private var audioSinceFinal = false
     private val audioGate = RealtimeAudioGate()
     @Volatile private var finishing = false
     @Volatile private var done = false
@@ -623,15 +738,40 @@ private class GeminiRealtimeSession(
             )
         }
         val server = obj["serverContent"]?.jsonObject
-        server?.get("inputTranscription")?.jsonObject?.get("text")?.jsonPrimitive?.content?.let { chunk ->
-            if (chunk.isNotEmpty()) {
-                transcript.append(chunk)
-                callbacks.onPartial(transcript.toString())
+        // Speculative text: show it, never keep it. The next interim replaces this one outright.
+        server?.get("interimInputTranscription")?.jsonObject?.get("text")?.jsonPrimitive?.content?.let { hypothesis ->
+            if (hypothesis.isNotEmpty()) {
+                pendingInterim = hypothesis
+                callbacks.onPartial(hypothesis)
             }
+        }
+        server?.get("inputTranscription")?.jsonObject?.get("text")?.jsonPrimitive?.content?.let { chunk ->
+            if (chunk.isNotEmpty()) emitFinal(chunk)
         }
         val ended = server?.get("turnComplete")?.jsonPrimitive?.booleanOrNull == true ||
             server?.get("generationComplete")?.jsonPrimitive?.booleanOrNull == true
-        if (ended && finishing) finalizeAndClose(webSocket)
+        // Gemini ends a *turn* this way, not only the dictation: a pause in the middle closes one and
+        // opens the next (measured 2026-09-14, a 36 s dictation settled its first turn 4.4 s before the
+        // microphone closed). So an end marker can be the one for a turn before the stop, arriving just as
+        // the stop is sent — and closing on it would drop everything spoken since. Audio that no
+        // transcription has covered yet is the exact test: while some is outstanding this marker is not
+        // ours, and the one that answers our own end of stream is still to come.
+        if (ended && finishing && !audioSinceFinal) finalizeAndClose(webSocket)
+    }
+
+    /**
+     * Hands one finalized chunk on. The protocol never stated whether `inputTranscription` carries just the
+     * settled segment or everything settled so far, so this used to forward only the growth over what was
+     * already seen. Measured against the endpoint on 2026-09-14 (#372): a dictation with a two-second
+     * pause in it produces one `inputTranscription` per turn, each carrying **only that turn's** words.
+     * The guard therefore never fired on real growth — the single thing it could match was a turn that
+     * repeated the whole transcript so far, and that one it deleted. Saying the same short sentence twice
+     * is exactly that shape, so the second one silently disappeared.
+     */
+    private fun emitFinal(chunk: String) {
+        pendingInterim = ""
+        audioSinceFinal = false
+        callbacks.onFinalSegment(chunk)
     }
 
     private fun setup(): String = buildJsonObject {
@@ -640,7 +780,17 @@ private class GeminiRealtimeSession(
             putJsonObject("generationConfig") {
                 put("responseModalities", buildJsonArray { add("TEXT") })
             }
-            putJsonObject("inputAudioTranscription") { }
+            putJsonObject("inputAudioTranscription") {
+                // An empty list is Google's own way of asking for automatic detection, so the user's
+                // chosen language reaches Gemini for the first time — it used to be accepted and dropped.
+                // With none pinned the list carries the languages they dictate in, which is what Google
+                // means by a list in the first place (#99).
+                put("languageCodes", buildJsonArray { languageHints.forEach { add(it) } })
+                // SMART drops "um"/"uh", folds spoken self-corrections into the sentence and punctuates.
+                // VERBATIM would hand all of that to the rewording step instead — for a keyboard, clean
+                // text on arrival is worth more than a faithful record of the stumbles.
+                put("mode", "SMART")
+            }
         }
     }.toString()
 
@@ -651,6 +801,7 @@ private class GeminiRealtimeSession(
     }
 
     private fun sendAudioFrame(socket: WebSocket, pcm16: ByteArray, len: Int) {
+        audioSinceFinal = true
         val msg = buildJsonObject {
             putJsonObject("realtimeInput") {
                 putJsonObject("audio") {
@@ -693,7 +844,13 @@ private class GeminiRealtimeSession(
         if (done) return
         done = true
         audioGate.close()
-        if (transcript.isNotEmpty()) callbacks.onFinalSegment(transcript.toString())
+        // Settled text was already handed over segment by segment, so nothing is repeated here. What can
+        // still be outstanding is a hypothesis the server never got to confirm — the last words of a
+        // dictation that ended on the closing socket. Keep them: heard-but-unconfirmed beats dropped.
+        if (pendingInterim.isNotEmpty()) {
+            callbacks.onFinalSegment(pendingInterim)
+            pendingInterim = ""
+        }
         runCatching { (webSocket ?: ws)?.close(1000, null) }
         callbacks.onClosed()
     }
@@ -794,10 +951,18 @@ private class MistralRealtimeSession(
 }
 
 /**
- * Deepgram streaming transcription over `wss://api.deepgram.com/v1/listen`. Streams raw 16 kHz mono PCM16
- * as binary WebSocket frames and parses `Results` messages: each interim revises the current segment
- * ([RealtimeCallbacks.onPartial]), `is_final` finalizes it ([onFinalSegment]). `finish()` sends
- * `CloseStream` so the server flushes the last segment before closing.
+ * Deepgram streaming transcription. Streams raw 16 kHz mono PCM16 as binary WebSocket frames, and speaks
+ * whichever of Deepgram's two wire versions the chosen model belongs to — the framing around them (`Token`
+ * auth, binary audio, `CloseStream` to flush) is the same:
+ *
+ *  - **Nova/Whisper** on `wss://api.deepgram.com/v1/listen`, reporting `Results`: each interim revises the
+ *    current segment ([RealtimeCallbacks.onPartial]), `is_final` settles it ([onFinalSegment]).
+ *  - **Flux** on `/v2/listen`, reporting `TurnInfo` (issue #291). Flux is Deepgram's conversational model:
+ *    it decides itself when a turn has ended instead of waiting out a silence timer, and every event
+ *    carries the whole turn so far — so each one is a partial until `EndOfTurn` settles it.
+ *
+ * Text that is still unsettled when the socket closes is emitted as a final segment, so the tail of a
+ * dictation survives a close that arrives before the last `is_final`/`EndOfTurn`.
  */
 private class DeepgramRealtimeSession(
     private val client: OkHttpClient,
@@ -809,31 +974,54 @@ private class DeepgramRealtimeSession(
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private var ws: WebSocket? = null
+    /** Latest partial, cleared when it is settled — emitted at close if nothing ever settled it. */
+    @Volatile private var pending = ""
     @Volatile private var done = false
 
+    /** The dictation language the user pinned, or null when they left auto-detection on. */
+    private val pinnedLanguage = language?.takeIf { it.isNotBlank() && it != "detect" }
+
     fun connect() {
-        val lang = if (!language.isNullOrBlank() && language != "detect") "&language=$language" else ""
-        val url = "wss://api.deepgram.com/v1/listen?model=$model" +
-            "&encoding=linear16&sample_rate=16000&channels=1&interim_results=true&punctuate=true$lang"
         val request = Request.Builder()
-            .url(url)
+            .url(if (model.startsWith("flux")) fluxUrl() else listenUrl())
             .header("Authorization", "Token $apiKey")
             .build()
         ws = client.newWebSocket(request, listener)
+    }
+
+    private fun listenUrl(): String {
+        val lang = pinnedLanguage?.let { "&language=$it" }.orEmpty()
+        return "wss://api.deepgram.com/v1/listen?model=$model" +
+            "&encoding=linear16&sample_rate=16000&channels=1&interim_results=true&punctuate=true$lang"
+    }
+
+    /**
+     * Flux takes neither `interim_results` nor `punctuate` — the turn is its unit, and its transcript comes
+     * formatted. Its language parameter is a *hint* that biases detection, which only the multilingual
+     * model does at all; the single-language models reject the parameter, and no variant knows regions.
+     */
+    private fun fluxUrl(): String {
+        val hint = pinnedLanguage
+            ?.takeIf { model.endsWith("multi") }
+            ?.let { "&language_hint=${it.substringBefore('-')}" }
+            .orEmpty()
+        return "wss://api.deepgram.com/v2/listen?model=$model&encoding=linear16&sample_rate=16000$hint"
     }
 
     private val listener = object : WebSocketListener() {
         override fun onMessage(webSocket: WebSocket, text: String) {
             val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
             when (obj["type"]?.jsonPrimitive?.content) {
-                "Results" -> {
-                    val transcript = obj["channel"]?.jsonObject
+                "Results" -> emit(
+                    transcript = obj["channel"]?.jsonObject
                         ?.get("alternatives")?.jsonArray?.firstOrNull()?.jsonObject
-                        ?.get("transcript")?.jsonPrimitive?.content.orEmpty()
-                    if (transcript.isBlank()) return
-                    val isFinal = obj["is_final"]?.jsonPrimitive?.booleanOrNull ?: false
-                    if (isFinal) callbacks.onFinalSegment(transcript) else callbacks.onPartial(transcript)
-                }
+                        ?.get("transcript")?.jsonPrimitive?.content.orEmpty(),
+                    settled = obj["is_final"]?.jsonPrimitive?.booleanOrNull ?: false,
+                )
+                "TurnInfo" -> emit(
+                    transcript = obj["transcript"]?.jsonPrimitive?.content.orEmpty(),
+                    settled = obj["event"]?.jsonPrimitive?.content == "EndOfTurn",
+                )
             }
         }
 
@@ -850,7 +1038,7 @@ private class DeepgramRealtimeSession(
 
     override fun finish() {
         val socket = ws ?: return finishClosed(null)
-        // Ask Deepgram to flush the final segment; it then emits the last Results and closes.
+        // Ask Deepgram to flush the last segment; it then emits it and closes.
         runCatching { socket.send("""{"type":"CloseStream"}""") }
     }
 
@@ -858,6 +1046,18 @@ private class DeepgramRealtimeSession(
         done = true
         runCatching { ws?.close(1000, null) }
         callbacks.onClosed()
+    }
+
+    /** Hands one message's transcript to the right callback and tracks what is still unsettled. */
+    private fun emit(transcript: String, settled: Boolean) {
+        if (transcript.isBlank()) return
+        if (settled) {
+            pending = ""
+            callbacks.onFinalSegment(transcript)
+        } else {
+            pending = transcript
+            callbacks.onPartial(transcript)
+        }
     }
 
     private fun emitError(t: Throwable) {
@@ -871,8 +1071,235 @@ private class DeepgramRealtimeSession(
     private fun finishClosed(webSocket: WebSocket?) {
         if (done) return
         done = true
+        pending.takeIf { it.isNotEmpty() }?.let { callbacks.onFinalSegment(it) }
+        pending = ""
         runCatching { (webSocket ?: ws)?.close(1000, null) }
         callbacks.onClosed()
+    }
+}
+
+/**
+ * xAI Grok Voice Transcribe over `wss://api.x.ai/v1/stt` (issue #435). Everything is configured in the
+ * query and the Bearer header — there is no setup message — and 16 kHz mono PCM16 goes out as raw binary
+ * frames. The server announces `transcript.created` once its recogniser is up and asks for no audio before
+ * that, so the microphone's first frames wait in a [RealtimeAudioGate] until it does.
+ *
+ * What comes back looks like Deepgram's results and does not mean the same thing; that difference is all
+ * of [XaiTranscriptAssembler]. Stop sends `finalize` — xAI's documented push-to-talk release, which
+ * settles the utterance in progress at once instead of after the endpointing silence — and then
+ * `audio.done`, which the server answers with `transcript.done` before it closes.
+ *
+ * `language` is sent only where xAI formats numbers for it ([OpenAiCompatibleClient.xaiLanguage]); it
+ * never limits which language is recognised. Endpointing stays at xAI's 400 ms: an utterance final is a
+ * point where text settles, and the app decides for itself when the dictation ends.
+ */
+internal class XaiRealtimeSession(
+    private val client: OkHttpClient,
+    private val apiKey: String,
+    private val model: String,
+    private val language: String?,
+    private val callbacks: RealtimeCallbacks,
+    /** The socket address without its query — xAI's own, except in tests. */
+    private val endpoint: String = URL,
+) : RealtimeSession {
+
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private var ws: WebSocket? = null
+    private val audioGate = RealtimeAudioGate()
+    private val transcript = XaiTranscriptAssembler(callbacks)
+    @Volatile private var done = false
+
+    private companion object {
+        const val URL = "wss://api.x.ai/v1/stt"
+    }
+
+    /** The socket URL with the session's configuration in its query. */
+    internal fun url(): String = buildString {
+        append(endpoint).append("?sample_rate=16000&encoding=pcm&interim_results=true")
+        if (model.isNotBlank()) append("&model=").append(URLEncoder.encode(model, "UTF-8"))
+        OpenAiCompatibleClient.xaiLanguage(language)?.let { append("&language=").append(it) }
+    }
+
+    fun connect() {
+        val request = Request.Builder().url(url()).header("Authorization", "Bearer $apiKey").build()
+        ws = client.newWebSocket(request, listener)
+    }
+
+    private val listener = object : WebSocketListener() {
+        override fun onMessage(webSocket: WebSocket, text: String) {
+            val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
+            fun string(name: String) = (obj[name] as? JsonPrimitive)?.contentOrNull
+            fun flag(name: String) = (obj[name] as? JsonPrimitive)?.booleanOrNull == true
+            when (string("type")) {
+                "transcript.created" -> audioGate.markReady(
+                    send = { pcm16, len -> runCatching { webSocket.send(pcm16.toByteString(0, len)) } },
+                    finish = { sendEnd(webSocket) },
+                )
+                "transcript.partial" -> transcript.onPartial(
+                    text = string("text").orEmpty(),
+                    isFinal = flag("is_final"),
+                    speechFinal = flag("speech_final"),
+                )
+                "transcript.done" -> {
+                    transcript.onDone(string("text").orEmpty())
+                    finishClosed(webSocket)
+                }
+                // Almost every error closes the session on xAI's side anyway; the one that does not — a
+                // client message it could not parse — cannot come from the two fixed ones sent here.
+                "error" -> emitError(RuntimeException("xAI realtime error: ${string("message") ?: text}"))
+            }
+        }
+
+        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            android.util.Log.w("DictateRT", "xai realtime WS failed (http=${response?.code}): ${t.message}")
+            emitError(t)
+        }
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = finishClosed(webSocket)
+    }
+
+    override fun sendAudio(pcm16: ByteArray, len: Int) {
+        audioGate.sendAudio(pcm16, len) { audio, length ->
+            runCatching { ws?.send(audio.toByteString(0, length)) }
+        }
+    }
+
+    private fun sendEnd(socket: WebSocket) {
+        runCatching {
+            socket.send("""{"type":"finalize"}""")
+            socket.send("""{"type":"audio.done"}""")
+        }
+    }
+
+    override fun finish() {
+        audioGate.finish {
+            ws?.let { sendEnd(it) }
+        }
+    }
+
+    override fun cancel() {
+        audioGate.close()
+        done = true
+        runCatching { ws?.close(1000, null) }
+        callbacks.onClosed()
+    }
+
+    private fun emitError(t: Throwable) {
+        if (done) return
+        done = true
+        audioGate.close()
+        runCatching { ws?.cancel() }
+        callbacks.onError(t)
+        callbacks.onClosed()
+    }
+
+    private fun finishClosed(webSocket: WebSocket?) {
+        if (done) return
+        done = true
+        audioGate.close()
+        transcript.flush()
+        runCatching { (webSocket ?: ws)?.close(1000, null) }
+        callbacks.onClosed()
+    }
+}
+
+/**
+ * Turns xAI's streaming events into [RealtimeCallbacks] (issue #435) — the part of its protocol the
+ * documentation states loosely and two other projects had to measure.
+ *
+ * Every event is a `transcript.partial` with two flags, which between them mean three things:
+ *  - **interim** (`is_final` false): a guess at the audio *since the last lock*, not at the utterance.
+ *  - **chunk final** (`is_final` only): about three seconds of speech, locked.
+ *  - **utterance final** (both): the speaker paused, and the event restates the **whole utterance** —
+ *    every chunk final inside it again, re-punctuated.
+ *
+ * So a chunk final is never handed on as a final segment. Doing that and then appending the utterance
+ * final is how pipecat came to print every sentence twice (pipecat-ai/pipecat#5671: 76 % of its benchmark
+ * transcripts doubled). Chunks are held, shown in the preview with the interim that follows them, and
+ * replaced by the utterance final. Captured against the live endpoint by pipecat and by
+ * Project-N-E-K-O/N.E.K.O#3073, and the two agree:
+ *
+ *     interim       "my order"
+ *     chunk final   "my order number"
+ *     interim       "is four"
+ *     chunk final   "is four two one."
+ *     utterance     "my order number is four two one."
+ *
+ * N.E.K.O also found that noise produces empty events of the two other kinds — 34 in 25 seconds — and
+ * never an utterance final; they change nothing here. An utterance final that is itself empty falls back
+ * to its own chunks, so a blank restatement cannot swallow text the server had already locked.
+ *
+ * `transcript.done` is the one event nobody has pinned down: the reference calls its text the "final
+ * transcript", and its own example carries an empty one. So it is believed only where no reading of it
+ * could repeat anything — while nothing has been settled yet. Otherwise what is still open when the
+ * session ends is settled from what is here: its locked chunks, then the last guess, because a word heard
+ * and not confirmed is worth more than one dropped.
+ *
+ * Only ever driven from one socket's reader thread, so it keeps no locks.
+ */
+internal class XaiTranscriptAssembler(private val callbacks: RealtimeCallbacks) {
+
+    /** The chunk finals of the utterance in progress — locked text its utterance final will restate. */
+    private val locked = mutableListOf<String>()
+
+    /** The guess at the audio after the last lock. */
+    private var interim = ""
+
+    /** What the preview last showed, so a run of identical empty events does not repaint it each time. */
+    private var shown = ""
+
+    /** Whether any final segment has gone out, which is all [onDone] needs to know. */
+    private var settledAny = false
+
+    fun onPartial(text: String, isFinal: Boolean, speechFinal: Boolean) {
+        val piece = text.trim()
+        when {
+            isFinal && speechFinal -> {
+                val chunks = locked.toList()
+                locked.clear()
+                interim = ""
+                shown = ""
+                if (piece.isNotEmpty()) settle(piece) else chunks.forEach(::settle)
+            }
+            isFinal -> {
+                if (piece.isNotEmpty()) locked += piece
+                interim = ""
+                preview()
+            }
+            else -> {
+                interim = piece
+                preview()
+            }
+        }
+    }
+
+    fun onDone(text: String) {
+        val piece = text.trim()
+        if (!settledAny && piece.isNotEmpty()) {
+            locked.clear()
+            interim = ""
+            settle(piece)
+        }
+        flush()
+    }
+
+    /** Settles whatever the server never did — locked chunks first, then the last guess. */
+    fun flush() {
+        val open = locked + interim
+        locked.clear()
+        interim = ""
+        open.filter { it.isNotEmpty() }.forEach(::settle)
+    }
+
+    private fun preview() {
+        val text = (locked + interim).filter { it.isNotEmpty() }.joinToString(" ")
+        if (text == shown) return
+        shown = text
+        callbacks.onPartial(text)
+    }
+
+    private fun settle(piece: String) {
+        settledAny = true
+        callbacks.onFinalSegment(piece)
     }
 }
 
@@ -880,8 +1307,34 @@ private class DeepgramRealtimeSession(
  * True for OpenAI's gpt-transcribe generation, which renamed the singular `language` field to a
  * `languages` array. Matched on the id prefix so later snapshots and variants are covered, while
  * gpt-realtime-whisper and the gpt-4o-*-transcribe models keep the old field (issue #248).
+ *
+ * Measured on the batch endpoint (2026-08-28): gpt-transcribe there answers an invalid code under
+ * `language`, `languages` and `languages[]` alike, so it reads all three and this branch is a
+ * courtesy rather than the thing that makes a language choice apply. What the array does earn is the
+ * *list*: every entry is validated, so several languages genuinely arrive (issue #99), which no
+ * singular field can express. Unverified for the realtime socket, where the field name may well
+ * matter — hence the branch stays.
+ *
+ * **The prefix is deliberately not vendor-tolerant.** OpenRouter's id for the same model reads
+ * `openai/gpt-transcribe` and therefore does NOT match, which is correct: OpenRouter's transcription
+ * endpoint documents the singular `language` and nothing else, and an unread multipart field is
+ * dropped in silence rather than refused — so "generalising" this to strip a `vendor/` prefix would
+ * turn every language choice on OpenRouter into a no-op with no error to show for it. A test in
+ * OpenAiCompatibleClientNetworkTest holds that line (issue #321).
  */
 internal fun usesLanguagesField(model: String): Boolean {
     val id = model.lowercase()
     return id.startsWith("gpt-transcribe") || id.startsWith("gpt-live-transcribe")
+}
+
+/**
+ * The codes for a provider field that takes a *list* of languages: the pinned language when the user
+ * chose one — a choice stays a choice, however many the model could juggle — and otherwise the
+ * languages they actually dictate in, which is what turns "detect automatically" into "detect among
+ * my languages" (issue #99). Empty means detect freely, as before.
+ */
+internal fun languageHintsOf(language: String?, expectedLanguages: List<String>): List<String> {
+    val pinned = language?.takeIf { it.isNotBlank() && it != "detect" }
+    return (if (pinned != null) listOf(pinned) else expectedLanguages)
+        .filter { it.isNotBlank() && it != "detect" }
 }

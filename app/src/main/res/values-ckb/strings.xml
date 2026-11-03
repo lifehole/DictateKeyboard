@@ -272,7 +272,7 @@
     <string name="pref__input_feedback__any_feat_key_press__summary" comment="Preference summary">نمونە: دوگمەکان، بەشی ئیمۆجی</string>
     <string name="pref__input_feedback__any_feat_key_long_press__summary" comment="Preference summary">نمونە: پیتە لاوەکییەکان</string>
     <string name="pref__input_feedback__any_feat_key_repeated_action__summary" comment="Preference summary">نمونە: دوگمەی سڕینەوە</string>
-    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">بەردەست نییە</string>
+    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">نمونە: دەستخشاندن بۆ گۆڕینی زمان، نووسین بە دەستخشاندن</string>
     <string name="pref__input_feedback__any_feat_gesture_moving_swipe__summary" comment="Preference summary">نمونە: دەستخشاندن بۆ لای ڕاست یان چەپ</string>
     <string name="settings__keyboard__title" comment="Title of Keyboard preferences screen">تەختەکلیل</string>
     <string name="pref__keyboard__number_row__label" comment="Preference title">لیستی ژمارەکان</string>
@@ -316,7 +316,6 @@
     <string name="pref__correction__remember_caps_lock_state__label" comment="Preference title">گەورەکردنی هەمیشەیی</string>
     <string name="pref__correction__remember_caps_lock_state__summary" comment="Preference summary">سەرجەم پیتەکان هەمیشە بە گەورەیی(کاپیتاڵ) دەمێننەوە تەنها بۆ ئینگلیزی و زمانە لاتینییەکان</string>
     <string name="pref__correction__double_space_period__label" comment="Preference title">دانانی خاڵ بە دوگمەی بۆشایی</string>
-    <string name="pref__correction__double_space_period__summary" comment="Preference summary">دووجار دەست بنێیت بە دوگمەی بۆشاییدا خاڵ یان هێمای کۆتایی ڕستە دەنوسێت</string>
     <string name="pref__spelling__title" comment="Preference group title">ڕاستکردنەوەی هەڵەی ڕێنووس</string>
     <string name="pref__spelling__active_spellchecker__summary_disabled">ناچالاککردنی ڕاستکەرەوەی سیستەم، هێڵی سوور پیشان نادرێت لەکاتی نووسینی ووشە هەڵەکاندا، پەنجە لێرە بدە بۆ ڕێکخستن.</string>
     <string name="pref__spelling__active_spellchecker__summary_none">هیچ ڕاستکەرەوەیەکی هەڵەی ڕێنووس دیارینەکراوە، پەنجە لێرە بدە بۆ ڕێکخستن.</string>
@@ -347,12 +346,10 @@
     <string name="settings__udm__dialog__title_edit" comment="Label for the title (when in editing mode) in the user dictionary add/edit dialog">دەستکاریکردن</string>
     <string name="settings__udm__dialog__word_label" comment="Label for the word in the user dictionary add/edit dialog">ووشە</string>
     <string name="settings__udm__dialog__word_error_empty" comment="Error label for the word in the user dictionary add/edit dialog">تکایە ووشەیەک بنووسە</string>
-    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog">تکایە ووشەیەک بنوسە بۆ {regex}</string>
     <string name="settings__udm__dialog__freq_label" comment="Label for the frequency in the user dictionary add/edit dialog. The two decimal placeholders are the minimum and maximum frequency, both inclusive.">ژمارە (لەنێوان {f_min} تا {f_max})</string>
     <string name="settings__udm__dialog__freq_error_empty" comment="Error label for the frequency in the user dictionary add/edit dialog">تکایە بەهای ژمارە بنوسە</string>
     <string name="settings__udm__dialog__freq_error_invalid" comment="Error label for the frequency in the user dictionary add/edit dialog">تکایە ژمارەیەکی دروستی دیاریکراو بنوسە</string>
     <string name="settings__udm__dialog__shortcut_label" comment="Label for the shortcut in the user dictionary add/edit dialog">کورتکراوە (ئارەزوومەندانە)</string>
-    <string name="settings__udm__dialog__shortcut_error_invalid" comment="Error label for the shortcut in the user dictionary add/edit dialog">تکایە کورتکراوەیەک بنوسە بۆ {regex}</string>
     <string name="settings__udm__dialog__locale_label" comment="Label for the language code in the user dictionary add/edit dialog">کۆدی زمان (ئارەزومەند)</string>
     <string name="settings__udm__dialog__locale_error_invalid" comment="Error label for the language code in the user dictionary add/edit dialog">ئەم کۆدی زمانە نەناسراوە، کۆدی زمان پێویستە تەنها لە دوو پیت پێکبێت بۆ نمونە (en یان ku)، یان کۆدی زمان و ووڵات بۆ نمونە (en_US یان ku_IQ).</string>
     <string name="settings__gestures__title" comment="Title of Gestures screen">ئاماژەکان و نووسین بەسەریەکەوە</string>

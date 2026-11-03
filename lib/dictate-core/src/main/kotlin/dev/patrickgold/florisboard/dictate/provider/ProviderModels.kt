@@ -94,8 +94,23 @@ data class TranscriptionRequest(
     val model: String,
     /** ISO language code, or null / "detect" for auto-detection. */
     val language: String? = null,
+    /**
+     * The languages the recording may contain, for models whose language field takes a list
+     * (OpenAI's gpt-transcribe generation). Only ever set when [language] is auto-detect: it turns
+     * free detection into detection among the user's own dictation languages (issue #99). Ignored by
+     * every model that hints a single language.
+     */
+    val expectedLanguages: List<String> = emptyList(),
     /** Optional style/punctuation prompt to bias recognition. */
     val prompt: String? = null,
+    /**
+     * Called while the audio is going out, with the bytes sent and the total (issue #337).
+     *
+     * Only the file-import screen sets one: it is the single place with room to show a percentage and
+     * files big enough to need it. Left null everywhere else — a dictation is short and its wait is the
+     * model thinking, not the upload — so the wrapping in [ProgressRequestBody] never happens there.
+     */
+    val onUpload: ((sent: Long, total: Long) -> Unit)? = null,
 )
 
 data class TranscriptionResult(

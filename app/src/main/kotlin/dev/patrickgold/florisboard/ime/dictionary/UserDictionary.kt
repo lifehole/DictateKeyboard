@@ -35,13 +35,14 @@ import androidx.room.TypeConverters
 import androidx.room.Update
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.lib.FlorisLocale
+import kotlinx.serialization.Serializable
 import dev.patrickgold.florisboard.lib.ValidationRule
 import org.florisboard.lib.android.readText
 import org.florisboard.lib.android.writeText
 import org.florisboard.lib.kotlin.tryOrNull
 import java.lang.ref.WeakReference
 
-private const val WORDS_TABLE = "words"
+internal const val WORDS_TABLE = "words"
 
 const val FREQUENCY_MIN = 1
 const val FREQUENCY_MAX = 255
@@ -64,6 +65,15 @@ private val PROJECTIONS_LANGUAGE: Array<String> = arrayOf(
     UserDictionary.Words.LOCALE,
 )
 
+/**
+ * One word in a personal dictionary.
+ *
+ * `@Serializable` because the backup writes these as JSON (issue #318). Worth stating why it is not
+ * optional: `writeJson` resolves its serializer from a *reified* type at runtime, so a missing annotation
+ * here compiles perfectly and then throws when someone actually presses "Back up" — which is how it was
+ * found, on the device, with the archive silently never produced.
+ */
+@Serializable
 @Entity(tableName = WORDS_TABLE)
 data class UserDictionaryEntry(
     @PrimaryKey(autoGenerate = true)
@@ -99,6 +109,16 @@ interface UserDictionaryDao {
 
     @Query("$SELECT_ALL_FROM_WORDS WHERE ${UserDictionary.Words.SHORTCUT} = :shortcut AND $LOCALE_MATCHES")
     fun queryShortcut(shortcut: String, locale: FlorisLocale?): List<UserDictionaryEntry>
+
+    /**
+     * The same, ignoring case. A shortcut is something the user types, and they type it at the start of a
+     * sentence too — where auto-capitalisation turns `mail` into `Mail` and an exact match finds nothing.
+     */
+    @Query(
+        "$SELECT_ALL_FROM_WORDS WHERE ${UserDictionary.Words.SHORTCUT} = :shortcut COLLATE NOCASE " +
+            "AND $LOCALE_MATCHES"
+    )
+    fun queryShortcutIgnoringCase(shortcut: String, locale: FlorisLocale?): List<UserDictionaryEntry>
 
     @Query(SELECT_ALL_FROM_WORDS)
     fun queryAll(): List<UserDictionaryEntry>
@@ -292,6 +312,22 @@ class SystemUserDictionaryDatabase(context: Context) : UserDictionaryDatabase {
                 selectionArgs = arrayOf(shortcut),
                 sortOrder = SORT_BY_FREQ_DESC,
             )
+        }
+
+        override fun queryShortcutIgnoringCase(shortcut: String, locale: FlorisLocale?): List<UserDictionaryEntry> {
+            return if (locale == null) {
+                queryResolver(
+                    selection = "${UserDictionary.Words.SHORTCUT} = ? COLLATE NOCASE AND ${UserDictionary.Words.LOCALE} IS NULL",
+                    selectionArgs = arrayOf(shortcut),
+                    sortOrder = SORT_BY_FREQ_DESC,
+                )
+            } else {
+                queryResolver(
+                    selection = "${UserDictionary.Words.SHORTCUT} = ? COLLATE NOCASE AND (${UserDictionary.Words.LOCALE} = ? OR ${UserDictionary.Words.LOCALE} = ? OR ${UserDictionary.Words.LOCALE} IS NULL)",
+                    selectionArgs = arrayOf(shortcut, locale.localeTag(), locale.language),
+                    sortOrder = SORT_BY_FREQ_DESC,
+                )
+            }
         }
 
         override fun queryShortcut(shortcut: String, locale: FlorisLocale?): List<UserDictionaryEntry> {
@@ -494,6 +530,12 @@ class SystemUserDictionaryDatabase(context: Context) : UserDictionaryDatabase {
 }
 
 object UserDictionaryValidation {
+    /**
+     * One token, no whitespace and no list separators. The cap is deliberate: an entry here feeds
+     * autocorrect, glide typing and the suggestion strip, all of which index single words — a whole
+     * phrase would misbehave in all three. Users who arrive here wanting a multi-line text block are
+     * pointed at the snippets in Dictate ▸ Prompts by the error message instead (issue #283).
+     */
     private val WordRegex = """^[^\s;,]+${'$'}""".toRegex()
 
     val Word = ValidationRule<String> {
@@ -503,7 +545,7 @@ object UserDictionaryValidation {
             val str = input.trim()
             when {
                 input.isBlank() -> resultInvalid(error = R.string.settings__udm__dialog__word_error_empty)
-                !str.matches(WordRegex) -> resultInvalid(error = R.string.settings__udm__dialog__word_error_invalid, "regex" to WordRegex)
+                !str.matches(WordRegex) -> resultInvalid(error = R.string.settings__udm__dialog__word_error_invalid)
                 else -> resultValid()
             }
         }
@@ -530,7 +572,7 @@ object UserDictionaryValidation {
             val str = input.trim()
             when {
                 input.isBlank() -> resultValid() // Is optional
-                !str.matches(WordRegex) -> resultInvalid(error = R.string.settings__udm__dialog__shortcut_error_invalid, "regex" to WordRegex)
+                !str.matches(WordRegex) -> resultInvalid(error = R.string.settings__udm__dialog__shortcut_error_invalid)
                 else -> resultValid()
             }
         }

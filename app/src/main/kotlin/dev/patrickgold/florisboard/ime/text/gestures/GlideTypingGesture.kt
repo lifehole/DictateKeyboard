@@ -43,7 +43,18 @@ class GlideTypingGesture {
         companion object {
             private const val MAX_DETECT_TIME = 500
             private const val VELOCITY_THRESHOLD = 0.10 // dp per ms
-            private val SWIPE_GESTURE_KEYS = arrayOf(KeyCode.DELETE, KeyCode.SHIFT, KeyCode.SPACE, KeyCode.CJK_SPACE)
+            /**
+             * Keys whose own gesture starts here, so a fast slide off one of them is never a glide.
+             *
+             * The layer keys are in the list because holding one open and sliding onto the symbol you
+             * want (issue #366) starts in the character layer, which is exactly where glide is looking.
+             * Without them the same movement gets read as a swiped word.
+             */
+            private val SWIPE_GESTURE_KEYS = arrayOf(
+                KeyCode.DELETE, KeyCode.SHIFT, KeyCode.SPACE, KeyCode.CJK_SPACE,
+                KeyCode.VIEW_CHARACTERS, KeyCode.VIEW_SYMBOLS, KeyCode.VIEW_SYMBOLS2,
+                KeyCode.VIEW_NUMERIC_ADVANCED,
+            )
         }
 
         /**
@@ -90,6 +101,10 @@ class GlideTypingGesture {
                             flogDebug { "Distance glided: $dist dp with velocity: ${dist / time} dp/ms" }
                             if (dist > keySize && (dist / time) > VELOCITY_THRESHOLD && (initialKey?.computedData?.code !in SWIPE_GESTURE_KEYS)) {
                                 pointerData.isActuallyGesture = true
+                                // Announced before the buffered points, so a listener hears "this press
+                                // turned into a glide" once, ahead of the replay, rather than having to
+                                // infer it from the first point (issue #325).
+                                listeners.forEach { it.onGlideStart() }
                                 // Let listener know all those points need to be added.
                                 pointerData.positions.take(pointerData.positions.size - 1).forEach { point ->
                                     listeners.forEach {
@@ -163,6 +178,12 @@ class GlideTypingGesture {
     }
 
     interface Listener {
+        /**
+         * Called the moment a press is recognised as a gesture, before the points collected so far are
+         * replayed through [onGlideAddPoint]. Fires once per gesture.
+         */
+        fun onGlideStart() {}
+
         /**
          * Called when a gesture is complete.
          */

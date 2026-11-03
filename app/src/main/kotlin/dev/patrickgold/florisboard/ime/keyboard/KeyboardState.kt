@@ -46,6 +46,7 @@ import kotlin.properties.Delegates
  *          |          |     1    |          | Is manual selection mode
  *          |          |    1     |          | Is manual selection mode (start)
  *          |          |   1      |          | Is manual selection mode (end)
+ *          |          |  1       |          | Layout Direction (0=LTR, 1=RTL)
  *          |          | 1        |          | Is incognito mode
  *          |        1 |          |          | Is quick actions overflow visible
  *          |       1  |          |          | Is quick actions editor visible
@@ -53,12 +54,12 @@ import kotlin.properties.Delegates
  *          |   1      |          |          | Is character half-width enabled
  *          |  1       |          |          | Is Kana Kata enabled
  *          | 1        |          |          | Is Kana small
- *      111 |          |          |          | Ime Ui Mode
- *     1    |          |          |          | Layout Direction (0=LTR, 1=RTL)
+ *     1111 |          |          |          | Ime Ui Mode
  *
  * <Byte 7> | <Byte 6> | <Byte 5> | <Byte 4> | Description
  * ---------|----------|----------|----------|---------------------------------
  *          |          |          |        1 | Subtype selection dialog visible
+ *          |          |          |       1  | Transcription provider selection visible (Dictate)
  *        1 |          |          |          | Devtools: Show drag&drop helpers
  *
  * The resulting structure is only relevant during a runtime lifespan and
@@ -75,13 +76,17 @@ open class KeyboardState protected constructor(open var rawValue: ULong) {
         const val O_KEY_VARIATION: Int =                    4
         const val M_INPUT_SHIFT_STATE: ULong =              0x03u
         const val O_INPUT_SHIFT_STATE: Int =                8
-        const val M_IME_UI_MODE: ULong =                    0x07u
+        // Four bits, not three: the seventh panel (the editing panel, issue #386) filled the last slot
+        // a three-bit region had, and an eighth would have wrapped around to TEXT with nothing to say
+        // so. The bit it grew into was the layout direction's, which moved down to a free flag below.
+        const val M_IME_UI_MODE: ULong =                    0x0Fu
         const val O_IME_UI_MODE: Int =                      24
 
         const val F_IS_SELECTION_MODE: ULong =              0x00000400u
         const val F_IS_MANUAL_SELECTION_MODE: ULong =       0x00000800u
         const val F_IS_MANUAL_SELECTION_MODE_START: ULong = 0x00001000u
         const val F_IS_MANUAL_SELECTION_MODE_END: ULong =   0x00002000u
+        const val F_IS_RTL_LAYOUT_DIRECTION: ULong =        0x00004000u
         const val F_IS_INCOGNITO_MODE: ULong =              0x00008000u
         const val F_IS_ACTIONS_OVERFLOW_VISIBLE: ULong =    0x00010000u
         const val F_IS_ACTIONS_EDITOR_VISIBLE: ULong =      0x00020000u
@@ -91,9 +96,9 @@ open class KeyboardState protected constructor(open var rawValue: ULong) {
         const val F_IS_KANA_KATA: ULong =                   0x00400000u
         const val F_IS_KANA_SMALL: ULong =                  0x00800000u
 
-        const val F_IS_RTL_LAYOUT_DIRECTION: ULong =        0x08000000u
-
         const val F_IS_SUBTYPE_SELECTION_VISIBLE: ULong =   0x1_0000_0000u
+        // The transcription provider picker (issue #431), a sheet like the subtype one above.
+        const val F_IS_PROVIDER_SELECTION_VISIBLE: ULong =  0x2_0000_0000u
 
         const val F_DEBUG_SHOW_DRAG_AND_DROP_HELPERS =      0x01_00_00_00_00_00_00_00uL
 
@@ -195,6 +200,10 @@ open class KeyboardState protected constructor(open var rawValue: ULong) {
     var isSubtypeSelectionVisible: Boolean
         get() = getFlag(F_IS_SUBTYPE_SELECTION_VISIBLE)
         set(v) { setFlag(F_IS_SUBTYPE_SELECTION_VISIBLE, v) }
+
+    var isTranscriptionProviderSelectionVisible: Boolean
+        get() = getFlag(F_IS_PROVIDER_SELECTION_VISIBLE)
+        set(v) { setFlag(F_IS_PROVIDER_SELECTION_VISIBLE, v) }
 
     var isComposingEnabled: Boolean
         get() = getFlag(F_IS_COMPOSING_ENABLED)

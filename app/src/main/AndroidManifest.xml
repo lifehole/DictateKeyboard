@@ -31,6 +31,13 @@
     <!-- Android 11+ only: Define that FlorisBoard requests to see all apps that
           ship with an IME or Spell Check service. This is used to guide the user
           in the Settings Ui why FlorisBoard may not be working.
+
+          The launcher/home entries are for the floating button's per-app visibility list (issue #392):
+          the picker has to show names and icons for the apps someone can choose between. This is the
+          policy-safe way to ask — deliberately NOT QUERY_ALL_PACKAGES, which is a restricted permission
+          needing its own Play declaration and a poor thing for a keyboard to be asking for. The price is
+          that an app with no launcher entry cannot be listed; the picker adds back the ones the button
+          has actually been used in, from the remembered positions.
      -->
     <queries>
         <intent>
@@ -39,12 +46,20 @@
         <intent>
             <action android:name="android.service.textservice.SpellCheckerService"/>
         </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN"/>
+            <category android:name="android.intent.category.LAUNCHER"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN"/>
+            <category android:name="android.intent.category.HOME"/>
+        </intent>
     </queries>
 
     <application
         android:name="dev.patrickgold.florisboard.FlorisApplication"
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/app_icon"
         android:label="@string/floris_app_name"
@@ -115,11 +130,26 @@
             </intent-filter>
         </service>
 
+        <!-- Keeps the process from being frozen while it transcribes for the watch (issue #363). A short
+             service needs no permission beyond FOREGROUND_SERVICE and no Play Console declaration. -->
+        <service
+            android:name="dev.patrickgold.florisboard.dictate.wear.WearTetherService"
+            android:foregroundServiceType="shortService"
+            android:exported="false"/>
+
         <!-- Keeps on-device model downloads running when the app is left (issue #207); shows an ongoing
              progress notification. Not exported: only started internally by LocalModelDownloads. -->
         <service
             android:name="dev.patrickgold.florisboard.dictate.provider.ModelDownloadService"
             android:foregroundServiceType="dataSync"
+            android:exported="false"/>
+
+        <!-- On-device translation (issue #424). Its own process, bound only while the translate bar is
+             open: the engine's 75–150 MB and any native crash stay out of the keyboard's process, and
+             the process ends when the bar closes. FlorisApplication skips its init there. -->
+        <service
+            android:name="dev.patrickgold.florisboard.dictate.translate.TranslationEngineService"
+            android:process=":translate"
             android:exported="false"/>
 
         <!-- System-wide voice input via the standard RecognitionService API (issue #67), like FUTO Voice
@@ -190,11 +220,17 @@
                 <data android:mimeType="application/vnd.florisboard.extension+zip"/>
                 <data android:mimeType="application/octet-stream"/><!-- Firefox looking at you :eyes: -->
             </intent-filter>
+            <!-- Sharing an extension keeps its own type only. octet-stream belongs on the VIEW
+                 filter above, where it earns its keep: a browser downloads a .flex and hands it over
+                 with no type at all. On SEND it earned nothing and cost something — Android has no
+                 type for .opus either, so every shared voice note offered "Import Extension" beside
+                 "Transcribe", and a share sheet that asks you to choose between two entries of the
+                 same app is a riddle. An extension that arrives typed still works, "Open with" still
+                 works, and the settings have their own import screen. -->
             <intent-filter android:label="Import Extension">
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="application/vnd.florisboard.extension+zip"/>
-                <data android:mimeType="application/octet-stream"/><!-- Firefox looking at you :eyes: -->
             </intent-filter>
         </activity>
 
@@ -235,6 +271,26 @@
             </intent-filter>
         </activity>
 
+        <!-- "Share → Dictate" for stickers (issue #280). Carries its own label because the clipboard
+             activity above already answers ACTION_SEND for images, and two identically named entries
+             in the share sheet would be a riddle rather than a choice. -->
+        <activity
+            android:name="dev.patrickgold.florisboard.dictate.sticker.StickerImportActivity"
+            android:label="@string/sticker__import_share_label"
+            android:theme="@style/FlorisAppTheme.Transparent"
+            android:excludeFromRecents="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="image/png"/>
+                <data android:mimeType="image/webp"/>
+                <data android:mimeType="image/gif"/>
+                <data android:mimeType="image/jpeg"/>
+            </intent-filter>
+        </activity>
+
         <!-- Dictate File Transcription trampoline (long-press mic → system file picker) -->
         <!-- NB: no android:noHistory here – a noHistory activity is destroyed when the document
              picker comes to the foreground, so its OpenDocument result would never be delivered.
@@ -244,6 +300,80 @@
             android:theme="@style/FlorisAppTheme.Transparent"
             android:excludeFromRecents="true"
             android:exported="false"/>
+
+        <!-- Scan text trampoline (issue #390): the keyboard cannot start an activity for a result, so
+             this one opens the system camera (or the photo picker) and leaves the image in the cache.
+             NB: no android:noHistory, for the same reason as the trampoline above – the camera coming
+             to the foreground would destroy it and its result would never arrive.
+             No CAMERA permission is declared anywhere in this manifest, and that is what makes the
+             feature possible: ACTION_IMAGE_CAPTURE is only gated on apps that declare it.
+             android:taskAffinity="" is load-bearing and was learned the hard way: without it this
+             activity joins the *settings app's* task, the camera stacks on top of that, and finishing
+             brings the settings app forward instead of the app the user was typing in. They never got
+             back to their field, and the scan was discarded for belonging to a different app. An empty
+             affinity gives it a throwaway task of its own, so finishing returns to whatever was in
+             front before. -->
+        <activity
+            android:name="dev.patrickgold.florisboard.dictate.scan.ScanCaptureActivity"
+            android:theme="@style/FlorisAppTheme.Transparent"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:exported="false"/>
+
+        <!-- "Share → Dictate" for a voice message (issue #301). The other half of the trampoline
+             above: that one puts a file's text into the field you are typing in, this one answers
+             the reverse — you are in Signal holding the audio and want to know what it says, with no
+             text field anywhere in sight. Hence a screen rather than a commit, and hence its own
+             label: a second entry reading just "Dictate" would be a riddle (the lesson of #280).
+             ACTION_VIEW as well, so "Open with → Dictate" works from any file manager.
+
+             configChanges is not a shortcut here, it is the fix: without it a rotation tears the
+             activity down, every remember is gone, and the startup effect runs again with a freshly
+             built uri list as its key — a second upload, paid for, replacing a transcript that was
+             already finished, after the copy step has wiped its own cache dir. Handling the change
+             keeps the composition, the running job and the playback position; LocalConfiguration
+             still updates, so the landscape layout switches as it should.
+
+             Deliberately NOT excludeFromRecents, unlike the sticker trampoline above. That one is an
+             invisible hop with nothing to come back to; this is a screen someone reads, and hiding it
+             from the recents list meant stepping into another app lost the transcript with no way
+             back to it. -->
+        <activity
+            android:name="dev.patrickgold.florisboard.dictate.importer.TranscribeShareActivity"
+            android:label="@string/dictate__import_share_label"
+            android:theme="@style/FlorisAppTheme"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="video/*"/>
+                <!-- WhatsApp voice notes are .opus, and three different answers exist for what
+                     that is. The media store scanner says audio/ogg; a file manager reading the
+                     extension says application/ogg; and Android's own MimeTypeMap has no entry for
+                     "opus" at all, so every documents provider falls back to octet-stream. Measured
+                     on a device: only the last of the three failed to reach here, which is why the
+                     voice notes stayed invisible after the first two were added.
+
+                     octet-stream is broader than one would like, but narrower than it sounds: it is
+                     the type of files Android cannot identify, not of all files. A zip is
+                     application/zip, an apk has its own type, a pdf has its own. The screen checks
+                     for an audio track and says so plainly when there is none. -->
+                <data android:mimeType="application/ogg"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="application/ogg"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+        </activity>
 
         <!-- Clipboard Media File Provider -->
         <provider
@@ -255,7 +385,7 @@
 
         <!-- Default file provider to share files from the "files" or "cache" dir -->
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="dev.patrickgold.florisboard.dictate.media.MediaFileProvider"
             android:authorities="${applicationId}.provider.file"
             android:grantUriPermissions="true"
             android:exported="false">
@@ -274,6 +404,15 @@
                 android:name="androidx.emoji2.text.EmojiCompatInitializer"
                 tools:node="remove"/>
         </provider>
+
+        <!-- ML Kit's text recognition (Scan text, #390) runs on the phone, but it brings Google's
+             datatransport along, and that sends usage metrics to firebaselogging.googleapis.com
+             (developers.google.com/ml-kit/terms; measured on the emulator: a FIREBASE_ML_SDK event per
+             scan and an upload job). The app promises no telemetry. Without this registry the
+             transport finds no backend and drops the events instead of sending them. -->
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            tools:node="remove"/>
 
     </application>
 

@@ -26,6 +26,7 @@ import dev.patrickgold.florisboard.ime.input.CapitalizationBehavior
 import dev.patrickgold.florisboard.ime.input.HapticVibrationMode
 import dev.patrickgold.florisboard.ime.input.InputFeedbackActivationMode
 import dev.patrickgold.florisboard.ime.input.InputShiftState
+import dev.patrickgold.florisboard.ime.keyboard.DoubleSpaceAction
 import dev.patrickgold.florisboard.ime.keyboard.IncognitoMode
 import dev.patrickgold.florisboard.ime.keyboard.KeyboardMode
 import dev.patrickgold.florisboard.ime.keyboard.SpaceBarMode
@@ -34,6 +35,7 @@ import dev.patrickgold.florisboard.ime.media.emoji.EmojiHistory
 import dev.patrickgold.florisboard.ime.media.emoji.EmojiSkinTone
 import dev.patrickgold.florisboard.ime.media.emoji.EmojiSuggestionType
 import dev.patrickgold.florisboard.ime.nlp.SpellingLanguageMode
+import dev.patrickgold.florisboard.ime.nlp.latin.AutoCorrectStrength
 import dev.patrickgold.florisboard.ime.smartbar.CandidatesDisplayMode
 import dev.patrickgold.florisboard.ime.smartbar.ExtendedActionsPlacement
 import dev.patrickgold.florisboard.ime.smartbar.IncognitoDisplayMode
@@ -345,6 +347,56 @@ private val ENUM_DISPLAY_ENTRIES = mapOf<Pair<KClass<*>, String>, @Composable ()
             )
         }
     },
+    AutoCorrectStrength::class to DEFAULT to {
+        listPrefEntries {
+            entry(
+                key = AutoCorrectStrength.CAUTIOUS,
+                label = stringRes(R.string.enum__auto_correct_strength__cautious),
+                description = stringRes(R.string.enum__auto_correct_strength__cautious__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+            entry(
+                key = AutoCorrectStrength.BALANCED,
+                label = stringRes(R.string.enum__auto_correct_strength__balanced),
+                description = stringRes(R.string.enum__auto_correct_strength__balanced__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+            entry(
+                key = AutoCorrectStrength.AGGRESSIVE,
+                label = stringRes(R.string.enum__auto_correct_strength__aggressive),
+                description = stringRes(R.string.enum__auto_correct_strength__aggressive__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+        }
+    },
+    DoubleSpaceAction::class to DEFAULT to {
+        listPrefEntries {
+            entry(
+                key = DoubleSpaceAction.PUNCTUATION,
+                label = stringRes(R.string.enum__double_space_action__punctuation),
+                description = stringRes(R.string.enum__double_space_action__punctuation__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+            entry(
+                key = DoubleSpaceAction.COMMA,
+                label = stringRes(R.string.enum__double_space_action__comma),
+                description = stringRes(R.string.enum__double_space_action__comma__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+            entry(
+                key = DoubleSpaceAction.NEWLINE,
+                label = stringRes(R.string.enum__double_space_action__newline),
+                description = stringRes(R.string.enum__double_space_action__newline__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+            entry(
+                key = DoubleSpaceAction.SLASH,
+                label = stringRes(R.string.enum__double_space_action__slash),
+                description = stringRes(R.string.enum__double_space_action__slash__description),
+                showDescriptionOnlyIfSelected = true,
+            )
+        }
+    },
     IncognitoMode::class to DEFAULT to {
         listPrefEntries {
             entry(
@@ -531,6 +583,10 @@ private val ENUM_DISPLAY_ENTRIES = mapOf<Pair<KClass<*>, String>, @Composable ()
                 key = SpaceBarMode.SPACE_BAR_KEY,
                 label = stringRes(R.string.enum__space_bar_mode__space_bar_key),
             )
+            entry(
+                key = SpaceBarMode.TRANSCRIPTION_PROVIDER,
+                label = stringRes(R.string.enum__space_bar_mode__transcription_provider),
+            )
         }
     },
     SpellingLanguageMode::class to DEFAULT to {
@@ -618,6 +674,10 @@ private val ENUM_DISPLAY_ENTRIES = mapOf<Pair<KClass<*>, String>, @Composable ()
             entry(
                 key = SwipeAction.SWITCH_TO_CLIPBOARD_CONTEXT,
                 label = stringRes(R.string.enum__swipe_action__switch_to_clipboard_context),
+            )
+            entry(
+                key = SwipeAction.SWITCH_TO_EDITING_CONTEXT,
+                label = stringRes(R.string.enum__swipe_action__switch_to_editing_context),
             )
             entry(
                 key = SwipeAction.SWITCH_TO_MEDIA_CONTEXT,

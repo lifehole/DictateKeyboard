@@ -5,6 +5,7 @@
     "--primary-variant": "#000000",
     "--ink": "#000000",
     "--paper": "#ffffff",
+    "--on-ink": "#ffffff",
     "--secondary": "#000000",
     "--secondary-variant": "#000000",
     "--background": "#ffffff",
@@ -47,7 +48,7 @@
   },
   "window-resize-action[windowmode=`fixed`]": {
     "background": "var(--ink)",
-    "foreground": "var(--on-primary)",
+    "foreground": "var(--on-ink)",
     "font-size": "24sp",
     "padding": "8dp",
     "shape": "circle()"
@@ -154,7 +155,7 @@
     "margin": "4dp"
   },
   "smartbar-action-key-icon[code=-214]": {
-    "foreground": "var(--on-primary)",
+    "foreground": "var(--on-ink)",
     "font-size": "20sp"
   },
   "smartbar-action-key": {
@@ -170,7 +171,7 @@
   },
   "smartbar-actions-overflow-customize-button": {
     "background": "var(--ink)",
-    "foreground": "var(--on-primary)",
+    "foreground": "var(--on-ink)",
     "font-size": "14sp",
     "margin": "0dp 8dp 0dp 0dp",
     "shape": "rounded-corner(24dp, 24dp, 24dp, 24dp)"
@@ -240,7 +241,7 @@
     "foreground": "var(--on-background)",
     "font-size": "14sp",
     "margin": "4dp",
-    "padding": "8dp 0dp",
+    "padding": "4dp 0dp",
     "shape": "rectangle()",
     "text-max-lines": "1",
     "text-overflow": "ellipsis"
@@ -248,6 +249,11 @@
   "smartbar-candidate-word:pressed": {
     "background": "var(--ink)",
     "foreground": "var(--paper)"
+  },
+  "smartbar-candidate-word[auto-commit=1]": {
+    "border-color": "#000000",
+    "border-width": "1.5dp",
+    "shape": "rounded-corner(25%, 25%, 25%, 25%)"
   },
   "smartbar-candidate-word-secondary-text": {
     "font-size": "8sp",
@@ -257,11 +263,13 @@
     "background": "var(--surface)",
     "foreground": "var(--on-background)",
     "font-size": "14sp",
-    "margin": "4dp",
+    "margin": "4dp 7dp",
     "padding": "8dp 0dp",
-    "shape": "rounded-corner(8%, 8%, 8%, 8%)",
+    "shape": "var(--shape-chip)",
     "text-max-lines": "1",
-    "text-overflow": "ellipsis"
+    "text-overflow": "ellipsis",
+    "border-color": "#000000",
+    "border-width": "1.5dp"
   },
   "smartbar-candidate-clip:pressed": {
     "background": "var(--ink)",
@@ -269,6 +277,15 @@
   },
   "smartbar-candidate-clip-icon": {
     "margin": "0dp 0dp 4dp 0dp"
+  },
+  "smartbar-candidate-clip-dismiss": {
+    "background": "var(--background)",
+    "foreground": "var(--on-background)",
+    "font-size": "14sp",
+    "margin": "6dp 3dp 0dp 3dp",
+    "shape": "circle()",
+    "border-color": "#000000",
+    "border-width": "1.5dp"
   },
   "smartbar-candidate-spacer": {
     "foreground": "var(--spacer-color)"
@@ -312,7 +329,7 @@
   },
   "clipboard-filter-chip[state=`active`]": {
     "background": "var(--ink)",
-    "foreground": "var(--on-primary)"
+    "foreground": "var(--on-ink)"
   },
   "clipboard-filter-chip-text": {
     "margin": "4dp 0dp 0dp 0dp"
@@ -323,7 +340,7 @@
   "clipboard-item": {
     "background": "var(--paper)",
     "foreground": "var(--ink)",
-    "font-size": "14sp",
+    "font-size": "13sp",
     "margin": "4dp",
     "shape": "var(--shape-variant)",
     "text-max-lines": "10",
@@ -393,7 +410,7 @@
   },
   "clipboard-history-disabled-button": {
     "background": "var(--ink)",
-    "foreground": "var(--on-primary)",
+    "foreground": "var(--on-ink)",
     "shape": "rounded-corner(24dp,24dp,24dp,24dp)"
   },
   "clipboard-history-locked-title": {
@@ -417,7 +434,7 @@
   },
   "extracted-landscape-input-action": {
     "background": "var(--ink)",
-    "foreground": "var(--on-surface)",
+    "foreground": "var(--on-ink)",
     "shape": "rounded-corner(4dp, 4dp, 4dp, 4dp)"
   },
   "glide-trail": {

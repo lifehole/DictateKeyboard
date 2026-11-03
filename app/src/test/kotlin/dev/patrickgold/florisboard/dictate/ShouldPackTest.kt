@@ -12,6 +12,7 @@ package dev.patrickgold.florisboard.dictate
 
 import dev.patrickgold.florisboard.dictate.provider.ProviderRegistry
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -28,7 +29,7 @@ class ShouldPackTest {
     private fun seconds(n: Int) = n * kbPerSecond
     private fun mib(n: Int) = n * 1024L * 1024L
 
-    /** OpenAI and Groq; every other provider reports 0, meaning "we do not know". */
+    /** OpenAI, Groq and OpenRouter; every other provider reports 0, meaning "we do not know". */
     private val known = mib(25)
     private val unknown = 0L
 
@@ -89,7 +90,7 @@ class ShouldPackTest {
     @Test
     fun `providers with room to spare never trip the limit clause`() {
         // Their ceilings are in gigabytes, so only the general threshold can ever decide for them.
-        for (id in listOf("elevenlabs", "deepgram", "assemblyai")) {
+        for (id in listOf("elevenlabs", "deepgram", "assemblyai", "ovhcloud")) {
             val limit = ProviderRegistry.maxUploadBytes(id)
             assertTrue(limit > mib(1024), "$id should have a documented ceiling far above a dictation")
             assertFalse(pack(mib(10), limit), "$id packed a 10 MiB recording it had no trouble with")
@@ -105,6 +106,29 @@ class ShouldPackTest {
         assertTrue(siliconflow == mib(50), "expected a documented 50 MiB ceiling, got $siliconflow")
         assertFalse(pack(mib(10), siliconflow))
         assertTrue(pack(mib(20), siliconflow))
+    }
+
+    @Test
+    fun `scaleway carries the ceiling its beta endpoint enforces`() {
+        // #423: documented as 25 MB and measured as 25 MiB. Without it the file-import path would send a
+        // shared recording whole, the way #321 found OpenRouter doing, and let the server refuse it.
+        val scaleway = ProviderRegistry.maxUploadBytes("scaleway")
+        assertTrue(scaleway == mib(25), "expected a documented 25 MiB ceiling, got $scaleway")
+    }
+
+    @Test
+    fun `openrouter carries a ceiling at all, which is the half that was missing`() {
+        // #321: OpenRouter documents 25 MB for a multipart upload, and the table simply did not know it.
+        // Packing was never the part that suffered — three quarters of 25 MiB is above the general
+        // threshold, so the 16 MiB rule keeps deciding here as it does for OpenAI. What suffered is
+        // every caller that asks "is there a figure at all": the import screen's size check and the
+        // splitter both read 0 as "nothing to check against", so a shared recording went out whole and
+        // came back refused. A number, any number, is what turns those two back on.
+        val openrouter = ProviderRegistry.maxUploadBytes("openrouter")
+        assertTrue(openrouter > 0L, "openrouter must document a ceiling, not report 0 = unknown")
+        assertEquals(mib(25), openrouter)
+        assertFalse(pack(mib(10), openrouter))
+        assertTrue(pack(mib(20), openrouter))
     }
 
     @Test

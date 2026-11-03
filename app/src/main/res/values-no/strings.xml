@@ -201,7 +201,7 @@
     <string name="pref__input_feedback__any_feat_key_press__summary" comment="Preference summary">f.eks. taster, knapper, emoji faner</string>
     <string name="pref__input_feedback__any_feat_key_long_press__summary" comment="Preference summary">f.eks. popup meny</string>
     <string name="pref__input_feedback__any_feat_key_repeated_action__summary" comment="Preference summary">f.eks. sletteknapp</string>
-    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">ikke implementert</string>
+    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">f.eks. sveip for å bytte språk, sveipeskriving</string>
     <string name="pref__input_feedback__any_feat_gesture_moving_swipe__summary" comment="Preference summary">f.eks. markør kontroll sveip</string>
     <string name="settings__keyboard__title" comment="Title of Keyboard preferences screen">Tastatur</string>
     <string name="pref__keyboard__number_row__label" comment="Preference title">Nummerrad</string>
@@ -230,7 +230,6 @@
     <string name="pref__correction__remember_caps_lock_state__label" comment="Preference title">Husk caps lock status</string>
     <string name="pref__correction__remember_caps_lock_state__summary" comment="Preference summary">Caps lock forblir på når du flytter til et annet tekstfelt</string>
     <string name="pref__correction__double_space_period__label" comment="Preference title">Dobbel-mellomrom punktum</string>
-    <string name="pref__correction__double_space_period__summary" comment="Preference summary">Om du trykker to ganger på mellomromstasten settes det inn et punktum etterfulgt av et mellomrom</string>
     <string name="pref__spelling__active_spellchecker__summary_disabled">Deaktivert på systembasis. Ingen røde linjer vil vises i tekstfelt for feil ord. Klikk for å endre.</string>
     <string name="pref__spelling__active_spellchecker__summary_none">Ingen linjebundet stavekontrolltjeneste angitt. Klikk for å endre.</string>
     <string name="pref__spelling__language_mode__label" comment="Label of Language mode pref">Språk</string>
@@ -256,7 +255,6 @@
     <string name="settings__udm__dialog__title_edit" comment="Label for the title (when in editing mode) in the user dictionary add/edit dialog">Rediger ord</string>
     <string name="settings__udm__dialog__word_label" comment="Label for the word in the user dictionary add/edit dialog">Ord</string>
     <string name="settings__udm__dialog__word_error_empty" comment="Error label for the word in the user dictionary add/edit dialog">Vennligst angi et ord</string>
-    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog">Vennligst angi et ord som samsvarer med {regex}</string>
     <string name="settings__udm__dialog__freq_label" comment="Label for the frequency in the user dictionary add/edit dialog. The two decimal placeholders are the minimum and maximum frequency, both inclusive.">Frekvens (mellom {f_min} og {f_max})</string>
     <string name="settings__udm__dialog__shortcut_label" comment="Label for the shortcut in the user dictionary add/edit dialog">Snarvei (valgfritt)</string>
     <string name="settings__udm__dialog__locale_label" comment="Label for the language code in the user dictionary add/edit dialog">Språkkode (valgfritt)</string>

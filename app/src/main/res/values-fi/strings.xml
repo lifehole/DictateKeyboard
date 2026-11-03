@@ -148,7 +148,7 @@
     <string name="pref__input_feedback__any_feat_key_press__summary" comment="Preference summary">esim. näppäin, -painike ja emojivälilehdet</string>
     <string name="pref__input_feedback__any_feat_key_long_press__summary" comment="Preference summary">esim. ponnahdusvalikko</string>
     <string name="pref__input_feedback__any_feat_key_repeated_action__summary" comment="Preference summary">esim. poistonäppäin</string>
-    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">ei toteutettuna</string>
+    <string name="pref__input_feedback__any_feat_gesture_swipe__summary" comment="Preference summary">esim. kielen vaihto pyyhkäisemällä, pyyhkäisykirjoitus</string>
     <string name="settings__keyboard__title" comment="Title of Keyboard preferences screen">Näppäimistö</string>
     <string name="pref__keyboard__number_row__label" comment="Preference title">Numerorivi</string>
     <string name="pref__keyboard__number_row__summary" comment="Preference summary">Näytä numerorivi merkkiasettelun yläpuolella</string>
@@ -183,7 +183,6 @@
     <string name="pref__correction__remember_caps_lock_state__label" comment="Preference title">Muista caps lockin tila</string>
     <string name="pref__correction__remember_caps_lock_state__summary" comment="Preference summary">Caps lock pysyy päällä, kun siirrytään seuraavaan tekstikenttään</string>
     <string name="pref__correction__double_space_period__label" comment="Preference title">Piste tuplavälilyönnillä</string>
-    <string name="pref__correction__double_space_period__summary" comment="Preference summary">Kun välilyöntiä napautetaan kahdesti, lisätään piste ja välilyönti</string>
     <string name="pref__spelling__active_spellchecker__summary_disabled">Poissa käytössä koko järjestelmässä. Punaisia viivoja ei näytetä tekstikentässä ilmaisemaan virheellisiä sanoja. Napauta muuttaaksesi.</string>
     <string name="pref__spelling__active_spellchecker__summary_none">Tekstin oikeinkirjoituksen tarkistusta ei ole asetettu. Napauta muuttaaksesi.</string>
     <string name="pref__spelling__language_mode__label" comment="Label of Language mode pref">Kielet</string>
@@ -213,12 +212,10 @@
     <string name="settings__udm__dialog__title_edit" comment="Label for the title (when in editing mode) in the user dictionary add/edit dialog">Muokkaa sanaa</string>
     <string name="settings__udm__dialog__word_label" comment="Label for the word in the user dictionary add/edit dialog">Sana</string>
     <string name="settings__udm__dialog__word_error_empty" comment="Error label for the word in the user dictionary add/edit dialog">Syötä sana</string>
-    <string name="settings__udm__dialog__word_error_invalid" comment="Error label for the word in the user dictionary add/edit dialog">Syötä sana, joka vastaa \"{regex}\"</string>
     <string name="settings__udm__dialog__freq_label" comment="Label for the frequency in the user dictionary add/edit dialog. The two decimal placeholders are the minimum and maximum frequency, both inclusive.">Esiintymistiheys ({f_min} ja {f_max} välillä)</string>
     <string name="settings__udm__dialog__freq_error_empty" comment="Error label for the frequency in the user dictionary add/edit dialog">Syötä esiintymistiheyden arvo</string>
     <string name="settings__udm__dialog__freq_error_invalid" comment="Error label for the frequency in the user dictionary add/edit dialog">Syötä kelvollinen numero määritellyissä rajoissa</string>
     <string name="settings__udm__dialog__shortcut_label" comment="Label for the shortcut in the user dictionary add/edit dialog">Pikavalinta (vapaavalintainen)</string>
-    <string name="settings__udm__dialog__shortcut_error_invalid" comment="Error label for the shortcut in the user dictionary add/edit dialog">Syötä pikavalinta, joka vastaa \"{regex}\"</string>
     <string name="settings__udm__dialog__locale_label" comment="Label for the language code in the user dictionary add/edit dialog">Kielen koodi (valinnainen)</string>
     <string name="settings__udm__dialog__locale_error_invalid" comment="Error label for the language code in the user dictionary add/edit dialog">Kielen koodi ei ole kelvollinen. Koodin tulee vastata joko pelkkää kieltä (kuten en), kieltä ja maata (kuten en_US) tai kieltä, maata ja scriptiä (kuten en_US-script).</string>
     <string name="settings__gestures__title" comment="Title of Gestures screen">Eleet &amp; liukukirjoitus</string>

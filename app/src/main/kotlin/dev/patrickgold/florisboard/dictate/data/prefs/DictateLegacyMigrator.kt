@@ -21,6 +21,10 @@ import dev.patrickgold.florisboard.dictate.provider.ProviderAccounts
 import dev.patrickgold.florisboard.dictate.provider.ProxyConfig
 import java.net.Proxy
 import java.util.Locale
+import dev.patrickgold.florisboard.ime.core.Subtype
+import dev.patrickgold.florisboard.ime.core.SubtypeJsonConfig
+import dev.patrickgold.florisboard.ime.keyboard.extCoreLayout
+import dev.patrickgold.florisboard.ime.keyboard.extCorePunctuationRule
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.QuickAction
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.keyData
 import dev.patrickgold.florisboard.ime.text.key.KeyCode
@@ -334,6 +338,199 @@ object DictateLegacyMigrator {
         prefs.dictate.promptsLayout.set(DictatePromptsLayout.ROW)
         prefs.dictate.promptsLayoutRowMigrated.set(true)
     }
+
+    /**
+     * One-time switch onto hold-to-record (issue #235), now the default.
+     *
+     * Same shape and same reasoning as the prompt-row switch above: a keyboard already in use would
+     * otherwise keep a default nobody ever chose, and go on behaving differently from every fresh
+     * install for as long as it exists. Holding the mic to speak is what nearly everyone reaches for;
+     * what it displaces — holding the *idle* mic to pick a file — has had its own way in since #301.
+     *
+     * This does write over a deliberate "off", and there is no way to tell that apart from a default
+     * never touched. That is why it belongs in the what's-new dialog: the setting is one tap away in
+     * Dictate › Recording, and the release has to say so. Idempotent via
+     * `prefs.dictate.pushToTalkDefaultMigrated`.
+     */
+    suspend fun migratePushToTalkDefaultIfNeeded() {
+        val prefs by FlorisPreferenceStore
+        if (prefs.dictate.pushToTalkDefaultMigrated.get()) return
+        prefs.dictate.pushToTalk.set(true)
+        prefs.dictate.pushToTalkDefaultMigrated.set(true)
+    }
+
+    /**
+     * Moves "Trust user certificates" from the app onto each account (issue #383).
+     *
+     * Every account that existed while the app-wide switch was on keeps trusting them, so nothing that
+     * worked stops working: someone behind a company's TLS-inspecting proxy needed it for every provider.
+     * What changes is the next account, which starts without and has to be switched on for itself.
+     * Idempotent: the old switch is turned off once its value has moved.
+     */
+    suspend fun migrateTrustUserCertsToAccountsIfNeeded() {
+        val prefs by FlorisPreferenceStore
+        if (!prefs.dictate.trustUserCertificates.get()) return
+        val keyring = prefs.dictate.providerAccounts.get()
+        prefs.dictate.providerAccounts.set(
+            keyring.copy(accounts = keyring.accounts.mapValues { (_, account) -> account.copy(trustUserCerts = true) }),
+        )
+        prefs.dictate.trustUserCertificates.set(false)
+    }
+
+    /**
+     * One-time switch onto word learning (issues #318, #375), now the default.
+     *
+     * The same trade as the hold-to-record switch above, for the same reason: word learning shipped off,
+     * three screens deep, and a personal vocabulary that only the users who went looking for it ever get
+     * is most of the feature not existing. The reporter's words for it were that a core keyboard feature
+     * should not have to be discovered.
+     *
+     * This writes over a deliberate "off" — nothing distinguishes that from a default never touched — so
+     * the release carrying it **must** say so in its what's-new, with where to switch it back. What makes
+     * that defensible rather than merely noted: every learned word stays on the device, is listed one by
+     * one in Typing › User dictionaries › Learned words with a delete beside it, and nothing is learned in
+     * incognito mode, in password fields, or from anything that was not typed key by key.
+     *
+     * Deliberately does **not** also switch the internal user dictionary back on. Learning needs it —
+     * promotion writes there — but that dictionary changes which words are suggested, and reaching that
+     * far into someone's settings for a feature they did not ask for is a different thing from restoring
+     * a default. Where it is off, the Learned-words screen now says so and points at the switch.
+     */
+    suspend fun migrateWordLearningDefaultIfNeeded() {
+        val prefs by FlorisPreferenceStore
+        if (prefs.suggestion.learnTypedWordsDefaultMigrated.get()) return
+        prefs.suggestion.learnTypedWords.set(true)
+        prefs.suggestion.learnTypedWordsDefaultMigrated.set(true)
+    }
+
+    /**
+     * Drops the Devanagari digit row (१२३…) from saved Hindi subtypes (issue #315). Hindi is written with
+     * Western digits in practice, and the preset no longer asks for the localized row — but a subtype is
+     * persisted with its full layout map, so the old choice would otherwise survive forever.
+     *
+     * Only subtypes that still carry the untouched old default are rewritten; anyone who deliberately
+     * picked a digit row in the subtype editor keeps it.
+     */
+    suspend fun migrateHindiDefaultsIfNeeded() {
+        val prefs by FlorisPreferenceStore
+        if (prefs.localization.hindiDefaultsMigrated.get()) return
+        prefs.localization.hindiDefaultsMigrated.set(true)
+
+        val listRaw = prefs.localization.subtypes.get()
+        if (listRaw.isBlank() || !listRaw.contains(LEGACY_HINDI_CHARACTERS)) return
+        val subtypes = runCatching {
+            SubtypeJsonConfig.decodeFromString<List<Subtype>>(listRaw)
+        }.getOrNull() ?: return
+
+        var changed = false
+        val migrated = subtypes.map { subtype ->
+            val isUntouchedHindiDefault = subtype.primaryLocale.language == "hi" &&
+                subtype.layoutMap.characters == extCoreLayout(LEGACY_HINDI_CHARACTERS_ID) &&
+                subtype.layoutMap.numericRow == extCoreLayout(LEGACY_HINDI_NUMERIC_ROW_ID)
+            if (isUntouchedHindiDefault) {
+                changed = true
+                subtype.copy(
+                    layoutMap = subtype.layoutMap.copy(
+                        characters = extCoreLayout("hindi_varnamala"),
+                        numericRow = extCoreLayout("western_arabic"),
+                    ),
+                    // Five character rows plus a digit row plus the smartbar is too tall; match what
+                    // a new Hindi subtype gets from the preset.
+                    numberRow = false,
+                )
+            } else {
+                subtype
+            }
+        }
+        if (changed) {
+            prefs.localization.subtypes.set(SubtypeJsonConfig.encodeToString(migrated))
+        }
+    }
+
+    /**
+     * Points saved French subtypes at the new `french` punctuation rule (issue #329).
+     *
+     * French puts a space before `? ! ; :` — that is correct typography, not a slip — so punctuation
+     * tightening must leave those alone. The rule now says so, and the presets name it, but a preset only
+     * ever seeds a *new* subtype: every French keyboard that already exists still carries `default` and
+     * would have its spaces eaten the moment the setting is switched on.
+     *
+     * Only subtypes that still carry the untouched old default are rewritten; anyone who deliberately
+     * chose a punctuation rule in the subtype editor keeps it.
+     */
+    suspend fun migrateFrenchPunctuationRuleIfNeeded() {
+        val prefs by FlorisPreferenceStore
+        if (prefs.localization.frenchPunctuationMigrated.get()) return
+        prefs.localization.frenchPunctuationMigrated.set(true)
+
+        val listRaw = prefs.localization.subtypes.get()
+        if (listRaw.isBlank()) return
+        val subtypes = runCatching {
+            SubtypeJsonConfig.decodeFromString<List<Subtype>>(listRaw)
+        }.getOrNull() ?: return
+
+        var changed = false
+        val migrated = subtypes.map { subtype ->
+            val isUntouchedFrenchDefault = subtype.primaryLocale.language == "fr" &&
+                subtype.punctuationRule == extCorePunctuationRule(LEGACY_DEFAULT_PUNCTUATION_ID)
+            if (isUntouchedFrenchDefault) {
+                changed = true
+                subtype.copy(punctuationRule = extCorePunctuationRule(FRENCH_PUNCTUATION_ID))
+            } else {
+                subtype
+            }
+        }
+        if (changed) {
+            prefs.localization.subtypes.set(SubtypeJsonConfig.encodeToString(migrated))
+        }
+    }
+
+    /**
+     * Points saved Hindi subtypes at the new `devanagari` punctuation rule (issue #333).
+     *
+     * Hindi ends a sentence with the danda `।`, not a full stop, and until now nothing in this keyboard
+     * knew that: the double-tap shortcut wrote `. ` in every language, and the tightening and
+     * auto-space rules did not recognise a danda as the end of anything. The rule says so now and the
+     * presets name it — but a preset only ever seeds a *new* subtype, so every Hindi keyboard that
+     * already exists would keep the Latin one.
+     *
+     * Same shape and same restraint as [migrateFrenchPunctuationRuleIfNeeded]: only subtypes still
+     * carrying the untouched old default are rewritten.
+     */
+    suspend fun migrateDevanagariPunctuationRuleIfNeeded() {
+        val prefs by FlorisPreferenceStore
+        if (prefs.localization.devanagariPunctuationMigrated.get()) return
+        prefs.localization.devanagariPunctuationMigrated.set(true)
+
+        val listRaw = prefs.localization.subtypes.get()
+        if (listRaw.isBlank()) return
+        val subtypes = runCatching {
+            SubtypeJsonConfig.decodeFromString<List<Subtype>>(listRaw)
+        }.getOrNull() ?: return
+
+        var changed = false
+        val migrated = subtypes.map { subtype ->
+            val isUntouchedHindiDefault = subtype.primaryLocale.language == "hi" &&
+                subtype.punctuationRule == extCorePunctuationRule(LEGACY_DEFAULT_PUNCTUATION_ID)
+            if (isUntouchedHindiDefault) {
+                changed = true
+                subtype.copy(punctuationRule = extCorePunctuationRule(DEVANAGARI_PUNCTUATION_ID))
+            } else {
+                subtype
+            }
+        }
+        if (changed) {
+            prefs.localization.subtypes.set(SubtypeJsonConfig.encodeToString(migrated))
+        }
+    }
+
+    private const val LEGACY_DEFAULT_PUNCTUATION_ID = "default"
+    private const val FRENCH_PUNCTUATION_ID = "french"
+    private const val DEVANAGARI_PUNCTUATION_ID = "devanagari"
+
+    private const val LEGACY_HINDI_CHARACTERS_ID = "hindi_in"
+    private const val LEGACY_HINDI_NUMERIC_ROW_ID = "devanagari"
+    private const val LEGACY_HINDI_CHARACTERS = "org.florisboard.layouts:$LEGACY_HINDI_CHARACTERS_ID"
 
     /**
      * Injects [keyData] at the front of the saved dynamic action row unless an action with [code] is

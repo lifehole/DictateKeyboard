@@ -10,6 +10,8 @@
 
 package dev.patrickgold.florisboard.dictate.gif
 
+import android.graphics.drawable.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
@@ -39,8 +42,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,30 +55,39 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.DrawableImage
 import coil3.compose.AsyncImage
 import dev.patrickgold.florisboard.FlorisImeService
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
+import dev.patrickgold.florisboard.dictate.ui.MediaAction
+import dev.patrickgold.florisboard.dictate.ui.MediaActionOverlay
 import dev.patrickgold.florisboard.ime.ImeUiMode
 import dev.patrickgold.florisboard.ime.editor.EditorInstance
+import dev.patrickgold.florisboard.ime.input.LocalInputFeedbackController
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
+import dev.patrickgold.florisboard.ime.keyboard.PanelHeaderButton
+import dev.patrickgold.florisboard.ime.keyboard.PrivateSession
+import dev.patrickgold.florisboard.ime.text.keyboard.TextKeyData
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.florisboard.keyboardManager
 import dev.patrickgold.jetpref.datastore.model.collectAsState as collectPrefAsState
 import kotlinx.coroutines.launch
 import org.florisboard.lib.android.showShortToast
 import org.florisboard.lib.compose.stringRes
+import org.florisboard.lib.compose.panelScrollbar
 import org.florisboard.lib.snygg.ui.SnyggBox
 import org.florisboard.lib.snygg.ui.SnyggColumn
-import org.florisboard.lib.snygg.ui.SnyggIconButton
 import org.florisboard.lib.snygg.ui.SnyggRow
 import org.florisboard.lib.snygg.ui.SnyggText
+import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
 
 /**
  * The GIF panel, its own [ImeUiMode.GIF] next to the typing keyboard (opened via the GIF QuickAction).
@@ -102,6 +112,7 @@ fun GifPanel(
     val history by prefs.gif.history.collectPrefAsState()
     val submittedQuery by keyboardManager.gifSearchSubmit.collectAsState()
     val scope = rememberCoroutineScope()
+    val inputFeedbackController = LocalInputFeedbackController.current
     val hasKey = apiKey.isNotBlank()
 
     var gifs by remember { mutableStateOf<List<GifItem>>(emptyList()) }
@@ -110,8 +121,11 @@ fun GifPanel(
     var initialLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
-    var confirmDeleteGifId by remember { mutableStateOf<String?>(null) }
+    // The long-pressed GIF, if any. Its own state rather than an id, because the sheet shows it.
+    var menuItem by remember { mutableStateOf<GifItem?>(null) }
     val gridState = rememberLazyStaggeredGridState()
+    // The recents row scrolls independently of the grid, and its GIFs animate independently too.
+    val recentsState = rememberLazyListState()
 
     suspend fun loadPage(p: Int): GifPage =
         if (submittedQuery.isNullOrBlank()) GifManager.provider.trending(p)
@@ -123,10 +137,12 @@ fun GifPanel(
         initialLoading = true; loadError = false; gifs = emptyList(); page = 1; hasNext = false
         GifManager.ensureCustomerId()
         // Remember the term so it shows up as a recent-search chip next time.
-        submittedQuery?.takeIf { it.isNotBlank() }?.let { GifHistoryHelper.addSearch(prefs, it) }
+        submittedQuery?.takeIf { it.isNotBlank() }?.let {
+            GifHistoryHelper.addSearch(prefs, PrivateSession.isActive(context), it)
+        }
         try {
             val first = loadPage(1)
-            gifs = first.items
+            gifs = appendUnseenGifs(emptyList(), first.items)
             hasNext = first.hasNext
         } catch (e: Exception) {
             loadError = true
@@ -142,8 +158,7 @@ fun GifPanel(
                     loadingMore = true
                     try {
                         val next = loadPage(page + 1)
-                        val seen = gifs.mapTo(HashSet()) { it.id }
-                        gifs = gifs + next.items.filterNot { it.id in seen }
+                        gifs = appendUnseenGifs(gifs, next.items)
                         page += 1
                         hasNext = next.hasNext
                     } catch (e: Exception) {
@@ -178,16 +193,17 @@ fun GifPanel(
             // Taller than a normal keyboard so more (and larger) GIFs are visible at once.
             .height(FlorisImeSizing.imeUiHeight() + FlorisImeSizing.keyboardRowBaseHeight * 2),
     ) {
-        // Header: back, tappable search field, settings.
+        // Header: back, tappable search field, settings. Styled as the clipboard's header rather than
+        // as the emoji panel's bottom row, whose 16 dp of vertical padding would leave these icons
+        // about 8 dp in a row this height (#317).
         SnyggRow(
-            elementName = FlorisImeUi.MediaBottomRow.elementName,
+            elementName = FlorisImeUi.ClipboardHeader.elementName,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(FlorisImeSizing.smartbarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SnyggIconButton(
-                elementName = FlorisImeUi.MediaBottomRowButton.elementName,
+            PanelHeaderButton(
                 onClick = {
                     if (inResults) {
                         keyboardManager.gifSearchSubmit.value = null // back to the home view
@@ -200,7 +216,7 @@ fun GifPanel(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = null,
-                    modifier = Modifier.size(30.dp),
+                    modifier = Modifier.size(FlorisImeSizing.mediaHeaderIconSize),
                 )
             }
             Box(
@@ -210,7 +226,13 @@ fun GifPanel(
                     .padding(vertical = 7.dp)
                     .clip(RoundedCornerShape(50))
                     .background(Color(0x22808080))
-                    .clickable(enabled = hasKey) { keyboardManager.activateGifSearch() }
+                    // Silent since this field shipped: a plain clickable is not a PanelHeaderButton and
+                    // does not tick on its own, which #326 only caught for the panels it went looking
+                    // through. The sticker panel's field is the same shape and asks the same way.
+                    .clickable(enabled = hasKey) {
+                        inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
+                        keyboardManager.activateGifSearch()
+                    }
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -222,24 +244,28 @@ fun GifPanel(
                             .size(20.dp)
                             .padding(end = 8.dp),
                     )
-                    SnyggText(
-                        elementName = FlorisImeUi.SmartbarCandidateWordText.elementName,
+                    // This box stands in for a search field, so it has to be lettered like one. The
+                    // real bar (KeyboardSearchBar) draws its query with a plain Text at the default
+                    // size; a SnyggText here would inherit the header's 16sp and read a size larger
+                    // than the thing it imitates (#317).
+                    val headerStyle = rememberSnyggThemeQuery(FlorisImeUi.ClipboardHeader.elementName)
+                    Text(
                         text = submittedQuery?.takeIf { it.isNotBlank() }
                             ?: stringRes(R.string.gif__search_placeholder),
+                        color = headerStyle.foreground(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            SnyggIconButton(
-                elementName = FlorisImeUi.MediaBottomRowButton.elementName,
+            PanelHeaderButton(
                 onClick = { FlorisImeService.launchSettings("settings/media") },
                 modifier = Modifier.size(FlorisImeSizing.smartbarHeight),
             ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = null,
-                    modifier = Modifier.size(30.dp),
+                    modifier = Modifier.size(FlorisImeSizing.mediaHeaderIconSize),
                 )
             }
         }
@@ -249,81 +275,111 @@ fun GifPanel(
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            when {
-                !hasKey -> GifSetupNeeded { FlorisImeService.launchSettings("settings/media") }
-                initialLoading -> GifCentered { CircularProgressIndicator(color = accent) }
-                loadError -> GifCentered {
-                    SnyggText(FlorisImeUi.MediaEmojiSubheader.elementName, text = stringRes(R.string.gif__error))
-                }
-                else -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        // Home view: a row of recently used GIFs above trending. (Hidden while showing results.)
-                        if (!inResults && history.recentGifs.isNotEmpty()) {
-                            LazyRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(96.dp),
-                                contentPadding = PaddingValues(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                items(history.recentGifs, key = { "recent-${it.id}" }) { item ->
-                                    Box {
+            // Dimmed rather than covered, so the GIF being acted on stays visible behind the sheet —
+            // which on a wall of moving thumbnails is the only way to see which one was long-pressed.
+            val panelAlpha by animateFloatAsState(targetValue = if (menuItem != null) 0.12f else 1f)
+            Box(modifier = Modifier.fillMaxSize().alpha(panelAlpha)) {
+                when {
+                    !hasKey -> GifSetupNeeded { FlorisImeService.launchSettings("settings/media") }
+                    initialLoading -> GifCentered { CircularProgressIndicator(color = accent) }
+                    loadError -> GifCentered {
+                        SnyggText(FlorisImeUi.MediaEmojiSubheader.elementName, text = stringRes(R.string.gif__error))
+                    }
+                    else -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Home view: a row of recently used GIFs above trending. (Hidden while showing results.)
+                            if (!inResults && history.recentGifs.isNotEmpty()) {
+                                LazyRow(
+                                    state = recentsState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(96.dp),
+                                    contentPadding = PaddingValues(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    items(history.recentGifs, key = { "recent-${it.id}" }) { item ->
                                         GifThumb(
                                             item = item,
                                             fixedHeight = true,
-                                            onClick = { insert(item) },
-                                            onLongClick = { confirmDeleteGifId = item.id },
+                                            scrolling = { recentsState.isScrollInProgress },
+                                            onClick = {
+                                                inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
+                                                insert(item)
+                                            },
+                                            onLongClick = {
+                                                inputFeedbackController.keyLongPress(TextKeyData.UNSPECIFIED)
+                                                menuItem = item
+                                            },
                                         )
-                                        DropdownMenu(
-                                            expanded = confirmDeleteGifId == item.id,
-                                            onDismissRequest = { confirmDeleteGifId = null },
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringRes(R.string.action__delete)) },
-                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                                                onClick = {
-                                                    scope.launch { GifHistoryHelper.removeGif(prefs, item.id) }
-                                                    confirmDeleteGifId = null
-                                                },
-                                            )
-                                        }
                                     }
                                 }
                             }
-                        }
-                        if (gifs.isEmpty()) {
-                            GifCentered {
-                                SnyggText(FlorisImeUi.MediaEmojiSubheader.elementName, text = stringRes(R.string.gif__no_results))
-                            }
-                        } else {
-                            // Staggered so GIFs keep their own aspect ratio and pack tightly (no fixed
-                            // cell height leaving gaps under shorter GIFs). More pages load on scroll.
-                            LazyVerticalStaggeredGrid(
-                                state = gridState,
-                                columns = StaggeredGridCells.Adaptive(minSize = 128.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentPadding = PaddingValues(4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalItemSpacing = 4.dp,
-                            ) {
-                                items(gifs, key = { it.id }) { item ->
-                                    GifThumb(item = item, onClick = { insert(item) })
+                            if (gifs.isEmpty()) {
+                                GifCentered {
+                                    SnyggText(FlorisImeUi.MediaEmojiSubheader.elementName, text = stringRes(R.string.gif__no_results))
+                                }
+                            } else {
+                                // Staggered so GIFs keep their own aspect ratio and pack tightly (no fixed
+                                // cell height leaving gaps under shorter GIFs). More pages load on scroll.
+                                LazyVerticalStaggeredGrid(
+                                    state = gridState,
+                                    columns = StaggeredGridCells.Adaptive(minSize = 128.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .panelScrollbar(gridState, accent),
+                                    contentPadding = PaddingValues(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalItemSpacing = 4.dp,
+                                ) {
+                                    items(gifs, key = { it.id }) { item ->
+                                        GifThumb(
+                                            item = item,
+                                            scrolling = { gridState.isScrollInProgress },
+                                            onClick = {
+                                                inputFeedbackController.keyPress(TextKeyData.UNSPECIFIED)
+                                                insert(item)
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                if (hasKey) {
+                    SnyggText(
+                        elementName = FlorisImeUi.SmartbarCandidateWordSecondaryText.elementName,
+                        text = stringRes(R.string.gif__powered_by),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp),
+                    )
+                }
             }
-            if (hasKey) {
-                SnyggText(
-                    elementName = FlorisImeUi.SmartbarCandidateWordSecondaryText.elementName,
-                    text = stringRes(R.string.gif__powered_by),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp),
-                )
+            val sheetItem = menuItem
+            if (sheetItem != null) {
+                MediaActionOverlay(
+                    onDismiss = { menuItem = null },
+                    preview = {
+                        AsyncImage(
+                            model = sheetItem.previewUrl,
+                            contentDescription = sheetItem.title,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxWidth(0.8f)
+                                .aspectRatio(1f),
+                        )
+                    },
+                ) {
+                    MediaAction(
+                        icon = Icons.Default.Delete,
+                        text = stringRes(R.string.action__delete),
+                    ) {
+                        scope.launch { GifHistoryHelper.removeGif(prefs, sheetItem.id) }
+                        menuItem = null
+                    }
+                }
             }
         }
     }
@@ -334,9 +390,21 @@ fun GifPanel(
 private fun GifThumb(
     item: GifItem,
     onClick: () -> Unit,
+    scrolling: () -> Boolean,
     fixedHeight: Boolean = false,
     onLongClick: (() -> Unit)? = null,
 ) {
+    // Every cell here is animated, which makes this panel the heavier of the two: Coil hands over an
+    // AnimatedImageDrawable and never memory-caches it, so a grid in motion is decoding new frames and
+    // whole new images at the same time. Pausing for the length of the scroll gives the incoming
+    // decodes the room, and costs nothing anyone can perceive — an animation cannot be read mid-fling.
+    var animation by remember(item.id) { mutableStateOf<Animatable?>(null) }
+    LaunchedEffect(animation) {
+        val running = animation ?: return@LaunchedEffect
+        snapshotFlow { scrolling() }.collect { moving ->
+            if (moving) running.stop() else running.start()
+        }
+    }
     val ratio = if (item.width > 0 && item.height > 0) {
         (item.width.toFloat() / item.height.toFloat()).coerceIn(0.6f, 2.2f)
     } else 1f
@@ -350,6 +418,9 @@ private fun GifThumb(
         model = item.previewUrl,
         contentDescription = item.title,
         contentScale = ContentScale.Crop,
+        onSuccess = { state ->
+            animation = (state.result.image as? DrawableImage)?.drawable as? Animatable
+        },
         modifier = base
             .then(if (fixedHeight) Modifier.padding(horizontal = 3.dp) else Modifier)
             .aspectRatio(ratio)
