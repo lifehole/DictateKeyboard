@@ -1,6 +1,8 @@
-# Builds an installable debug APK on GitHub's servers and attaches it to the
-# run as a downloadable artifact. Trigger it from the Actions tab ("Run
-# workflow") or just push to any claude/** branch or main.
+# Builds an installable APK on GitHub's servers and attaches it to the run as
+# a downloadable artifact: the "optimized" build type (release shrinking and
+# optimisation under the debug package name and key), arm64 only. Trigger it
+# from the Actions tab ("Run workflow") or just push to any claude/** branch or
+# main.
 name: Build APK
 
 on:
@@ -12,7 +14,7 @@ on:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -85,12 +87,12 @@ jobs:
           path: app/src/main/jniLibs/arm64-v8a/libdictate_bergamot.so
           key: ${{ steps.bergamot-key.outputs.key }}
 
-      - name: Build the debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Build the APK
+        run: ./gradlew :app:assembleOptimized -Parm64Only --no-daemon
 
       - name: Upload the APK as an artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DictateKeyboard-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: DictateKeyboard-apk
+          path: app/build/outputs/apk/optimized/*.apk
           if-no-files-found: error

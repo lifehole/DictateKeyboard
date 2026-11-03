@@ -150,6 +150,20 @@ configure<ApplicationExtension> {
         }
     }
 
+    // A hand-installed build only needs the phone's own architecture: the other two ABIs' native
+    // libraries are 77 MB of the universal APK that a phone never loads. Opt-in (-Parm64Only), so the
+    // ordinary APK and the Play bundle keep every ABI.
+    if (project.hasProperty("arm64Only")) {
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                include("arm64-v8a")
+                isUniversalApk = false
+            }
+        }
+    }
+
     buildTypes {
         named("debug") {
             applicationIdSuffix = ".debug"
@@ -185,6 +199,20 @@ configure<ApplicationExtension> {
 
             applicationIdSuffix = ".bench"
             versionNameSuffix = "-bench+${getGitCommitHash(short = true).get()}"
+
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
+
+        // The build the GitHub Actions workflow ships: the release build's shrinking and optimisation,
+        // under the debug package name and the tracked debug key, so it installs over a debug build and
+        // the next build installs over it. A debug build does none of R8's work and runs every flog*
+        // call, a log line per field change and keystroke, which is a load the phone carries all day.
+        create("optimized") {
+            initWith(getByName("release"))
+
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-opt+${getGitCommitHash(short = true).get()}"
 
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
